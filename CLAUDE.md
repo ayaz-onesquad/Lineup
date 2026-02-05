@@ -42,3 +42,4 @@ Always respect this 5-level data structure. Never skip a level:
 - `npm run dev`: Start dev server
 - `npm run build`: Production check
 - `npx remotion preview`: Preview video skills
+- Schema cache refresh: After DB migrations, run `supabase/refresh-schema-cache.sql` in Supabase SQL Editor
