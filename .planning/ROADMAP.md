@@ -27,10 +27,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. PostgREST recognizes all columns on clients table (including location) without cache errors
   2. All INSERT operations automatically include tenant_id from auth context without explicit passing
   3. Users can create clients with Name, Status, Overview, Industry (searchable select), and Location fields
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] TBD
+- [ ] 01-01-PLAN.md — Fix PostgREST schema cache for new columns
+- [ ] 01-02-PLAN.md — Add tenant_id validation to client mutations
+- [ ] 01-03-PLAN.md — Update ClientForm layout with Status, Industry, Location fields
 
 ### Phase 2: Contact Management
 **Goal**: Clients have structured contact management with enforced primary contact
@@ -84,7 +86,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation Fixes | 0/TBD | Not started | - |
+| 1. Foundation Fixes | 0/3 | Planned | - |
 | 2. Contact Management | 0/TBD | Not started | - |
 | 3. Full-Page Transition | 0/TBD | Not started | - |
 | 4. CORE Workflow & Audit | 0/TBD | Not started | - |
