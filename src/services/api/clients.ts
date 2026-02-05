@@ -97,6 +97,7 @@ export const clientsApi = {
         overview: input.overview,
         industry: input.industry,
         location: input.location,
+        status: input.status ?? 'active',
         portal_enabled: input.portal_enabled ?? false,
       })
       .select()

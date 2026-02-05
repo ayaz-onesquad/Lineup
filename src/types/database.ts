@@ -401,6 +401,7 @@ export interface CreateClientInput {
   overview?: string
   industry?: IndustryType
   location?: string
+  status?: ClientStatus
   portal_enabled?: boolean
 }
 
