@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 ## Current Position
 
 Phase: 1 of 4 (Foundation Fixes)
-Plan: 1 of TBD in current phase
+Plan: 2 of TBD in current phase
 Status: In progress
-Last activity: 2026-02-05 — Completed 01-01-PLAN.md (PostgREST Schema Cache Fix)
+Last activity: 2026-02-05 — Completed 01-02-PLAN.md (Client Tenant Isolation)
 
-Progress: [█░░░░░░░░░] ~10%
+Progress: [██░░░░░░░░] ~20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: ~1 minute
-- Total execution time: ~1 minute
+- Total execution time: ~2 minutes
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation-fixes | 1 | ~1 min | ~1 min |
+| 01-foundation-fixes | 2 | ~2 min | ~1 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (~1 min)
-- Trend: First plan completed
+- Last 5 plans: 01-01 (~1 min), 01-02 (~1 min)
+- Trend: Consistent 1-minute execution for foundation fixes
 
 *Updated after each plan completion*
 
@@ -51,6 +51,11 @@ Recent decisions affecting current work:
 **From Plan 01-01:**
 - SQL script over CLI command: Provide SQL script to run in Supabase SQL Editor (no local CLI setup required)
 - Include verification queries: Add SELECT queries after NOTIFY to confirm columns exist
+
+**From Plan 01-02:**
+- Validate tenantId and userId before API calls rather than rely on non-null assertion: Fail-fast with clear error messages
+- Document RLS requirements in code comments: Help future maintainers understand tenant isolation constraints
+- Apply validation pattern to all CRUD operations: Consistent error handling across all entity mutations
 
 ### Pending Todos
 
@@ -73,6 +78,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-05 18:37 UTC
-Stopped at: Completed 01-01-PLAN.md (PostgREST Schema Cache Fix)
+Last session: 2026-02-05 18:38 UTC
+Stopped at: Completed 01-02-PLAN.md (Client Tenant Isolation)
 Resume file: None
