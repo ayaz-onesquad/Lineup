@@ -6,9 +6,12 @@ Complete the LineUp MVP with an **IBM Carbon Design System** aesthetic — elega
 
 ## Design Direction
 
-**IBM Carbon Design System** — Consistent spacing, typography, and interaction patterns across all components.
+**IBM Carbon Design System** — High-density layouts with consistent spacing, typography, and interaction patterns:
+- Page backgrounds: `#f4f4f4` (Gray 10)
+- Card/container backgrounds: `#ffffff` (white)
+- Spacing: 16px base unit, 8px for tight spacing
 
-**View/Edit Toggle** — All detail pages switch between read-only View Mode and inline Edit Mode via toggle button.
+**ViewEditToggle Component** — All detail pages implement toggle between View Mode (read-only) and Edit Mode (inline form).
 
 ## Phases
 
@@ -46,30 +49,31 @@ Plans:
 **Depends on**: Phase 1
 **Requirements**: BUG-03, CLI-02, CLI-03, CLI-04, CLI-05
 **Success Criteria** (what must be TRUE):
-  1. Client detail route (`/clients/:id`) loads correctly without errors
+  1. Client detail route (`/clients/:id`) loads correctly without 404/errors
   2. Contacts table exists with complete schema (first_name, last_name, email, phone, role dropdown, relationship, is_primary, display_id, audit fields, tenant_id)
-  3. New Client form includes Primary Contact section (first_name, last_name, email, phone, role)
-  4. Saving a new client is atomic — creates client + primary contact in single transaction
+  3. `useCreateClient` hook refactored to accept `primaryContact` data
+  4. Saving a new client is atomic — saves client + primary contact to Supabase in one flow
   5. Client Detail page shows Contacts tab with all linked contacts, supports add/edit/delete
-  6. System enforces exactly one primary contact per client
-  7. UI follows IBM Carbon styling (spacing, typography, high-density)
+  6. Client Detail page implements ViewEditToggle component
+  7. System enforces exactly one primary contact per client
+  8. UI follows IBM Carbon styling (#f4f4f4 page bg, white cards, high-density)
 **Plans**: TBD
 
 Plans:
 - [ ] TBD
 
 ### Phase 3: Projects & Sets Enhancement
-**Goal**: Projects and Sets have full-page views with View/Edit toggle, enhanced fields (dates, roles, budget)
+**Goal**: Projects and Sets have full-page views with ViewEditToggle, enhanced fields (dates, roles, budget)
 **Depends on**: Phase 2
 **Requirements**: PROJ-01, PROJ-02, PROJ-03, PROJ-04, SET-01, SET-02, SET-03, UI-01, UI-02, UI-03, UI-04, UI-05
 **Success Criteria** (what must be TRUE):
   1. Projects appear correctly in UI (listing/filtering works)
-  2. Project Detail page has View/Edit toggle with IBM Carbon styling
-  3. Projects have Expected Start/End and Actual Start/End date pickers (functional)
-  4. Projects have Lead, Secondary Lead, and PM dropdowns (populated from users table)
-  5. Set Detail page has View/Edit toggle with IBM Carbon styling
-  6. Sets have Expected Start/End and Actual Start/End date fields
-  7. Sets have Budget Days and Budget Hours fields
+  2. Project Detail page implements ViewEditToggle with IBM Carbon styling
+  3. Projects have `expected_start_date`, `expected_end_date`, `actual_start_date`, `actual_end_date` date pickers
+  4. Projects have `lead_id`, `secondary_lead_id`, `pm_id` dropdowns with user lookup
+  5. Set Detail page implements ViewEditToggle with IBM Carbon styling
+  6. Sets have `expected_start_date`, `expected_end_date`, `actual_start_date`, `actual_end_date` fields
+  7. Sets have `budget_days` (numeric) and `budget_hours` (numeric) fields
   8. All detail pages (Projects, Sets, Requirements) use full-page views, not modals
   9. Parent relationships editable via searchable dropdowns in Edit Mode
 **Plans**: TBD

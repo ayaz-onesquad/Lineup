@@ -6,9 +6,15 @@
 
 ## Design Direction
 
-**IBM Carbon Design System** — All components must follow IBM Carbon style guides: elegant, modern, high-density UI with consistent spacing, typography, and interaction patterns.
+**IBM Carbon Design System** — All components must follow IBM Carbon style guides:
+- **High-density layouts** — Compact, information-rich interfaces
+- **Colors**: `#f4f4f4` (Gray 10) for page backgrounds, white (`#ffffff`) for card/container backgrounds
+- **Consistent spacing** — 16px base unit, 8px for tight spacing
+- **Typography** — IBM Plex Sans (or system fallback with similar weights)
 
-**View/Edit Toggle Pattern** — All detail pages feature a 'View/Edit' toggle button to switch between read-only display and inline-editing modes.
+**ViewEditToggle Component** — All detail pages implement a `ViewEditToggle` component to switch between:
+- **View Mode**: Read-only display with "Edit" action
+- **Edit Mode**: Inline form with "Save" and "Cancel" actions
 
 ## v1 Requirements
 
@@ -26,7 +32,7 @@ Requirements for MVP completion demo. Each maps to roadmap phases.
 - [ ] **CLI-02**: Contacts table exists with first_name, last_name, email, phone, role (dropdown), relationship, is_primary, display_id, audit fields
 - [ ] **CLI-03**: Client Detail page has Contacts tab showing linked contacts with View/Edit toggle
 - [ ] **CLI-04**: System enforces one primary contact per client
-- [ ] **CLI-05**: New Client form includes Primary Contact section; saving is atomic (creates client + primary contact in single transaction)
+- [ ] **CLI-05**: Refactor `useCreateClient` hook to accept `primaryContact` data; save client + contact to Supabase in one atomic flow
 
 ### Project Management
 
