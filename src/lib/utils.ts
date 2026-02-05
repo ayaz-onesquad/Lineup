@@ -167,15 +167,18 @@ export function getImportanceLabel(importance: ImportanceLevel): string {
   return labels[importance]
 }
 
-// Industry options for dropdown
+// Industry options for dropdown - focused on agency clients
 export const INDUSTRY_OPTIONS = [
-  { value: 'technology', label: 'Technology' },
+  { value: 'saas', label: 'SaaS' },
+  { value: 'ecommerce', label: 'E-commerce' },
   { value: 'healthcare', label: 'Healthcare' },
+  { value: 'fintech', label: 'Fintech' },
+  { value: 'real_estate', label: 'Real Estate' },
+  { value: 'education', label: 'Education' },
+  { value: 'technology', label: 'Technology' },
   { value: 'finance', label: 'Finance' },
   { value: 'retail', label: 'Retail' },
   { value: 'manufacturing', label: 'Manufacturing' },
-  { value: 'education', label: 'Education' },
-  { value: 'real_estate', label: 'Real Estate' },
   { value: 'media', label: 'Media & Entertainment' },
   { value: 'hospitality', label: 'Hospitality' },
   { value: 'consulting', label: 'Consulting' },
