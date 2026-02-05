@@ -57,10 +57,13 @@ Plans:
   6. Client Detail page implements ViewEditToggle component
   7. System enforces exactly one primary contact per client
   8. UI follows IBM Carbon styling (#f4f4f4 page bg, white cards, high-density)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] TBD
+- [ ] 02-01-PLAN.md — Fix client detail route (BUG-03)
+- [ ] 02-02-PLAN.md — Create atomic save infrastructure (PostgreSQL function + API)
+- [ ] 02-03-PLAN.md — Refactor client creation with primary contact (CLI-05)
+- [ ] 02-04-PLAN.md — Create ViewEditToggle component and IBM Carbon design tokens
 
 ### Phase 3: Projects & Sets Enhancement
 **Goal**: Projects and Sets have full-page views with ViewEditToggle, enhanced fields (dates, roles, budget)
@@ -105,6 +108,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Fixes | 3/3 | Complete | 2026-02-05 |
-| 2. Client & Contact System | 0/TBD | Not started | - |
+| 2. Client & Contact System | 0/4 | Not started | - |
 | 3. Projects & Sets Enhancement | 0/TBD | Not started | - |
 | 4. CORE Workflow & Audit | 0/TBD | Not started | - |
