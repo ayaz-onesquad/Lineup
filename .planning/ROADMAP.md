@@ -2,7 +2,13 @@
 
 ## Overview
 
-Complete the LineUp MVP by fixing critical schema and tenant isolation bugs, enhancing the Client experience with contact management, transitioning all entity views to full-page patterns with View/Edit toggles, and implementing CORE methodology features (Eisenhower priority display, review workflows, cascading filters, and audit trails). This roadmap delivers a professional demo-ready platform in 4 phases.
+Complete the LineUp MVP with an **IBM Carbon Design System** aesthetic — elegant, modern, high-density UI. All detail pages use the **View/Edit toggle pattern**. This roadmap fixes critical bugs, implements Client + Contact management with atomic saves, enhances Projects and Sets with date/budget fields, and completes CORE methodology features.
+
+## Design Direction
+
+**IBM Carbon Design System** — Consistent spacing, typography, and interaction patterns across all components.
+
+**View/Edit Toggle** — All detail pages switch between read-only View Mode and inline Edit Mode via toggle button.
 
 ## Phases
 
@@ -13,8 +19,8 @@ Complete the LineUp MVP by fixing critical schema and tenant isolation bugs, enh
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation Fixes** - Fix blocking schema cache and tenant isolation bugs, update ClientForm
-- [ ] **Phase 2: Contact Management** - Build complete Contacts subsystem with primary contact enforcement
-- [ ] **Phase 3: Full-Page Transition** - Replace modals with full-page views for Projects, Sets, Requirements
+- [ ] **Phase 2: Client & Contact System** - Fix client detail, add primary contact to create form, complete contacts subsystem
+- [ ] **Phase 3: Projects & Sets Enhancement** - Full-page views with View/Edit toggle, date pickers, roles, budget fields
 - [ ] **Phase 4: CORE Workflow & Audit** - Complete Eisenhower display, review workflow, smart navigation, audit trails
 
 ## Phase Details
@@ -23,6 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Goal**: Critical bugs are resolved and clients can be created with complete information
 **Depends on**: Nothing (first phase)
 **Requirements**: BUG-01, BUG-02, CLI-01
+**Status**: COMPLETE
 **Success Criteria** (what must be TRUE):
   1. PostgREST recognizes all columns on clients table (including location) without cache errors
   2. All INSERT operations automatically include tenant_id from auth context without explicit passing
@@ -34,30 +41,37 @@ Plans:
 - [x] 01-02-PLAN.md — Add tenant_id validation to client mutations
 - [x] 01-03-PLAN.md — Update ClientForm layout with Status, Industry, Location fields
 
-### Phase 2: Contact Management
-**Goal**: Clients have structured contact management with enforced primary contact
+### Phase 2: Client & Contact System
+**Goal**: Client detail works, new clients include primary contact (atomic save), contacts subsystem complete
 **Depends on**: Phase 1
-**Requirements**: CLI-02, CLI-03, CLI-04
+**Requirements**: BUG-03, CLI-02, CLI-03, CLI-04, CLI-05
 **Success Criteria** (what must be TRUE):
-  1. Contacts table exists with complete schema (first_name, last_name, email, phone, role dropdown, relationship, is_primary, display_id, audit fields, tenant_id)
-  2. Client Detail page shows Contacts tab displaying all linked contacts with ability to add/edit/delete
-  3. System enforces exactly one primary contact per client (prevents creating client without primary contact, prevents deleting last primary contact)
-  4. Users can mark a contact as primary and system automatically unmarks previous primary contact
+  1. Client detail route (`/clients/:id`) loads correctly without errors
+  2. Contacts table exists with complete schema (first_name, last_name, email, phone, role dropdown, relationship, is_primary, display_id, audit fields, tenant_id)
+  3. New Client form includes Primary Contact section (first_name, last_name, email, phone, role)
+  4. Saving a new client is atomic — creates client + primary contact in single transaction
+  5. Client Detail page shows Contacts tab with all linked contacts, supports add/edit/delete
+  6. System enforces exactly one primary contact per client
+  7. UI follows IBM Carbon styling (spacing, typography, high-density)
 **Plans**: TBD
 
 Plans:
 - [ ] TBD
 
-### Phase 3: Full-Page Transition
-**Goal**: All entity types use consistent full-page views with View/Edit toggle pattern
+### Phase 3: Projects & Sets Enhancement
+**Goal**: Projects and Sets have full-page views with View/Edit toggle, enhanced fields (dates, roles, budget)
 **Depends on**: Phase 2
-**Requirements**: UI-01, UI-02, UI-03, UI-04, UI-05
+**Requirements**: PROJ-01, PROJ-02, PROJ-03, PROJ-04, SET-01, SET-02, SET-03, UI-01, UI-02, UI-03, UI-04, UI-05
 **Success Criteria** (what must be TRUE):
-  1. Projects, Sets, and Requirements each have full-page detail views (not modals/popups)
-  2. All detail pages implement View Mode and Edit Mode with toggle button
-  3. View Mode displays read-only information with "Edit" button
-  4. Edit Mode shows inline form with "Save" and "Cancel" buttons
-  5. Parent relationships are editable via searchable dropdowns in Edit Mode (e.g., Requirement can change which Set it belongs to)
+  1. Projects appear correctly in UI (listing/filtering works)
+  2. Project Detail page has View/Edit toggle with IBM Carbon styling
+  3. Projects have Expected Start/End and Actual Start/End date pickers (functional)
+  4. Projects have Lead, Secondary Lead, and PM dropdowns (populated from users table)
+  5. Set Detail page has View/Edit toggle with IBM Carbon styling
+  6. Sets have Expected Start/End and Actual Start/End date fields
+  7. Sets have Budget Days and Budget Hours fields
+  8. All detail pages (Projects, Sets, Requirements) use full-page views, not modals
+  9. Parent relationships editable via searchable dropdowns in Edit Mode
 **Plans**: TBD
 
 Plans:
@@ -87,6 +101,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Fixes | 3/3 | Complete | 2026-02-05 |
-| 2. Contact Management | 0/TBD | Not started | - |
-| 3. Full-Page Transition | 0/TBD | Not started | - |
+| 2. Client & Contact System | 0/TBD | Not started | - |
+| 3. Projects & Sets Enhancement | 0/TBD | Not started | - |
 | 4. CORE Workflow & Audit | 0/TBD | Not started | - |

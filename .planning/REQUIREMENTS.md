@@ -1,7 +1,14 @@
 # Requirements: LineUp MVP
 
 **Defined:** 2026-02-05
+**Updated:** 2026-02-05 (Pivot to IBM Carbon aesthetic)
 **Core Value:** Hierarchical flow (Client → Project → Phase → Set → Requirement) with automatic Eisenhower prioritization and built-in client portal
+
+## Design Direction
+
+**IBM Carbon Design System** — All components must follow IBM Carbon style guides: elegant, modern, high-density UI with consistent spacing, typography, and interaction patterns.
+
+**View/Edit Toggle Pattern** — All detail pages feature a 'View/Edit' toggle button to switch between read-only display and inline-editing modes.
 
 ## v1 Requirements
 
@@ -11,20 +18,35 @@ Requirements for MVP completion demo. Each maps to roadmap phases.
 
 - [x] **BUG-01**: Fix PostgREST schema cache so `location` column on `clients` table is recognized
 - [x] **BUG-02**: All INSERT mutations explicitly include `tenant_id` from auth context to prevent RLS visibility bugs
+- [ ] **BUG-03**: Fix client detail route (`/clients/:id`) — currently failing to load
 
 ### Client Management
 
 - [x] **CLI-01**: ClientForm includes Name, Status, Overview, Industry (searchable select), Location fields
 - [ ] **CLI-02**: Contacts table exists with first_name, last_name, email, phone, role (dropdown), relationship, is_primary, display_id, audit fields
-- [ ] **CLI-03**: Client Detail page has Contacts tab showing linked contacts
+- [ ] **CLI-03**: Client Detail page has Contacts tab showing linked contacts with View/Edit toggle
 - [ ] **CLI-04**: System enforces one primary contact per client
+- [ ] **CLI-05**: New Client form includes Primary Contact section; saving is atomic (creates client + primary contact in single transaction)
+
+### Project Management
+
+- [ ] **PROJ-01**: Projects appear correctly in UI (fix listing/filtering issues)
+- [ ] **PROJ-02**: Projects have Expected Start/End and Actual Start/End date pickers
+- [ ] **PROJ-03**: Projects have Lead, Secondary Lead, and PM dropdowns (mapping to users table)
+- [ ] **PROJ-04**: Project Detail page implements View/Edit toggle pattern with IBM Carbon styling
+
+### Set Management
+
+- [ ] **SET-01**: Sets have Expected Start/End and Actual Start/End date fields
+- [ ] **SET-02**: Sets have Budget Days and Budget Hours fields
+- [ ] **SET-03**: Set Detail page implements View/Edit toggle pattern with IBM Carbon styling
 
 ### Full-Page UI
 
 - [ ] **UI-01**: Projects use full-page view instead of modal/popup
 - [ ] **UI-02**: Sets use full-page view instead of modal/popup
 - [ ] **UI-03**: Requirements use full-page view instead of modal/popup
-- [ ] **UI-04**: All detail pages implement View/Edit toggle pattern
+- [ ] **UI-04**: All detail pages implement View/Edit toggle pattern (IBM Carbon style)
 - [ ] **UI-05**: Parent relationships editable via searchable dropdowns in Edit Mode
 
 ### CORE Methodology
@@ -86,9 +108,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUG-01 | Phase 1 | Complete |
 | BUG-02 | Phase 1 | Complete |
 | CLI-01 | Phase 1 | Complete |
+| BUG-03 | Phase 2 | Pending |
 | CLI-02 | Phase 2 | Pending |
 | CLI-03 | Phase 2 | Pending |
 | CLI-04 | Phase 2 | Pending |
+| CLI-05 | Phase 2 | Pending |
+| PROJ-01 | Phase 3 | Pending |
+| PROJ-02 | Phase 3 | Pending |
+| PROJ-03 | Phase 3 | Pending |
+| PROJ-04 | Phase 3 | Pending |
+| SET-01 | Phase 3 | Pending |
+| SET-02 | Phase 3 | Pending |
+| SET-03 | Phase 3 | Pending |
 | UI-01 | Phase 3 | Pending |
 | UI-02 | Phase 3 | Pending |
 | UI-03 | Phase 3 | Pending |
@@ -102,10 +133,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUDIT-02 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 16 total
-- Mapped to phases: 16
+- v1 requirements: 26 total
+- Mapped to phases: 26
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-05*
-*Last updated: 2026-02-05 after initial definition*
+*Last updated: 2026-02-05 — Pivot to IBM Carbon aesthetic, added PROJ-*, SET-*, BUG-03, CLI-05*
