@@ -40,7 +40,7 @@ export const clientsApi = {
       return {
         ...client,
         contacts: clientContacts,
-        primary_contact: clientContacts.find((c: { is_primary?: boolean }) => c.is_primary) || null,
+        primary_contact: clientContacts.find((c: any) => c.is_primary) || null,
       }
     }) as ClientWithRelations[]
   },
@@ -74,7 +74,7 @@ export const clientsApi = {
     return {
       ...data,
       contacts,
-      primary_contact: contacts.find((c: { is_primary?: boolean }) => c.is_primary) || null,
+      primary_contact: contacts.find((c: any) => c.is_primary) || null,
     } as ClientWithRelations
   },
 
