@@ -31,8 +31,15 @@ export function useClientMutations() {
   const tenantId = currentTenant?.id
 
   const createClient = useMutation({
-    mutationFn: (input: CreateClientInput) =>
-      clientsApi.create(tenantId!, user!.id, input),
+    mutationFn: (input: CreateClientInput) => {
+      if (!tenantId) {
+        throw new Error('Cannot create client: No tenant selected')
+      }
+      if (!user?.id) {
+        throw new Error('Cannot create client: User not authenticated')
+      }
+      return clientsApi.create(tenantId, user.id, input)
+    },
     onSuccess: (newClient) => {
       // Invalidate the clients list query to trigger a refetch
       queryClient.invalidateQueries({ queryKey: ['clients', tenantId] })
@@ -53,8 +60,12 @@ export function useClientMutations() {
   })
 
   const updateClient = useMutation({
-    mutationFn: ({ id, ...input }: { id: string } & UpdateClientInput) =>
-      clientsApi.update(id, user!.id, input),
+    mutationFn: ({ id, ...input }: { id: string } & UpdateClientInput) => {
+      if (!user?.id) {
+        throw new Error('Cannot update client: User not authenticated')
+      }
+      return clientsApi.update(id, user.id, input)
+    },
     onSuccess: (updatedClient, variables) => {
       queryClient.invalidateQueries({ queryKey: ['clients', tenantId] })
       queryClient.invalidateQueries({ queryKey: ['client', variables.id] })
