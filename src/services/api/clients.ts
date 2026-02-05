@@ -83,6 +83,8 @@ export const clientsApi = {
     userId: string,
     input: CreateClientInput
   ): Promise<Client> => {
+    // IMPORTANT: Always include tenant_id for RLS visibility
+    // Records without tenant_id will not be visible to users
     const { data, error } = await supabase
       .from('clients')
       .insert({
