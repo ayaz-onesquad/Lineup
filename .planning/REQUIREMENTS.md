@@ -9,12 +9,12 @@ Requirements for MVP completion demo. Each maps to roadmap phases.
 
 ### Bug Fixes
 
-- [ ] **BUG-01**: Fix PostgREST schema cache so `location` column on `clients` table is recognized
-- [ ] **BUG-02**: All INSERT mutations explicitly include `tenant_id` from auth context to prevent RLS visibility bugs
+- [x] **BUG-01**: Fix PostgREST schema cache so `location` column on `clients` table is recognized
+- [x] **BUG-02**: All INSERT mutations explicitly include `tenant_id` from auth context to prevent RLS visibility bugs
 
 ### Client Management
 
-- [ ] **CLI-01**: ClientForm includes Name, Status, Overview, Industry (searchable select), Location fields
+- [x] **CLI-01**: ClientForm includes Name, Status, Overview, Industry (searchable select), Location fields
 - [ ] **CLI-02**: Contacts table exists with first_name, last_name, email, phone, role (dropdown), relationship, is_primary, display_id, audit fields
 - [ ] **CLI-03**: Client Detail page has Contacts tab showing linked contacts
 - [ ] **CLI-04**: System enforces one primary contact per client
@@ -83,9 +83,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-01 | Phase 1 | Pending |
-| BUG-02 | Phase 1 | Pending |
-| CLI-01 | Phase 1 | Pending |
+| BUG-01 | Phase 1 | Complete |
+| BUG-02 | Phase 1 | Complete |
+| CLI-01 | Phase 1 | Complete |
 | CLI-02 | Phase 2 | Pending |
 | CLI-03 | Phase 2 | Pending |
 | CLI-04 | Phase 2 | Pending |

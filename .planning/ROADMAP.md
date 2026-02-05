@@ -12,7 +12,7 @@ Complete the LineUp MVP by fixing critical schema and tenant isolation bugs, enh
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation Fixes** - Fix blocking schema cache and tenant isolation bugs, update ClientForm
+- [x] **Phase 1: Foundation Fixes** - Fix blocking schema cache and tenant isolation bugs, update ClientForm
 - [ ] **Phase 2: Contact Management** - Build complete Contacts subsystem with primary contact enforcement
 - [ ] **Phase 3: Full-Page Transition** - Replace modals with full-page views for Projects, Sets, Requirements
 - [ ] **Phase 4: CORE Workflow & Audit** - Complete Eisenhower display, review workflow, smart navigation, audit trails
@@ -30,9 +30,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Fix PostgREST schema cache for new columns
-- [ ] 01-02-PLAN.md — Add tenant_id validation to client mutations
-- [ ] 01-03-PLAN.md — Update ClientForm layout with Status, Industry, Location fields
+- [x] 01-01-PLAN.md — Fix PostgREST schema cache for new columns
+- [x] 01-02-PLAN.md — Add tenant_id validation to client mutations
+- [x] 01-03-PLAN.md — Update ClientForm layout with Status, Industry, Location fields
 
 ### Phase 2: Contact Management
 **Goal**: Clients have structured contact management with enforced primary contact
@@ -86,7 +86,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation Fixes | 0/3 | Planned | - |
+| 1. Foundation Fixes | 3/3 | Complete | 2026-02-05 |
 | 2. Contact Management | 0/TBD | Not started | - |
 | 3. Full-Page Transition | 0/TBD | Not started | - |
 | 4. CORE Workflow & Audit | 0/TBD | Not started | - |
