@@ -21,7 +21,7 @@ export const useTenantStore = create<TenantState>()(
       currentTenant: null,
       tenants: [],
       tenantUsers: [],
-      isLoading: true,
+      isLoading: false, // React Query handles loading state now
 
       setCurrentTenant: (tenant) => set({ currentTenant: tenant }),
 

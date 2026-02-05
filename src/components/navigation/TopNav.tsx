@@ -43,7 +43,7 @@ export function TopNav() {
         {/* Logo & Brand */}
         <Link to="/dashboard" className="flex items-center gap-2">
           <FolderKanban className="h-6 w-6 text-primary" />
-          <span className="font-semibold text-lg">CORE Platform</span>
+          <span className="font-semibold text-lg">LineUp</span>
         </Link>
 
         {/* Right Section */}

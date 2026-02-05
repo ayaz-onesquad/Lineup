@@ -6,10 +6,11 @@ export function AuthLayout() {
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary items-center justify-center p-12">
         <div className="max-w-md text-white">
-          <h1 className="text-4xl font-bold mb-6">CORE Platform</h1>
+          <h1 className="text-4xl font-bold mb-6">LineUp</h1>
           <p className="text-xl text-primary-foreground/80 mb-8">
             Project management built for agencies. Organize work, collaborate with clients, and deliver results.
           </p>
+          <p className="text-sm text-primary-foreground/60 mb-4">Built on the CORE methodology:</p>
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">

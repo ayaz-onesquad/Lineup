@@ -80,7 +80,7 @@ export function PortalLayout() {
       {/* Footer */}
       <footer className="border-t py-6">
         <div className="container text-center text-sm text-muted-foreground">
-          Powered by CORE Platform
+          Powered by LineUp
         </div>
       </footer>
     </div>

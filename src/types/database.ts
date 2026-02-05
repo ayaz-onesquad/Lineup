@@ -51,26 +51,86 @@ export interface TenantUserWithProfile extends TenantUser {
   tenants?: Tenant
 }
 
-// Client types
-export type ClientStatus = 'active' | 'inactive'
+// Contact types
+export type ContactRole = 'owner' | 'executive' | 'manager' | 'coordinator' | 'technical' | 'billing' | 'other'
 
-export interface Client {
+export interface Contact {
   id: string
   tenant_id: string
-  name: string
-  company_name: string
-  email: string
+  client_id: string
+  display_id: number
+  first_name: string
+  last_name: string
+  email?: string
   phone?: string
-  contact_name?: string
-  contact_email?: string
-  industry?: string
-  status: ClientStatus
-  portal_enabled: boolean
+  role?: ContactRole
+  relationship?: string
+  is_primary: boolean
   created_by: string
+  updated_by?: string
   created_at: string
   updated_at: string
   deleted_at?: string
 }
+
+export interface ContactWithCreator extends Contact {
+  creator?: UserProfile
+  updater?: UserProfile
+}
+
+// Client types
+export type ClientStatus = 'active' | 'inactive'
+export type IndustryType =
+  | 'technology'
+  | 'healthcare'
+  | 'finance'
+  | 'retail'
+  | 'manufacturing'
+  | 'education'
+  | 'real_estate'
+  | 'media'
+  | 'hospitality'
+  | 'consulting'
+  | 'legal'
+  | 'non_profit'
+  | 'government'
+  | 'other'
+
+export interface Client {
+  id: string
+  tenant_id: string
+  display_id: number
+  name: string
+  company_name: string
+  email: string // deprecated - use contacts
+  phone?: string // deprecated - use contacts
+  contact_name?: string // deprecated - use contacts
+  contact_email?: string // deprecated - use contacts
+  overview?: string
+  industry?: IndustryType
+  location?: string
+  status: ClientStatus
+  portal_enabled: boolean
+  created_by: string
+  updated_by?: string
+  created_at: string
+  updated_at: string
+  deleted_at?: string
+}
+
+export interface ClientWithRelations extends Client {
+  contacts?: Contact[]
+  primary_contact?: Contact
+  creator?: UserProfile
+  updater?: UserProfile
+}
+
+// Urgency and Importance for Eisenhower Matrix
+export type UrgencyLevel = 'low' | 'medium' | 'high' | 'critical'
+export type ImportanceLevel = 'low' | 'medium' | 'high'
+
+// Priority score (1-6, lower is higher priority)
+export type PriorityScore = 1 | 2 | 3 | 4 | 5 | 6
 
 // Project types
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled'
@@ -80,10 +140,13 @@ export interface Project {
   id: string
   tenant_id: string
   client_id: string
+  display_id: number
   name: string
   description?: string
   project_code: string
   lead_id?: string
+  secondary_lead_id?: string
+  pm_id?: string
   status: ProjectStatus
   health: ProjectHealth
   completion_percentage: number
@@ -91,8 +154,10 @@ export interface Project {
   expected_end_date?: string
   actual_start_date?: string
   actual_end_date?: string
+  completion_date?: string
   show_in_client_portal: boolean
   created_by: string
+  updated_by?: string
   created_at: string
   updated_at: string
   deleted_at?: string
@@ -101,7 +166,11 @@ export interface Project {
 export interface ProjectWithRelations extends Project {
   clients?: Client
   lead?: UserProfile
+  secondary_lead?: UserProfile
+  pm?: UserProfile
   phases?: ProjectPhase[]
+  creator?: UserProfile
+  updater?: UserProfile
 }
 
 // Phase types
@@ -111,6 +180,7 @@ export interface ProjectPhase {
   id: string
   tenant_id: string
   project_id: string
+  display_id: number
   name: string
   description?: string
   phase_order: number
@@ -123,6 +193,7 @@ export interface ProjectPhase {
   owner_id?: string
   show_in_client_portal: boolean
   created_by: string
+  updated_by?: string
   created_at: string
   updated_at: string
   deleted_at?: string
@@ -133,11 +204,11 @@ export interface PhaseWithRelations extends ProjectPhase {
   projects?: Project
   owner?: UserProfile
   sets?: Set[]
+  creator?: UserProfile
+  updater?: UserProfile
 }
 
 // Set types
-export type UrgencyLevel = 'low' | 'medium' | 'high'
-export type ImportanceLevel = 'low' | 'medium' | 'high'
 export type SetStatus = 'open' | 'in_progress' | 'completed' | 'cancelled'
 
 export interface Set {
@@ -145,17 +216,28 @@ export interface Set {
   tenant_id: string
   project_id: string
   phase_id?: string
+  display_id: number
   name: string
   description?: string
   set_order: number
   urgency: UrgencyLevel
   importance: ImportanceLevel
+  priority_score: PriorityScore
   status: SetStatus
   completion_percentage: number
   due_date?: string
+  expected_start_date?: string
+  expected_end_date?: string
+  actual_start_date?: string
+  actual_end_date?: string
+  completion_date?: string
   owner_id?: string
+  lead_id?: string
+  secondary_lead_id?: string
+  pm_id?: string
   show_in_client_portal: boolean
   created_by: string
+  updated_by?: string
   created_at: string
   updated_at: string
   deleted_at?: string
@@ -166,7 +248,12 @@ export interface SetWithRelations extends Set {
   projects?: Project
   project_phases?: ProjectPhase
   owner?: UserProfile
+  lead?: UserProfile
+  secondary_lead?: UserProfile
+  pm?: UserProfile
   requirements?: Requirement[]
+  creator?: UserProfile
+  updater?: UserProfile
 }
 
 // Requirement types
@@ -179,27 +266,41 @@ export type RequirementType =
   | 'client_deliverable'
 
 export type RequirementStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
+export type ReviewStatus = 'not_required' | 'pending' | 'in_review' | 'approved' | 'rejected'
 
 export interface Requirement {
   id: string
   tenant_id: string
   set_id: string
+  display_id: number
   title: string
   description?: string
   requirement_order: number
   requirement_type: RequirementType
   status: RequirementStatus
+  urgency: UrgencyLevel
+  importance: ImportanceLevel
+  priority_score: PriorityScore
   requires_document: boolean
   requires_review: boolean
+  review_status: ReviewStatus
   reviewer_id?: string
   reviewed_at?: string
   due_date?: string
+  expected_start_date?: string
+  expected_end_date?: string
+  actual_start_date?: string
+  actual_end_date?: string
   estimated_hours?: number
   actual_hours?: number
   assigned_to_id?: string
+  lead_id?: string
+  secondary_lead_id?: string
+  pm_id?: string
   completed_at?: string
   show_in_client_portal: boolean
   created_by: string
+  updated_by?: string
   created_at: string
   updated_at: string
   deleted_at?: string
@@ -208,7 +309,12 @@ export interface Requirement {
 export interface RequirementWithRelations extends Requirement {
   sets?: SetWithRelations
   assigned_to?: UserProfile
+  lead?: UserProfile
+  secondary_lead?: UserProfile
+  pm?: UserProfile
   reviewer?: UserProfile
+  creator?: UserProfile
+  updater?: UserProfile
 }
 
 // Document types
@@ -287,13 +393,31 @@ export interface CreateTenantInput {
 export interface CreateClientInput {
   name: string
   company_name: string
-  email: string
+  email?: string
   phone?: string
+  overview?: string
+  industry?: IndustryType
+  location?: string
   portal_enabled?: boolean
 }
 
 export interface UpdateClientInput extends Partial<CreateClientInput> {
   status?: ClientStatus
+}
+
+export interface CreateContactInput {
+  client_id: string
+  first_name: string
+  last_name: string
+  email?: string
+  phone?: string
+  role?: ContactRole
+  relationship?: string
+  is_primary?: boolean
+}
+
+export interface UpdateContactInput extends Partial<Omit<CreateContactInput, 'client_id'>> {
+  client_id?: string
 }
 
 export interface CreateProjectInput {
@@ -302,6 +426,8 @@ export interface CreateProjectInput {
   description?: string
   project_code?: string
   lead_id?: string
+  secondary_lead_id?: string
+  pm_id?: string
   expected_start_date?: string
   expected_end_date?: string
   show_in_client_portal?: boolean
@@ -312,6 +438,7 @@ export interface UpdateProjectInput extends Partial<CreateProjectInput> {
   health?: ProjectHealth
   actual_start_date?: string
   actual_end_date?: string
+  completion_date?: string
 }
 
 export interface CreatePhaseInput {
@@ -340,12 +467,20 @@ export interface CreateSetInput {
   urgency?: UrgencyLevel
   importance?: ImportanceLevel
   due_date?: string
+  expected_start_date?: string
+  expected_end_date?: string
   owner_id?: string
+  lead_id?: string
+  secondary_lead_id?: string
+  pm_id?: string
   show_in_client_portal?: boolean
 }
 
 export interface UpdateSetInput extends Partial<CreateSetInput> {
   status?: SetStatus
+  actual_start_date?: string
+  actual_end_date?: string
+  completion_date?: string
 }
 
 export interface CreateRequirementInput {
@@ -354,18 +489,29 @@ export interface CreateRequirementInput {
   description?: string
   requirement_order?: number
   requirement_type?: RequirementType
+  urgency?: UrgencyLevel
+  importance?: ImportanceLevel
   requires_document?: boolean
   requires_review?: boolean
   reviewer_id?: string
   due_date?: string
+  expected_start_date?: string
+  expected_end_date?: string
   estimated_hours?: number
   assigned_to_id?: string
+  lead_id?: string
+  secondary_lead_id?: string
+  pm_id?: string
   show_in_client_portal?: boolean
 }
 
 export interface UpdateRequirementInput extends Partial<CreateRequirementInput> {
   status?: RequirementStatus
+  review_status?: ReviewStatus
+  actual_start_date?: string
+  actual_end_date?: string
   actual_hours?: number
+  reviewed_at?: string
 }
 
 export interface CreateDiscussionInput {
@@ -397,4 +543,14 @@ export interface DashboardStats {
   myRequirements: number
   completedRequirements: number
   overdueRequirements: number
+}
+
+// Audit trail info
+export interface AuditInfo {
+  created_at: string
+  created_by: string
+  updated_at: string
+  updated_by?: string
+  creator?: UserProfile
+  updater?: UserProfile
 }

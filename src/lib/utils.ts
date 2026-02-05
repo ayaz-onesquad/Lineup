@@ -81,8 +81,132 @@ export function getHealthColor(health: string): string {
 }
 
 export function getUrgencyImportanceColor(urgency: string, importance: string): string {
-  if (urgency === 'high' && importance === 'high') return 'border-red-500 bg-red-50'
-  if (urgency === 'high' && importance !== 'high') return 'border-amber-500 bg-amber-50'
-  if (urgency !== 'high' && importance === 'high') return 'border-blue-500 bg-blue-50'
+  if ((urgency === 'critical' || urgency === 'high') && importance === 'high') return 'border-red-500 bg-red-50'
+  if ((urgency === 'critical' || urgency === 'high') && importance !== 'high') return 'border-amber-500 bg-amber-50'
+  if (urgency !== 'high' && urgency !== 'critical' && importance === 'high') return 'border-blue-500 bg-blue-50'
   return 'border-gray-300 bg-gray-50'
 }
+
+/**
+ * Calculate Eisenhower Priority Score (1-6)
+ * Lower number = higher priority
+ *
+ * Quadrant mapping:
+ * 1 = Critical + High Importance (Do First - Urgent & Important)
+ * 2 = High + High (Do Second - Urgent & Important)
+ * 3 = Critical/High + Medium (Do Third)
+ * 4 = Medium + High (Schedule - Important but not Urgent)
+ * 5 = Low importance or Low urgency with Medium importance (Delegate)
+ * 6 = Low + Low (Delete/Defer)
+ */
+export type UrgencyLevel = 'low' | 'medium' | 'high' | 'critical'
+export type ImportanceLevel = 'low' | 'medium' | 'high'
+export type PriorityScore = 1 | 2 | 3 | 4 | 5 | 6
+
+export function getPriorityScore(urgency: UrgencyLevel, importance: ImportanceLevel): PriorityScore {
+  if (urgency === 'critical' && importance === 'high') return 1
+  if (urgency === 'high' && importance === 'high') return 2
+  if ((urgency === 'critical' || urgency === 'high') && importance === 'medium') return 3
+  if (urgency === 'medium' && importance === 'high') return 4
+  if (importance === 'low' || (urgency === 'low' && importance === 'medium')) return 5
+  return 6
+}
+
+export function getPriorityLabel(score: PriorityScore): string {
+  const labels: Record<PriorityScore, string> = {
+    1: 'Critical',
+    2: 'High',
+    3: 'Medium-High',
+    4: 'Medium',
+    5: 'Low',
+    6: 'Minimal',
+  }
+  return labels[score]
+}
+
+export function getPriorityColor(score: PriorityScore): string {
+  const colors: Record<PriorityScore, string> = {
+    1: 'bg-red-600 text-white',
+    2: 'bg-red-500 text-white',
+    3: 'bg-orange-500 text-white',
+    4: 'bg-yellow-500 text-black',
+    5: 'bg-blue-400 text-white',
+    6: 'bg-gray-400 text-white',
+  }
+  return colors[score]
+}
+
+export function getPriorityBorderColor(score: PriorityScore): string {
+  const colors: Record<PriorityScore, string> = {
+    1: 'border-l-red-600',
+    2: 'border-l-red-500',
+    3: 'border-l-orange-500',
+    4: 'border-l-yellow-500',
+    5: 'border-l-blue-400',
+    6: 'border-l-gray-400',
+  }
+  return colors[score]
+}
+
+export function getUrgencyLabel(urgency: UrgencyLevel): string {
+  const labels: Record<UrgencyLevel, string> = {
+    critical: 'Critical',
+    high: 'High',
+    medium: 'Medium',
+    low: 'Low',
+  }
+  return labels[urgency]
+}
+
+export function getImportanceLabel(importance: ImportanceLevel): string {
+  const labels: Record<ImportanceLevel, string> = {
+    high: 'High',
+    medium: 'Medium',
+    low: 'Low',
+  }
+  return labels[importance]
+}
+
+// Industry options for dropdown
+export const INDUSTRY_OPTIONS = [
+  { value: 'technology', label: 'Technology' },
+  { value: 'healthcare', label: 'Healthcare' },
+  { value: 'finance', label: 'Finance' },
+  { value: 'retail', label: 'Retail' },
+  { value: 'manufacturing', label: 'Manufacturing' },
+  { value: 'education', label: 'Education' },
+  { value: 'real_estate', label: 'Real Estate' },
+  { value: 'media', label: 'Media & Entertainment' },
+  { value: 'hospitality', label: 'Hospitality' },
+  { value: 'consulting', label: 'Consulting' },
+  { value: 'legal', label: 'Legal' },
+  { value: 'non_profit', label: 'Non-Profit' },
+  { value: 'government', label: 'Government' },
+  { value: 'other', label: 'Other' },
+] as const
+
+// Contact role options for dropdown
+export const CONTACT_ROLE_OPTIONS = [
+  { value: 'owner', label: 'Owner' },
+  { value: 'executive', label: 'Executive' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'coordinator', label: 'Coordinator' },
+  { value: 'technical', label: 'Technical Contact' },
+  { value: 'billing', label: 'Billing Contact' },
+  { value: 'other', label: 'Other' },
+] as const
+
+// Urgency options for dropdown
+export const URGENCY_OPTIONS = [
+  { value: 'critical', label: 'Critical', description: 'Must be done immediately' },
+  { value: 'high', label: 'High', description: 'Should be done soon' },
+  { value: 'medium', label: 'Medium', description: 'Normal priority' },
+  { value: 'low', label: 'Low', description: 'Can wait' },
+] as const
+
+// Importance options for dropdown
+export const IMPORTANCE_OPTIONS = [
+  { value: 'high', label: 'High', description: 'Critical for project success' },
+  { value: 'medium', label: 'Medium', description: 'Important but not critical' },
+  { value: 'low', label: 'Low', description: 'Nice to have' },
+] as const

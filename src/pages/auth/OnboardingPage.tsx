@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTenant } from '@/hooks/useTenant'
+import { useUserRole } from '@/hooks/useUserRole'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -32,7 +33,8 @@ type OnboardingForm = z.infer<typeof onboardingSchema>
 export function OnboardingPage() {
   const navigate = useNavigate()
   const { tenants, createTenant, isLoading: tenantsLoading } = useTenant()
-  const [isLoading, setIsLoading] = useState(false)
+  const { role, isLoading: roleLoading } = useUserRole()
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<OnboardingForm>({
     resolver: zodResolver(onboardingSchema),
@@ -50,27 +52,43 @@ export function OnboardingPage() {
     }
   }, [watchName, form])
 
-  // Redirect if user already has tenants
+  // Single redirect logic - handles all cases
   useEffect(() => {
-    if (!tenantsLoading && tenants.length > 0) {
-      navigate('/dashboard', { replace: true })
+    // Wait for data to load
+    if (roleLoading || tenantsLoading) return
+    // Don't redirect while submitting
+    if (isSubmitting) return
+
+    // Sys admin goes to admin portal
+    if (role === 'sys_admin') {
+      navigate('/admin', { replace: true })
+      return
     }
-  }, [tenantsLoading, tenants, navigate])
+
+    // User with tenants goes to dashboard
+    if (tenants.length > 0) {
+      navigate('/dashboard', { replace: true })
+      return
+    }
+  }, [roleLoading, tenantsLoading, role, tenants.length, navigate, isSubmitting])
 
   const onSubmit = async (data: OnboardingForm) => {
-    setIsLoading(true)
+    setIsSubmitting(true)
     try {
       await createTenant.mutateAsync({
         name: data.name,
         slug: data.slug,
       })
-      navigate('/dashboard')
-    } finally {
-      setIsLoading(false)
+      // Navigate after successful creation
+      navigate('/dashboard', { replace: true })
+    } catch {
+      // Error is handled by the mutation's onError
+      setIsSubmitting(false)
     }
   }
 
-  if (tenantsLoading) {
+  // Show loading while checking role and tenants
+  if (tenantsLoading || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -87,7 +105,7 @@ export function OnboardingPage() {
           </div>
           <CardTitle className="text-2xl">Create Your Organization</CardTitle>
           <CardDescription>
-            Set up your organization to start managing projects with CORE
+            Set up your organization to start managing projects with LineUp
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -119,7 +137,7 @@ export function OnboardingPage() {
                     <FormControl>
                       <div className="flex">
                         <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
-                          core.app/
+                          lineup.app/
                         </span>
                         <Input
                           className="rounded-l-none"
@@ -136,8 +154,8 @@ export function OnboardingPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Organization
               </Button>
             </form>

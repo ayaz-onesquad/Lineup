@@ -65,7 +65,7 @@ export function useSetMutations() {
 
   const updateSet = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateSetInput) =>
-      setsApi.update(id, input),
+      setsApi.update(id, user!.id, input),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sets'] })
       queryClient.invalidateQueries({ queryKey: ['set', variables.id] })

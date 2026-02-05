@@ -1,66 +1,25 @@
-import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/services/supabase'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
 
+/**
+ * Hook for authentication operations
+ * Auth state is managed by AuthProvider, this hook provides mutations
+ */
 export function useAuth() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const {
     user,
     profile,
-    role,
     isLoading,
     isAuthenticated,
     setUser,
-    setProfile,
-    setRole,
-    setLoading,
     logout: logoutStore,
   } = useAuthStore()
   const { clearTenant } = useTenantStore()
-
-  // Initialize auth state
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const session = await authApi.getSession()
-        if (session?.user) {
-          setUser(session.user)
-          const userProfile = await authApi.getUserProfile(session.user.id)
-          setProfile(userProfile)
-        }
-      } catch (error) {
-        console.error('Auth init error:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    initAuth()
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user)
-          const userProfile = await authApi.getUserProfile(session.user.id)
-          setProfile(userProfile)
-        } else if (event === 'SIGNED_OUT') {
-          logoutStore()
-          clearTenant()
-          queryClient.clear()
-        }
-      }
-    )
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [setUser, setProfile, setLoading, logoutStore, clearTenant, queryClient])
 
   // Sign up mutation
   const signUp = useMutation({
@@ -68,7 +27,7 @@ export function useAuth() {
     onSuccess: () => {
       toast({
         title: 'Account created',
-        description: 'Please check your email to verify your account.',
+        description: 'You can now sign in to your account.',
       })
       navigate('/login')
     },
@@ -84,16 +43,13 @@ export function useAuth() {
   // Sign in mutation
   const signIn = useMutation({
     mutationFn: authApi.signIn,
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
       setUser(data.user)
-      if (data.user) {
-        const userProfile = await authApi.getUserProfile(data.user.id)
-        setProfile(userProfile)
-      }
       toast({
         title: 'Welcome back!',
         description: 'You have been signed in.',
       })
+      // Navigate to onboarding - it will redirect based on role/tenants
       navigate('/onboarding')
     },
     onError: (error: Error) => {
@@ -148,23 +104,11 @@ export function useAuth() {
   return {
     user,
     profile,
-    role,
     isLoading,
     isAuthenticated,
-    setRole,
     signUp,
     signIn,
     signOut,
     resetPassword,
   }
-}
-
-export function useUserTenants() {
-  const { user } = useAuthStore()
-
-  return useQuery({
-    queryKey: ['userTenants', user?.id],
-    queryFn: () => authApi.getUserTenants(user!.id),
-    enabled: !!user?.id,
-  })
 }

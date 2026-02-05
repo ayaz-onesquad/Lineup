@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useTenantStore } from '@/stores'
+import { useTenant } from '@/hooks/useTenant'
 import { Loader2 } from 'lucide-react'
 
 interface TenantGuardProps {
@@ -9,14 +9,13 @@ interface TenantGuardProps {
 
 export function TenantGuard({ children }: TenantGuardProps) {
   const navigate = useNavigate()
-  const { currentTenant, tenants, isLoading } = useTenantStore()
+  const { currentTenant, tenants, isLoading } = useTenant()
 
   useEffect(() => {
-    if (!isLoading && tenants.length === 0) {
-      // User has no tenants, redirect to onboarding
+    if (!isLoading && (tenants.length === 0 || !currentTenant)) {
       navigate('/onboarding', { replace: true })
     }
-  }, [isLoading, tenants, navigate])
+  }, [isLoading, tenants, currentTenant, navigate])
 
   if (isLoading) {
     return (
@@ -26,12 +25,8 @@ export function TenantGuard({ children }: TenantGuardProps) {
     )
   }
 
-  if (!currentTenant) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+  if (!currentTenant || tenants.length === 0) {
+    return null
   }
 
   return <>{children}</>

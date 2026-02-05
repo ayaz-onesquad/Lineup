@@ -34,7 +34,8 @@ export function ClientsPage() {
     (client) =>
       client.name.toLowerCase().includes(search.toLowerCase()) ||
       client.company_name.toLowerCase().includes(search.toLowerCase()) ||
-      client.email.toLowerCase().includes(search.toLowerCase())
+      (client.industry && client.industry.toLowerCase().includes(search.toLowerCase())) ||
+      (client.location && client.location.toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
@@ -71,8 +72,8 @@ export function ClientsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Client</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
+                <TableHead>Industry</TableHead>
+                <TableHead>Location</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Portal</TableHead>
                 <TableHead>Added</TableHead>
@@ -130,13 +131,15 @@ export function ClientsPage() {
                     <TableCell>
                       <div>
                         <p className="font-medium">{client.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {client.company_name}
-                        </p>
+                        {client.primary_contact && (
+                          <p className="text-sm text-muted-foreground">
+                            {client.primary_contact.first_name} {client.primary_contact.last_name}
+                          </p>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell>{client.email}</TableCell>
-                    <TableCell>{client.phone || '-'}</TableCell>
+                    <TableCell className="capitalize">{client.industry?.replace('_', ' ') || '-'}</TableCell>
+                    <TableCell>{client.location || '-'}</TableCell>
                     <TableCell>
                       <Badge
                         variant={client.status === 'active' ? 'success' : 'secondary'}

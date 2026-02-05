@@ -73,7 +73,7 @@ export function useRequirementMutations() {
 
   const updateRequirement = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateRequirementInput) =>
-      requirementsApi.update(id, input),
+      requirementsApi.update(id, user!.id, input),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['requirements'] })
       queryClient.invalidateQueries({ queryKey: ['requirement', variables.id] })
@@ -95,7 +95,7 @@ export function useRequirementMutations() {
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: RequirementStatus }) =>
-      requirementsApi.updateStatus(id, status),
+      requirementsApi.updateStatus(id, user!.id, status),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['requirements'] })
       queryClient.invalidateQueries({ queryKey: ['requirement', variables.id] })

@@ -1,6 +1,7 @@
 export { useToast, toast } from './use-toast'
-export { useAuth, useUserTenants } from './useAuth'
+export { useAuth } from './useAuth'
 export { useTenant, useTenantUsers } from './useTenant'
+export { useUserRole } from './useUserRole'
 export { useClients, useClient, useClientMutations } from './useClients'
 export {
   useProjects,

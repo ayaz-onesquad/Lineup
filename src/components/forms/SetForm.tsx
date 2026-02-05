@@ -1,13 +1,17 @@
-import { useForm } from 'react-hook-form'
+import { useEffect, useMemo } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useSetMutations } from '@/hooks/useSets'
+import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+import { URGENCY_OPTIONS, IMPORTANCE_OPTIONS } from '@/lib/utils'
 import {
   Form,
   FormControl,
@@ -17,24 +21,23 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 
 const setSchema = z.object({
+  // Filter field (not persisted)
+  client_id: z.string().optional(),
+  // Actual fields
   project_id: z.string().min(1, 'Project is required'),
   phase_id: z.string().optional(),
   name: z.string().min(1, 'Set name is required'),
   description: z.string().optional(),
-  urgency: z.enum(['low', 'medium', 'high']),
+  urgency: z.enum(['low', 'medium', 'high', 'critical']),
   importance: z.enum(['low', 'medium', 'high']),
   due_date: z.string().optional(),
   owner_id: z.string().optional(),
+  lead_id: z.string().optional(),
+  secondary_lead_id: z.string().optional(),
+  pm_id: z.string().optional(),
   show_in_client_portal: z.boolean(),
 })
 
@@ -47,12 +50,14 @@ interface SetFormProps {
 
 export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
   const { createSet } = useSetMutations()
-  const { data: projects } = useProjects()
+  const { data: clients } = useClients()
+  const { data: allProjects } = useProjects()
   const { data: users } = useTenantUsers()
 
   const form = useForm<SetFormData>({
     resolver: zodResolver(setSchema),
     defaultValues: {
+      client_id: '',
       project_id: defaultValues?.project_id || '',
       phase_id: defaultValues?.phase_id || '',
       name: '',
@@ -61,50 +66,132 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
       importance: 'medium',
       due_date: '',
       owner_id: '',
+      lead_id: '',
+      secondary_lead_id: '',
+      pm_id: '',
       show_in_client_portal: false,
     },
   })
 
+  // Watch filter fields for cascading
+  const selectedClientId = useWatch({ control: form.control, name: 'client_id' })
+
+  // Filter projects by selected client
+  const filteredProjects = useMemo(() => {
+    if (!allProjects) return []
+    if (!selectedClientId) return allProjects
+    return allProjects.filter((p) => p.client_id === selectedClientId)
+  }, [allProjects, selectedClientId])
+
+  // Reset project when client changes if current project is not valid
+  useEffect(() => {
+    if (selectedClientId) {
+      const currentProject = form.getValues('project_id')
+      if (currentProject) {
+        const projectStillValid = filteredProjects.some((p) => p.id === currentProject)
+        if (!projectStillValid) {
+          form.setValue('project_id', '')
+        }
+      }
+    }
+  }, [selectedClientId, filteredProjects, form])
+
+  // Initialize from defaultValues - find client from project
+  useEffect(() => {
+    if (defaultValues?.project_id && allProjects) {
+      const project = allProjects.find((p) => p.id === defaultValues.project_id)
+      if (project) {
+        form.setValue('client_id', project.client_id)
+      }
+    }
+  }, [defaultValues?.project_id, allProjects, form])
+
   const onSubmit = async (data: SetFormData) => {
-    await createSet.mutateAsync(data)
+    // Extract only the fields we need (exclude filter fields)
+    const { client_id, ...setData } = data
+    await createSet.mutateAsync(setData)
     form.reset()
     onSuccess?.()
   }
 
+  // Build options for selects
+  const clientOptions = useMemo(() =>
+    clients?.map((c) => ({ value: c.id, label: c.name })) || [],
+    [clients]
+  )
+
+  const projectOptions = useMemo(() =>
+    filteredProjects.map((p) => ({
+      value: p.id,
+      label: p.name,
+      description: `${p.project_code} • ${p.clients?.name || ''}`,
+    })),
+    [filteredProjects]
+  )
+
+  const userOptions = useMemo(() =>
+    users?.map((u) => ({
+      value: u.user_id,
+      label: u.user_profiles?.full_name || 'Unknown',
+    })) || [],
+    [users]
+  )
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="project_id"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Project</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+        {/* Cascading Filters */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="client_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Client</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a project" />
-                  </SelectTrigger>
+                  <SearchableSelect
+                    options={clientOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="All clients"
+                    searchPlaceholder="Search clients..."
+                    emptyMessage="No clients found."
+                    clearable
+                  />
                 </FormControl>
-                <SelectContent>
-                  {projects?.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="project_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Project *</FormLabel>
+                <FormControl>
+                  <SearchableSelect
+                    options={projectOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="Select project..."
+                    searchPlaceholder="Search projects..."
+                    emptyMessage="No projects found."
+                    disabled={projectOptions.length === 0}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Set Name</FormLabel>
+              <FormLabel>Set Name *</FormLabel>
               <FormControl>
                 <Input placeholder="Create Mockups" {...field} />
               </FormControl>
@@ -138,18 +225,18 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Urgency</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <SearchableSelect
+                    options={URGENCY_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: o.label,
+                      description: o.description,
+                    }))}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || 'medium')}
+                    placeholder="Select urgency"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -161,18 +248,18 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Importance</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <SearchableSelect
+                    options={IMPORTANCE_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: o.label,
+                      description: o.description,
+                    }))}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || 'medium')}
+                    placeholder="Select importance"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -193,30 +280,98 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="owner_id"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Owner</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+        {/* Team Assignment */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="owner_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Owner</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select owner" />
-                  </SelectTrigger>
+                  <SearchableSelect
+                    options={userOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="Select owner"
+                    searchPlaceholder="Search team..."
+                    emptyMessage="No team members found."
+                    clearable
+                  />
                 </FormControl>
-                <SelectContent>
-                  {users?.map((user) => (
-                    <SelectItem key={user.user_id} value={user.user_id}>
-                      {user.user_profiles?.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="lead_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Lead</FormLabel>
+                <FormControl>
+                  <SearchableSelect
+                    options={userOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="Select lead"
+                    searchPlaceholder="Search team..."
+                    emptyMessage="No team members found."
+                    clearable
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="secondary_lead_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Secondary Lead</FormLabel>
+                <FormControl>
+                  <SearchableSelect
+                    options={userOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="Select secondary lead"
+                    searchPlaceholder="Search team..."
+                    emptyMessage="No team members found."
+                    clearable
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="pm_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Project Manager</FormLabel>
+                <FormControl>
+                  <SearchableSelect
+                    options={userOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="Select PM"
+                    searchPlaceholder="Search team..."
+                    emptyMessage="No team members found."
+                    clearable
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}

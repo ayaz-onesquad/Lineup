@@ -1,6 +1,7 @@
 export { authApi } from './auth'
 export { tenantsApi } from './tenants'
 export { clientsApi } from './clients'
+export { contactsApi } from './contacts'
 export { projectsApi } from './projects'
 export { phasesApi } from './phases'
 export { setsApi } from './sets'

@@ -1,6 +1,26 @@
 import { supabase } from '@/services/supabase'
 import type { Set, SetWithRelations, CreateSetInput, UpdateSetInput } from '@/types/database'
 
+// Helper to validate UUID format
+const isValidUUID = (str: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
+// Helper to clean input - convert empty strings to null for UUID fields
+function cleanUUIDFields<T>(input: T, fields: string[]): T {
+  const cleaned = { ...input } as Record<string, unknown>
+  for (const field of fields) {
+    const value = cleaned[field]
+    if (value === '' || value === undefined) {
+      cleaned[field] = null
+    } else if (typeof value === 'string' && !isValidUUID(value)) {
+      cleaned[field] = null
+    }
+  }
+  return cleaned as T
+}
+
 export const setsApi = {
   getAll: async (tenantId: string): Promise<SetWithRelations[]> => {
     const { data, error } = await supabase
@@ -9,10 +29,16 @@ export const setsApi = {
         *,
         projects (*),
         project_phases (*),
-        owner:user_profiles!sets_owner_id_fkey (*)
+        owner:user_profiles!sets_owner_id_fkey (*),
+        lead:user_profiles!sets_lead_id_fkey (*),
+        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
+        pm:user_profiles!sets_pm_id_fkey (*),
+        creator:user_profiles!sets_created_by_fkey (*),
+        updater:user_profiles!sets_updated_by_fkey (*)
       `)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
+      .order('priority_score', { ascending: true })
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -25,7 +51,10 @@ export const setsApi = {
       .select(`
         *,
         project_phases (*),
-        owner:user_profiles!sets_owner_id_fkey (*)
+        owner:user_profiles!sets_owner_id_fkey (*),
+        lead:user_profiles!sets_lead_id_fkey (*),
+        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
+        pm:user_profiles!sets_pm_id_fkey (*)
       `)
       .eq('project_id', projectId)
       .is('deleted_at', null)
@@ -40,7 +69,10 @@ export const setsApi = {
       .from('sets')
       .select(`
         *,
-        owner:user_profiles!sets_owner_id_fkey (*)
+        owner:user_profiles!sets_owner_id_fkey (*),
+        lead:user_profiles!sets_lead_id_fkey (*),
+        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
+        pm:user_profiles!sets_pm_id_fkey (*)
       `)
       .eq('phase_id', phaseId)
       .is('deleted_at', null)
@@ -57,7 +89,12 @@ export const setsApi = {
         *,
         projects (*),
         project_phases (*),
-        owner:user_profiles!sets_owner_id_fkey (*)
+        owner:user_profiles!sets_owner_id_fkey (*),
+        lead:user_profiles!sets_lead_id_fkey (*),
+        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
+        pm:user_profiles!sets_pm_id_fkey (*),
+        creator:user_profiles!sets_created_by_fkey (*),
+        updater:user_profiles!sets_updated_by_fkey (*)
       `)
       .eq('id', id)
       .is('deleted_at', null)
@@ -72,16 +109,26 @@ export const setsApi = {
     userId: string,
     input: CreateSetInput
   ): Promise<Set> => {
+    // Clean UUID fields
+    const cleanedInput = cleanUUIDFields(input, [
+      'project_id', 'phase_id', 'owner_id', 'lead_id', 'secondary_lead_id', 'pm_id'
+    ])
+
+    // Validate project_id
+    if (!cleanedInput.project_id || !isValidUUID(cleanedInput.project_id)) {
+      throw new Error('A valid project must be selected')
+    }
+
     // Get next order
     const { data: existingSets } = await supabase
       .from('sets')
       .select('set_order')
-      .eq('project_id', input.project_id)
+      .eq('project_id', cleanedInput.project_id)
       .is('deleted_at', null)
       .order('set_order', { ascending: false })
       .limit(1)
 
-    const nextOrder = input.set_order ?? ((existingSets?.[0]?.set_order ?? -1) + 1)
+    const nextOrder = cleanedInput.set_order ?? ((existingSets?.[0]?.set_order ?? -1) + 1)
 
     const { data, error } = await supabase
       .from('sets')
@@ -90,10 +137,10 @@ export const setsApi = {
         created_by: userId,
         set_order: nextOrder,
         status: 'open',
-        urgency: input.urgency || 'medium',
-        importance: input.importance || 'medium',
+        urgency: cleanedInput.urgency || 'medium',
+        importance: cleanedInput.importance || 'medium',
         completion_percentage: 0,
-        ...input,
+        ...cleanedInput,
       })
       .select()
       .single()
@@ -102,10 +149,18 @@ export const setsApi = {
     return data
   },
 
-  update: async (id: string, input: UpdateSetInput): Promise<Set> => {
+  update: async (id: string, userId: string, input: UpdateSetInput): Promise<Set> => {
+    // Clean UUID fields
+    const cleanedInput = cleanUUIDFields(input, [
+      'project_id', 'phase_id', 'owner_id', 'lead_id', 'secondary_lead_id', 'pm_id'
+    ])
+
     const { data, error } = await supabase
       .from('sets')
-      .update(input)
+      .update({
+        ...cleanedInput,
+        updated_by: userId,
+      })
       .eq('id', id)
       .select()
       .single()

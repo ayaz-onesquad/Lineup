@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AuthProvider } from '@/components/providers/AuthProvider'
 
 // Auth pages
 import { LoginPage } from '@/pages/auth/LoginPage'
@@ -55,6 +56,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <BrowserRouter>
+          <AuthProvider>
           <Routes>
             {/* Public Auth Routes */}
             <Route element={<AuthLayout />}>
@@ -124,6 +126,7 @@ function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
+          </AuthProvider>
         </BrowserRouter>
         <Toaster />
       </TooltipProvider>

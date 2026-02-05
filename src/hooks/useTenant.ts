@@ -3,61 +3,52 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { tenantsApi, authApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
-import type { CreateTenantInput } from '@/types/database'
+import type { CreateTenantInput, Tenant } from '@/types/database'
 
+/**
+ * Hook to manage tenant state and operations
+ */
 export function useTenant() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
+  const userId = user?.id
   const {
     currentTenant,
-    tenants,
-    isLoading,
     setCurrentTenant,
     setTenants,
-    setLoading,
     switchTenant,
   } = useTenantStore()
-  const { setRole } = useAuthStore()
 
-  // Load user's tenants
+  // Fetch user's tenants
   const tenantsQuery = useQuery({
-    queryKey: ['userTenants', user?.id],
-    queryFn: () => authApi.getUserTenants(user!.id),
-    enabled: !!user?.id,
+    queryKey: ['userTenants', userId],
+    queryFn: () => authApi.getUserTenants(userId!),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+    retryDelay: 500,
   })
 
-  // Update store when tenants load
+  // Sync React Query data to Zustand store
   useEffect(() => {
     if (tenantsQuery.data) {
       setTenants(tenantsQuery.data)
-
       // Auto-select first tenant if none selected
       if (!currentTenant && tenantsQuery.data.length > 0) {
         setCurrentTenant(tenantsQuery.data[0])
       }
-
-      setLoading(false)
     }
-  }, [tenantsQuery.data, currentTenant, setTenants, setCurrentTenant, setLoading])
-
-  // Load user role when tenant changes
-  useEffect(() => {
-    const loadRole = async () => {
-      if (user?.id && currentTenant?.id) {
-        const tenantUser = await authApi.getUserRoleInTenant(user.id, currentTenant.id)
-        if (tenantUser) {
-          setRole(tenantUser.role)
-        }
-      }
-    }
-    loadRole()
-  }, [user?.id, currentTenant?.id, setRole])
+  }, [tenantsQuery.data, currentTenant, setTenants, setCurrentTenant])
 
   // Create tenant mutation
   const createTenant = useMutation({
-    mutationFn: (input: CreateTenantInput) => tenantsApi.create(input, user!.id),
-    onSuccess: (tenant) => {
-      queryClient.invalidateQueries({ queryKey: ['userTenants'] })
+    mutationFn: (input: CreateTenantInput) => tenantsApi.create(input, userId!),
+    onSuccess: (tenant: Tenant) => {
+      // Update cache directly for immediate UI update
+      queryClient.setQueryData<Tenant[]>(
+        ['userTenants', userId],
+        (old) => [...(old || []), tenant]
+      )
       setCurrentTenant(tenant)
       toast({
         title: 'Organization created',
@@ -96,10 +87,23 @@ export function useTenant() {
     },
   })
 
+  // If no user, we're not loading - we just have no tenants
+  if (!userId) {
+    return {
+      currentTenant: null,
+      tenants: [],
+      isLoading: false,
+      switchTenant,
+      createTenant,
+      updateTenant,
+      refetch: tenantsQuery.refetch,
+    }
+  }
+
   return {
     currentTenant,
-    tenants,
-    isLoading: isLoading || tenantsQuery.isLoading,
+    tenants: tenantsQuery.data || [],
+    isLoading: tenantsQuery.isPending && tenantsQuery.fetchStatus !== 'idle',
     switchTenant,
     createTenant,
     updateTenant,

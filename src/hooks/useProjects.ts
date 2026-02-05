@@ -64,7 +64,7 @@ export function useProjectMutations() {
 
   const updateProject = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateProjectInput) =>
-      projectsApi.update(id, input),
+      projectsApi.update(id, user!.id, input),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       queryClient.invalidateQueries({ queryKey: ['project', variables.id] })
