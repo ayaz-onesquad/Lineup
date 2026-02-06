@@ -28,21 +28,18 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
 
 export const projectsApi = {
   getAll: async (tenantId: string): Promise<ProjectWithRelations[]> => {
+    console.log('[projectsApi.getAll] Fetching projects for tenant:', tenantId)
     const { data, error } = await supabase
       .from('projects')
       .select(`
         *,
-        clients (*),
-        lead:user_profiles!projects_lead_id_fkey (*),
-        secondary_lead:user_profiles!projects_secondary_lead_id_fkey (*),
-        pm:user_profiles!projects_pm_id_fkey (*),
-        creator:user_profiles!projects_created_by_fkey (*),
-        updater:user_profiles!projects_updated_by_fkey (*)
+        clients (*)
       `)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
+    console.log('[projectsApi.getAll] Result:', { data, error, count: data?.length })
     if (error) throw error
     return data || []
   },
@@ -52,10 +49,7 @@ export const projectsApi = {
       .from('projects')
       .select(`
         *,
-        clients (*),
-        lead:user_profiles!projects_lead_id_fkey (*),
-        secondary_lead:user_profiles!projects_secondary_lead_id_fkey (*),
-        pm:user_profiles!projects_pm_id_fkey (*)
+        clients (*)
       `)
       .eq('client_id', clientId)
       .eq('tenant_id', tenantId)
@@ -71,12 +65,7 @@ export const projectsApi = {
       .from('projects')
       .select(`
         *,
-        clients (*),
-        lead:user_profiles!projects_lead_id_fkey (*),
-        secondary_lead:user_profiles!projects_secondary_lead_id_fkey (*),
-        pm:user_profiles!projects_pm_id_fkey (*),
-        creator:user_profiles!projects_created_by_fkey (*),
-        updater:user_profiles!projects_updated_by_fkey (*)
+        clients (*)
       `)
       .eq('id', id)
       .is('deleted_at', null)
@@ -92,25 +81,11 @@ export const projectsApi = {
       .select(`
         *,
         clients (*),
-        lead:user_profiles!projects_lead_id_fkey (*),
-        secondary_lead:user_profiles!projects_secondary_lead_id_fkey (*),
-        pm:user_profiles!projects_pm_id_fkey (*),
         phases:project_phases (
           *,
-          owner:user_profiles!project_phases_owner_id_fkey (*),
           sets (
             *,
-            owner:user_profiles!sets_owner_id_fkey (*),
-            lead:user_profiles!sets_lead_id_fkey (*),
-            secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
-            pm:user_profiles!sets_pm_id_fkey (*),
-            requirements (
-              *,
-              assigned_to:user_profiles!requirements_assigned_to_id_fkey (*),
-              lead:user_profiles!requirements_lead_id_fkey (*),
-              secondary_lead:user_profiles!requirements_secondary_lead_id_fkey (*),
-              pm:user_profiles!requirements_pm_id_fkey (*)
-            )
+            requirements (*)
           )
         )
       `)

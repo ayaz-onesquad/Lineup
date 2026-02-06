@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -144,16 +144,18 @@ export function ClientDetailPage() {
   })
 
   // Reset form when client data loads
-  if (client && !clientForm.formState.isDirty && !isEditing) {
-    clientForm.reset({
-      name: client.name,
-      company_name: client.company_name,
-      overview: client.overview || '',
-      industry: client.industry || '',
-      status: client.status,
-      portal_enabled: client.portal_enabled,
-    })
-  }
+  useEffect(() => {
+    if (client && !isEditing) {
+      clientForm.reset({
+        name: client.name,
+        company_name: client.company_name,
+        overview: client.overview || '',
+        industry: client.industry || '',
+        status: client.status,
+        portal_enabled: client.portal_enabled,
+      })
+    }
+  }, [client?.id, isEditing])
 
   const handleSaveClient = async (data: ClientFormValues) => {
     if (!safeClientId) return
