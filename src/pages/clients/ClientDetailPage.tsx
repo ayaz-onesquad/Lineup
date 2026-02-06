@@ -275,7 +275,7 @@ export function ClientDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-carbon p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link to="/clients">
@@ -307,7 +307,7 @@ export function ClientDetailPage() {
       </div>
 
       {/* Client Info Card */}
-      <Card>
+      <Card className="card-carbon">
         <CardContent className="pt-6">
           <ViewEditToggle
             isEditing={isEditing}
@@ -516,7 +516,7 @@ export function ClientDetailPage() {
 
         {/* Details Tab */}
         <TabsContent value="details" className="mt-6">
-          <Card>
+          <Card className="card-carbon">
             <CardContent className="pt-6">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">

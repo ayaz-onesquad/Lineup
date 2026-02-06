@@ -39,7 +39,7 @@ export function ClientsPage() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="page-carbon p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -66,7 +66,7 @@ export function ClientsPage() {
       </div>
 
       {/* Client List */}
-      <Card>
+      <Card className="card-carbon">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
