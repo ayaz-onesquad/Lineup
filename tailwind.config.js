@@ -60,6 +60,16 @@ export default {
           DEFAULT: "#EF4444",
           foreground: "#FFFFFF",
         },
+        carbon: {
+          'gray-10': '#f4f4f4',  // Page backgrounds
+          'gray-20': '#e0e0e0',  // Borders, dividers
+          'gray-30': '#c6c6c6',  // Disabled backgrounds
+          'gray-60': '#6f6f6f',  // Secondary text
+          'gray-100': '#161616', // Primary text
+          'blue-60': '#0f62fe',  // Primary action
+          'blue-70': '#0043ce',  // Primary hover
+          'white': '#ffffff',    // Card backgrounds
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

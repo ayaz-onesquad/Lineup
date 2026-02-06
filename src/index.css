@@ -24,6 +24,18 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 217.2 91.2% 59.8%;
     --radius: 0.5rem;
+
+    /* IBM Carbon Design Tokens */
+    --carbon-gray-10: #f4f4f4;
+    --carbon-gray-20: #e0e0e0;
+    --carbon-gray-100: #161616;
+    --carbon-blue-60: #0f62fe;
+    --carbon-white: #ffffff;
+
+    /* Semantic aliases */
+    --page-background: var(--carbon-gray-10);
+    --card-background: var(--carbon-white);
+    --border-subtle: var(--carbon-gray-20);
   }
 
   .dark {
@@ -144,4 +156,16 @@
 
 .matrix-quadrant-eliminate {
   @apply border-gray-300 bg-gray-50;
+}
+
+/* IBM Carbon Layout Utilities */
+.page-carbon {
+  background-color: var(--page-background);
+  min-height: 100vh;
+}
+
+.card-carbon {
+  background-color: var(--card-background);
+  border-radius: 0.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
