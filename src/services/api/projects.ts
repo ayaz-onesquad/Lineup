@@ -47,7 +47,7 @@ export const projectsApi = {
     return data || []
   },
 
-  getByClientId: async (clientId: string): Promise<ProjectWithRelations[]> => {
+  getByClientId: async (clientId: string, tenantId: string): Promise<ProjectWithRelations[]> => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
@@ -58,6 +58,7 @@ export const projectsApi = {
         pm:user_profiles!projects_pm_id_fkey (*)
       `)
       .eq('client_id', clientId)
+      .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 

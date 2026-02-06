@@ -15,10 +15,12 @@ export function useProjects() {
 }
 
 export function useProjectsByClient(clientId: string) {
+  const { currentTenant } = useTenantStore()
+
   return useQuery({
-    queryKey: ['projects', 'client', clientId],
-    queryFn: () => projectsApi.getByClientId(clientId),
-    enabled: !!clientId,
+    queryKey: ['projects', 'client', clientId, currentTenant?.id],
+    queryFn: () => projectsApi.getByClientId(clientId, currentTenant!.id),
+    enabled: !!clientId && !!currentTenant?.id,
   })
 }
 
