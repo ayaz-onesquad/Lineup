@@ -59,8 +59,6 @@ import {
   Users,
   FileText,
   Edit,
-  X,
-  Save,
   Plus,
   Star,
   Trash2,
@@ -306,27 +304,6 @@ export function ClientDetailPage() {
           </div>
           <p className="text-muted-foreground">{client.company_name}</p>
         </div>
-        {isEditing ? (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
-              <X className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-            <Button onClick={clientForm.handleSubmit(handleSaveClient)} disabled={isSaving}>
-              {isSaving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Save
-            </Button>
-          </div>
-        ) : (
-          <Button variant="outline" onClick={() => setIsEditing(true)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-        )}
       </div>
 
       {/* Client Info Card */}
