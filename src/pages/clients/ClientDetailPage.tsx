@@ -98,11 +98,15 @@ type ContactFormValues = z.infer<typeof contactFormSchema>
 export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
   const navigate = useNavigate()
-  const { data: client, isLoading: clientLoading } = useClient(clientId!)
-  const { data: projects, isLoading: projectsLoading } = useProjectsByClient(clientId!)
-  const { data: contacts, isLoading: contactsLoading } = useContacts(clientId!)
+
+  // Guard: clientId is required for this page
+  const safeClientId = clientId ?? ''
+
+  const { data: client, isLoading: clientLoading } = useClient(safeClientId)
+  const { data: projects, isLoading: projectsLoading } = useProjectsByClient(safeClientId)
+  const { data: contacts, isLoading: contactsLoading } = useContacts(safeClientId)
   const { updateClient } = useClientMutations()
-  const { createContact, updateContact, deleteContact, setPrimaryContact } = useContactMutations(clientId)
+  const { createContact, updateContact, deleteContact, setPrimaryContact } = useContactMutations(safeClientId)
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -153,11 +157,11 @@ export function ClientDetailPage() {
   }
 
   const handleSaveClient = async (data: ClientFormValues) => {
-    if (!clientId) return
+    if (!safeClientId) return
     setIsSaving(true)
     try {
       await updateClient.mutateAsync({
-        id: clientId,
+        id: safeClientId,
         name: data.name,
         company_name: data.company_name,
         overview: data.overview,
@@ -224,7 +228,7 @@ export function ClientDetailPage() {
       await updateContact.mutateAsync({ id: editingContact.id, ...input })
     } else {
       const input: CreateContactInput = {
-        client_id: clientId!,
+        client_id: safeClientId,
         first_name: data.first_name,
         last_name: data.last_name,
         email: data.email || undefined,
@@ -245,7 +249,7 @@ export function ClientDetailPage() {
   }
 
   const handleSetPrimary = async (contactId: string) => {
-    await setPrimaryContact.mutateAsync({ id: contactId, clientId: clientId! })
+    await setPrimaryContact.mutateAsync({ id: contactId, clientId: safeClientId })
   }
 
   const primaryContact = contacts?.find((c) => c.is_primary)
@@ -654,7 +658,7 @@ export function ClientDetailPage() {
         {/* Projects Tab */}
         <TabsContent value="projects" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button onClick={() => navigate(`/projects/new?clientId=${clientId}`)}>
+            <Button onClick={() => navigate(`/projects/new?clientId=${safeClientId}`)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Project
             </Button>
@@ -672,7 +676,7 @@ export function ClientDetailPage() {
                 <p className="text-muted-foreground">No projects yet</p>
                 <Button
                   className="mt-4"
-                  onClick={() => navigate(`/projects/new?clientId=${clientId}`)}
+                  onClick={() => navigate(`/projects/new?clientId=${safeClientId}`)}
                 >
                   Create Project
                 </Button>
