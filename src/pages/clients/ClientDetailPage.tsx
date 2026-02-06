@@ -68,6 +68,7 @@ import {
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
+import { ViewEditToggle } from '@/components/shared/ViewEditToggle'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType } from '@/types/database'
 
 // Client form schema
@@ -331,166 +332,177 @@ export function ClientDetailPage() {
       {/* Client Info Card */}
       <Card>
         <CardContent className="pt-6">
-          {isEditing ? (
-            <Form {...clientForm}>
-              <form className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <FormField
-                  control={clientForm.control}
-                  name="company_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={clientForm.control}
-                  name="industry"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Industry</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select industry" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {INDUSTRY_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={clientForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="col-span-full">
-                  <FormField
-                    control={clientForm.control}
-                    name="overview"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Overview</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} rows={3} placeholder="Brief description of the client..." />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={clientForm.control}
-                  name="portal_enabled"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center gap-2 space-y-0">
-                      <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
-                      </FormControl>
-                      <FormLabel className="!mt-0">Client Portal Enabled</FormLabel>
-                    </FormItem>
-                  )}
-                />
-              </form>
-            </Form>
-          ) : (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-muted">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Company</p>
-                    <p className="font-medium">{client.company_name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-muted">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Industry</p>
-                    <p className="font-medium">
-                      {INDUSTRY_OPTIONS.find((o) => o.value === client.industry)?.label || '-'}
-                    </p>
-                  </div>
-                </div>
-                {primaryContact && (
-                  <>
+          <ViewEditToggle
+            isEditing={isEditing}
+            isSaving={isSaving}
+            onEdit={() => setIsEditing(true)}
+            onCancel={handleCancelEdit}
+            onSave={clientForm.handleSubmit(handleSaveClient)}
+          >
+            {{
+              view: (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-md bg-muted">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Primary Contact</p>
-                        <p className="font-medium">
-                          {primaryContact.first_name} {primaryContact.last_name}
-                        </p>
-                        {primaryContact.email && (
-                          <p className="text-sm text-muted-foreground">{primaryContact.email}</p>
-                        )}
+                        <p className="text-sm text-muted-foreground">Company</p>
+                        <p className="font-medium">{client.company_name}</p>
                       </div>
                     </div>
-                    {primaryContact.phone && (
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-md bg-muted">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Phone</p>
-                          <p className="font-medium">{primaryContact.phone}</p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-md bg-muted">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
                       </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Industry</p>
+                        <p className="font-medium">
+                          {INDUSTRY_OPTIONS.find((o) => o.value === client.industry)?.label || '-'}
+                        </p>
+                      </div>
+                    </div>
+                    {primaryContact && (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-md bg-muted">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Primary Contact</p>
+                            <p className="font-medium">
+                              {primaryContact.first_name} {primaryContact.last_name}
+                            </p>
+                            {primaryContact.email && (
+                              <p className="text-sm text-muted-foreground">{primaryContact.email}</p>
+                            )}
+                          </div>
+                        </div>
+                        {primaryContact.phone && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-md bg-muted">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Phone</p>
+                              <p className="font-medium">{primaryContact.phone}</p>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-muted">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-md bg-muted">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Client Since</p>
+                        <p className="font-medium">{formatDate(client.created_at)}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Client Since</p>
-                    <p className="font-medium">{formatDate(client.created_at)}</p>
-                  </div>
+                  {client.overview && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Overview</p>
+                      <p className="text-sm">{client.overview}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-              {client.overview && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Overview</p>
-                  <p className="text-sm">{client.overview}</p>
-                </div>
-              )}
-            </div>
-          )}
+              ),
+              edit: (
+                <Form {...clientForm}>
+                  <form className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                    <FormField
+                      control={clientForm.control}
+                      name="company_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Company Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={clientForm.control}
+                      name="industry"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Industry</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select industry" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {INDUSTRY_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={clientForm.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="col-span-full">
+                      <FormField
+                        control={clientForm.control}
+                        name="overview"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Overview</FormLabel>
+                            <FormControl>
+                              <Textarea {...field} rows={3} placeholder="Brief description of the client..." />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={clientForm.control}
+                      name="portal_enabled"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-2 space-y-0">
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                          <FormLabel className="!mt-0">Client Portal Enabled</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </form>
+                </Form>
+              ),
+            }}
+          </ViewEditToggle>
         </CardContent>
       </Card>
 
