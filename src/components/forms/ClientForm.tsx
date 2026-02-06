@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useClientMutations } from '@/hooks/useClients'
+import { useCreateClientWithContact } from '@/hooks/useClients'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,8 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { INDUSTRY_OPTIONS } from '@/lib/utils'
-import type { IndustryType, ClientStatus } from '@/types/database'
+import { INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
+import type { IndustryType, ClientStatus, ContactRole } from '@/types/database'
 import {
   Form,
   FormControl,
@@ -36,6 +36,13 @@ const clientSchema = z.object({
   location: z.string().optional(),
   overview: z.string().optional(),
   portal_enabled: z.boolean(),
+
+  // Primary contact fields
+  contact_first_name: z.string().min(1, 'First name is required'),
+  contact_last_name: z.string().min(1, 'Last name is required'),
+  contact_email: z.string().email('Invalid email').optional().or(z.literal('')),
+  contact_phone: z.string().optional(),
+  contact_role: z.string().optional(),
 })
 
 type ClientFormData = z.infer<typeof clientSchema>
@@ -45,7 +52,7 @@ interface ClientFormProps {
 }
 
 export function ClientForm({ onSuccess }: ClientFormProps) {
-  const { createClient } = useClientMutations()
+  const createClientWithContact = useCreateClientWithContact()
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
@@ -57,6 +64,11 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
       location: '',
       overview: '',
       portal_enabled: true,
+      contact_first_name: '',
+      contact_last_name: '',
+      contact_email: '',
+      contact_phone: '',
+      contact_role: '',
     },
   })
 
@@ -65,18 +77,27 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
   const onSubmit = async (data: ClientFormData) => {
     // Determine final industry value
     const finalIndustry = data.industry === 'other' && data.industry_other
-      ? (data.industry_other as IndustryType)
-      : (data.industry as IndustryType)
+      ? data.industry_other
+      : data.industry
 
-    // Create the client
-    await createClient.mutateAsync({
-      name: data.name,
-      company_name: data.name, // Use name as company_name
-      status: data.status as ClientStatus,
-      industry: finalIndustry,
-      location: data.location,
-      overview: data.overview,
-      portal_enabled: data.portal_enabled,
+    // Create the client with primary contact
+    await createClientWithContact.mutateAsync({
+      client: {
+        name: data.name,
+        company_name: data.name,
+        status: data.status as ClientStatus,
+        industry: finalIndustry as IndustryType,
+        location: data.location,
+        overview: data.overview,
+        portal_enabled: data.portal_enabled,
+      },
+      contact: {
+        first_name: data.contact_first_name,
+        last_name: data.contact_last_name,
+        email: data.contact_email || undefined,
+        phone: data.contact_phone || undefined,
+        role: data.contact_role as ContactRole || undefined,
+      },
     })
 
     form.reset()
@@ -88,7 +109,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
     label: opt.label,
   }))
 
-  const isSubmitting = createClient.isPending
+  const isSubmitting = createClientWithContact.isPending
 
   return (
     <Form {...form}>
@@ -229,6 +250,96 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
             </FormItem>
           )}
         />
+
+        {/* Primary Contact Section */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-sm font-medium">Primary Contact</h3>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="contact_first_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>First Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="John" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="contact_last_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Last Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Doe" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="contact_email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="email" placeholder="john@example.com" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="contact_phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="+1 (555) 123-4567" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="contact_role"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Role</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role..." />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {CONTACT_ROLE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
