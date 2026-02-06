@@ -24,15 +24,15 @@ Requirements for MVP completion demo. Each maps to roadmap phases.
 
 - [x] **BUG-01**: Fix PostgREST schema cache so `location` column on `clients` table is recognized
 - [x] **BUG-02**: All INSERT mutations explicitly include `tenant_id` from auth context to prevent RLS visibility bugs
-- [ ] **BUG-03**: Fix client detail route (`/clients/:id`) — currently failing to load
+- [x] **BUG-03**: Fix client detail route (`/clients/:id`) — currently failing to load
 
 ### Client Management
 
 - [x] **CLI-01**: ClientForm includes Name, Status, Overview, Industry (searchable select), Location fields
-- [ ] **CLI-02**: Contacts table exists with first_name, last_name, email, phone, role (dropdown), relationship, is_primary, display_id, audit fields
-- [ ] **CLI-03**: Client Detail page has Contacts tab showing linked contacts with View/Edit toggle
-- [ ] **CLI-04**: System enforces one primary contact per client
-- [ ] **CLI-05**: Refactor `useCreateClient` hook to accept `primaryContact` data; save client + contact to Supabase in one atomic flow
+- [x] **CLI-02**: Contacts table exists with first_name, last_name, email, phone, role (dropdown), relationship, is_primary, display_id, audit fields
+- [x] **CLI-03**: Client Detail page has Contacts tab showing linked contacts with View/Edit toggle
+- [x] **CLI-04**: System enforces one primary contact per client
+- [x] **CLI-05**: Refactor `useCreateClient` hook to accept `primaryContact` data; save client + contact to Supabase in one atomic flow
 
 ### Project Management
 
@@ -114,11 +114,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUG-01 | Phase 1 | Complete |
 | BUG-02 | Phase 1 | Complete |
 | CLI-01 | Phase 1 | Complete |
-| BUG-03 | Phase 2 | Pending |
-| CLI-02 | Phase 2 | Pending |
-| CLI-03 | Phase 2 | Pending |
-| CLI-04 | Phase 2 | Pending |
-| CLI-05 | Phase 2 | Pending |
+| BUG-03 | Phase 2 | Complete |
+| CLI-02 | Phase 2 | Complete |
+| CLI-03 | Phase 2 | Complete |
+| CLI-04 | Phase 2 | Complete |
+| CLI-05 | Phase 2 | Complete |
 | PROJ-01 | Phase 3 | Pending |
 | PROJ-02 | Phase 3 | Pending |
 | PROJ-03 | Phase 3 | Pending |
