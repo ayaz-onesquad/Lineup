@@ -79,7 +79,7 @@ export interface ContactWithCreator extends Contact {
 }
 
 // Client types
-export type ClientStatus = 'active' | 'inactive'
+export type ClientStatus = 'active' | 'inactive' | 'onboarding'
 export type IndustryType =
   | 'saas'
   | 'ecommerce'

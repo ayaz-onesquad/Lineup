@@ -30,7 +30,7 @@ import { Loader2 } from 'lucide-react'
 const clientSchema = z.object({
   // Client fields
   name: z.string().min(1, 'Client name is required'),
-  status: z.enum(['active', 'inactive']),
+  status: z.enum(['active', 'inactive', 'onboarding']),
   industry: z.string().min(1, 'Industry is required'),
   industry_other: z.string().optional(),
   location: z.string().optional(),
@@ -147,6 +147,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
                     <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="onboarding">Onboarding</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

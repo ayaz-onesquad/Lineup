@@ -1,4 +1,5 @@
-import { Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from '@/components/navigation/Sidebar'
 import { TopNav } from '@/components/navigation/TopNav'
 import { DetailPanel } from '@/components/shared/DetailPanel'
@@ -6,7 +7,16 @@ import { CreateModal } from '@/components/shared/CreateModal'
 import { useUIStore } from '@/stores'
 
 export function MainLayout() {
-  const { sidebarCollapsed, detailPanel } = useUIStore()
+  const { sidebarCollapsed, detailPanel, closeDetailPanel } = useUIStore()
+  const location = useLocation()
+
+  // Close detail panel when navigating to a detail page
+  useEffect(() => {
+    // Close sidebar when navigating to any detail page (e.g., /clients/:id, /projects/:id)
+    if (detailPanel.isOpen) {
+      closeDetailPanel()
+    }
+  }, [location.pathname])
 
   return (
     <div className="min-h-screen bg-background">

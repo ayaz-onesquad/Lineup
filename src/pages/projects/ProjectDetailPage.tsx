@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -92,18 +92,20 @@ export function ProjectDetailPage() {
   })
 
   // Reset form when project data loads
-  if (project && !form.formState.isDirty && !isEditing) {
-    form.reset({
-      name: project.name,
-      description: project.description || '',
-      status: project.status,
-      health: project.health,
-      expected_start_date: project.expected_start_date?.split('T')[0] || '',
-      expected_end_date: project.expected_end_date?.split('T')[0] || '',
-      actual_start_date: project.actual_start_date?.split('T')[0] || '',
-      actual_end_date: project.actual_end_date?.split('T')[0] || '',
-    })
-  }
+  useEffect(() => {
+    if (project && !isEditing) {
+      form.reset({
+        name: project.name,
+        description: project.description || '',
+        status: project.status,
+        health: project.health,
+        expected_start_date: project.expected_start_date?.split('T')[0] || '',
+        expected_end_date: project.expected_end_date?.split('T')[0] || '',
+        actual_start_date: project.actual_start_date?.split('T')[0] || '',
+        actual_end_date: project.actual_end_date?.split('T')[0] || '',
+      })
+    }
+  }, [project?.id, isEditing])
 
   const togglePhase = (phaseId: string) => {
     const newExpanded = new Set(expandedPhases)
@@ -182,7 +184,7 @@ export function ProjectDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-carbon p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link to="/projects">
@@ -238,7 +240,7 @@ export function ProjectDetailPage() {
       </div>
 
       {/* Project Info Card */}
-      <Card>
+      <Card className="card-carbon">
         <CardContent className="pt-6">
           {isEditing ? (
             <Form {...form}>

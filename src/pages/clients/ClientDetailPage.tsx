@@ -75,7 +75,7 @@ const clientFormSchema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
   overview: z.string().optional(),
   industry: z.string().optional(),
-  status: z.enum(['active', 'inactive']),
+  status: z.enum(['active', 'inactive', 'onboarding']),
   portal_enabled: z.boolean(),
 })
 
@@ -444,6 +444,7 @@ export function ClientDetailPage() {
                             <SelectContent>
                               <SelectItem value="active">Active</SelectItem>
                               <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="onboarding">Onboarding</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />

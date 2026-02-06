@@ -5,11 +5,7 @@ export const contactsApi = {
   getByClientId: async (clientId: string): Promise<ContactWithCreator[]> => {
     const { data, error } = await supabase
       .from('contacts')
-      .select(`
-        *,
-        creator:user_profiles!contacts_created_by_fkey (*),
-        updater:user_profiles!contacts_updated_by_fkey (*)
-      `)
+      .select('*')
       .eq('client_id', clientId)
       .is('deleted_at', null)
       .order('is_primary', { ascending: false })
@@ -22,11 +18,7 @@ export const contactsApi = {
   getById: async (id: string): Promise<ContactWithCreator | null> => {
     const { data, error } = await supabase
       .from('contacts')
-      .select(`
-        *,
-        creator:user_profiles!contacts_created_by_fkey (*),
-        updater:user_profiles!contacts_updated_by_fkey (*)
-      `)
+      .select('*')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
