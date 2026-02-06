@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { clientsApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
-import type { CreateClientInput, UpdateClientInput } from '@/types/database'
+import type { CreateClientInput, CreateClientWithContactInput, UpdateClientInput } from '@/types/database'
 
 export function useClients() {
   const { currentTenant } = useTenantStore()
@@ -107,4 +107,49 @@ export function useClientMutations() {
     updateClient,
     deleteClient,
   }
+}
+
+export function useCreateClientWithContact() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+  const { currentTenant } = useTenantStore()
+  const tenantId = currentTenant?.id
+
+  return useMutation({
+    mutationFn: (input: CreateClientWithContactInput) => {
+      if (!tenantId) {
+        throw new Error('Cannot create client: No tenant selected')
+      }
+      if (!user?.id) {
+        throw new Error('Cannot create client: User not authenticated')
+      }
+      return clientsApi.createWithContact(tenantId, user.id, input)
+    },
+    onSuccess: ({ client, contact }) => {
+      // Invalidate clients list
+      queryClient.invalidateQueries({ queryKey: ['clients', tenantId] })
+
+      // Set client detail with contact already attached
+      queryClient.setQueryData(['client', client.id], {
+        ...client,
+        contacts: [contact],
+        primary_contact: contact,
+      })
+
+      // Set contacts query for this client
+      queryClient.setQueryData(['contacts', client.id], [contact])
+
+      toast({
+        title: 'Client created',
+        description: `${client.name} created with primary contact ${contact.first_name} ${contact.last_name}`,
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to create client',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
 }
