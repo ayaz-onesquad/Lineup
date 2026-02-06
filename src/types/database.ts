@@ -409,6 +409,32 @@ export interface UpdateClientInput extends Partial<CreateClientInput> {
   status?: ClientStatus
 }
 
+// Atomic client + contact creation types
+export interface CreateClientWithContactInput {
+  client: {
+    name: string
+    company_name?: string
+    status?: ClientStatus
+    industry?: IndustryType
+    location?: string
+    overview?: string
+    portal_enabled?: boolean
+  }
+  contact: {
+    first_name: string
+    last_name: string
+    email?: string
+    phone?: string
+    role?: ContactRole
+    relationship?: string
+  }
+}
+
+export interface CreateClientWithContactResult {
+  client: Client
+  contact: Contact
+}
+
 export interface CreateContactInput {
   client_id: string
   first_name: string

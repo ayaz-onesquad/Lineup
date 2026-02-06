@@ -1,5 +1,13 @@
 import { supabase } from '@/services/supabase'
-import type { Client, ClientWithRelations, CreateClientInput, UpdateClientInput } from '@/types/database'
+import type {
+  Client,
+  ClientWithRelations,
+  Contact,
+  CreateClientInput,
+  CreateClientWithContactInput,
+  CreateClientWithContactResult,
+  UpdateClientInput,
+} from '@/types/database'
 
 export const clientsApi = {
   getAll: async (tenantId: string): Promise<ClientWithRelations[]> => {
@@ -138,5 +146,47 @@ export const clientsApi = {
       .eq('id', id)
 
     if (error) throw error
+  },
+
+  /**
+   * Create a client and primary contact atomically via PostgreSQL RPC function.
+   * Both records are created in a single database transaction - if either fails,
+   * the entire operation is rolled back (no partial saves).
+   *
+   * @param tenantId - The tenant ID for multi-tenant isolation
+   * @param userId - The user ID for audit trail (created_by)
+   * @param input - Client and contact data
+   * @returns Both client and contact records
+   * @throws Error if RPC call fails or validation fails
+   */
+  createWithContact: async (
+    tenantId: string,
+    userId: string,
+    input: CreateClientWithContactInput
+  ): Promise<CreateClientWithContactResult> => {
+    // Validate required parameters before RPC call
+    if (!tenantId) {
+      throw new Error('tenantId is required for createWithContact')
+    }
+    if (!userId) {
+      throw new Error('userId is required for createWithContact')
+    }
+
+    const { data, error } = await supabase.rpc('create_client_with_contact', {
+      p_tenant_id: tenantId,
+      p_user_id: userId,
+      p_client_data: input.client,
+      p_contact_data: input.contact,
+    })
+
+    if (error) {
+      throw new Error(`Failed to create client with contact: ${error.message}`)
+    }
+
+    // Parse the returned JSONB - RPC returns { client: {...}, contact: {...} }
+    return {
+      client: data.client as Client,
+      contact: data.contact as Contact,
+    }
   },
 }
