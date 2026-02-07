@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -67,6 +67,7 @@ type ProjectFormValues = z.infer<typeof projectFormSchema>
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
   const { updateProject } = useProjectMutations()
   const { openDetailPanel, openCreateModal } = useUIStore()
@@ -185,32 +186,21 @@ export function ProjectDetailPage() {
 
   return (
     <div className="page-carbon p-6 space-y-6">
-      {/* Header */}
+      {/* Header - Title is non-editable, shows Name | ID format */}
       <div className="flex items-center gap-4">
-        <Link to="/projects">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            {isEditing ? (
-              <Input
-                {...form.register('name')}
-                className="text-3xl font-bold h-auto py-1 px-2 max-w-md"
-              />
-            ) : (
-              <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-            )}
+            <h1 className="text-3xl font-bold tracking-tight">
+              {isEditing ? form.watch('name') : project.name}
+              {project.display_id && <span className="text-muted-foreground"> | ID: {project.display_id}</span>}
+            </h1>
             <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
             <Badge variant="outline" className={getHealthColor(project.health)}>
               {project.health.replace('_', ' ')}
             </Badge>
-            {project.display_id && (
-              <Badge variant="outline" className="font-mono">
-                #{project.display_id}
-              </Badge>
-            )}
           </div>
           <p className="text-muted-foreground">
             {project.project_code} • {project.clients?.name}
@@ -245,6 +235,19 @@ export function ProjectDetailPage() {
           {isEditing ? (
             <Form {...form}>
               <form className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Project name..." />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="description"

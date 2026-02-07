@@ -75,8 +75,8 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
           name="client_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Client</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <FormLabel>Client *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a client" />
@@ -85,7 +85,7 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
                 <SelectContent>
                   {clients?.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
-                      {client.company_name}
+                      {client.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -133,7 +133,7 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Project Lead</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value || undefined}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select project lead" />
@@ -142,7 +142,7 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
                 <SelectContent>
                   {users?.map((user) => (
                     <SelectItem key={user.user_id} value={user.user_id}>
-                      {user.user_profiles?.full_name}
+                      {user.user_profiles?.full_name || 'Unknown User'}
                     </SelectItem>
                   ))}
                 </SelectContent>

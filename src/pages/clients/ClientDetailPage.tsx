@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { useClient, useClientMutations } from '@/hooks/useClients'
 import { useProjectsByClient } from '@/hooks/useProjects'
 import { useContacts, useContactMutations } from '@/hooks/useContacts'
+import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -106,6 +107,7 @@ export function ClientDetailPage() {
   const { data: contacts, isLoading: contactsLoading } = useContacts(safeClientId)
   const { updateClient } = useClientMutations()
   const { createContact, updateContact, deleteContact, setPrimaryContact } = useContactMutations(safeClientId)
+  const { openCreateModal } = useUIStore()
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -278,31 +280,20 @@ export function ClientDetailPage() {
 
   return (
     <div className="page-carbon p-6 space-y-6">
-      {/* Header */}
+      {/* Header - Title is non-editable, shows Name | ID format */}
       <div className="flex items-center gap-4">
-        <Link to="/clients">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            {isEditing ? (
-              <Input
-                {...clientForm.register('name')}
-                className="text-3xl font-bold h-auto py-1 px-2 max-w-md"
-              />
-            ) : (
-              <h1 className="text-3xl font-bold tracking-tight">{client.name}</h1>
-            )}
-            <Badge variant={client.status === 'active' ? 'default' : 'secondary'}>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {isEditing ? clientForm.watch('name') : client.name}
+              {client.display_id && <span className="text-muted-foreground"> | ID: {client.display_id}</span>}
+            </h1>
+            <Badge variant={client.status === 'active' ? 'default' : client.status === 'onboarding' ? 'info' : 'secondary'}>
               {client.status}
             </Badge>
-            {client.display_id && (
-              <Badge variant="outline" className="font-mono">
-                #{client.display_id}
-              </Badge>
-            )}
           </div>
           <p className="text-muted-foreground">{client.company_name}</p>
         </div>
@@ -392,6 +383,19 @@ export function ClientDetailPage() {
               edit: (
                 <Form {...clientForm}>
                   <form className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                    <FormField
+                      control={clientForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Client Name *</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={clientForm.control}
                       name="company_name"
@@ -650,7 +654,7 @@ export function ClientDetailPage() {
         {/* Projects Tab */}
         <TabsContent value="projects" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button onClick={() => navigate(`/projects/new?clientId=${safeClientId}`)}>
+            <Button onClick={() => openCreateModal('project', { client_id: safeClientId })}>
               <Plus className="mr-2 h-4 w-4" />
               Create Project
             </Button>
@@ -668,7 +672,7 @@ export function ClientDetailPage() {
                 <p className="text-muted-foreground">No projects yet</p>
                 <Button
                   className="mt-4"
-                  onClick={() => navigate(`/projects/new?clientId=${safeClientId}`)}
+                  onClick={() => openCreateModal('project', { client_id: safeClientId })}
                 >
                   Create Project
                 </Button>

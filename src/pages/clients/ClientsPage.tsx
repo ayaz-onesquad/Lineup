@@ -22,10 +22,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export function ClientsPage() {
   const [search, setSearch] = useState('')
+  const navigate = useNavigate()
   const { data: clients, isLoading } = useClients()
   const { deleteClient } = useClientMutations()
   const { openCreateModal, openDetailPanel } = useUIStore()
@@ -125,8 +126,9 @@ export function ClientsPage() {
                 filteredClients?.map((client) => (
                   <TableRow
                     key={client.id}
-                    className="cursor-pointer"
+                    className="cursor-pointer hover:bg-muted/50"
                     onClick={() => openDetailPanel('client', client.id)}
+                    onDoubleClick={() => navigate(`/clients/${client.id}`)}
                   >
                     <TableCell>
                       <div>

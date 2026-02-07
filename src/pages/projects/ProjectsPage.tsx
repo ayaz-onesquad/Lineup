@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useProjects } from '@/hooks/useProjects'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -21,9 +21,10 @@ import { getStatusColor, getHealthColor, formatDate } from '@/lib/utils'
 export function ProjectsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const navigate = useNavigate()
   const { data: projects, isLoading } = useProjects()
-  const { openCreateModal } = useUIStore()
+  const { openCreateModal, openDetailPanel } = useUIStore()
 
   const filteredProjects = projects?.filter((project) => {
     const matchesSearch =
@@ -112,8 +113,12 @@ export function ProjectsPage() {
       ) : viewMode === 'grid' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredProjects?.map((project) => (
-            <Link key={project.id} to={`/projects/${project.id}`}>
-              <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
+            <Card
+              key={project.id}
+              className="h-full hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => openDetailPanel('project', project.id)}
+              onDoubleClick={() => navigate(`/projects/${project.id}`)}
+            >
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between mb-2">
                     <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
@@ -147,14 +152,17 @@ export function ProjectsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </Link>
           ))}
         </div>
       ) : (
         <div className="space-y-3">
           {filteredProjects?.map((project) => (
-            <Link key={project.id} to={`/projects/${project.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <Card
+                key={project.id}
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => openDetailPanel('project', project.id)}
+                onDoubleClick={() => navigate(`/projects/${project.id}`)}
+              >
                 <CardContent className="flex items-center gap-4 py-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -178,7 +186,6 @@ export function ProjectsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </Link>
           ))}
         </div>
       )}
