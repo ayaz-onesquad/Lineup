@@ -2,6 +2,21 @@ import { supabase } from '@/services/supabase'
 import type { Contact, ContactWithCreator, CreateContactInput, UpdateContactInput } from '@/types/database'
 
 export const contactsApi = {
+  getAll: async (tenantId: string): Promise<(ContactWithCreator & { clients?: { id: string; name: string } })[]> => {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select(`
+        *,
+        clients!contacts_client_id_fkey (id, name)
+      `)
+      .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data || []
+  },
+
   getByClientId: async (clientId: string): Promise<ContactWithCreator[]> => {
     const { data, error } = await supabase
       .from('contacts')
@@ -15,10 +30,15 @@ export const contactsApi = {
     return data || []
   },
 
-  getById: async (id: string): Promise<ContactWithCreator | null> => {
+  getById: async (id: string): Promise<(ContactWithCreator & { clients?: { id: string; name: string } }) | null> => {
     const { data, error } = await supabase
       .from('contacts')
-      .select('*')
+      .select(`
+        *,
+        clients!contacts_client_id_fkey (id, name),
+        creator:user_profiles!contacts_created_by_fkey (*),
+        updater:user_profiles!contacts_updated_by_fkey (*)
+      `)
       .eq('id', id)
       .is('deleted_at', null)
       .single()

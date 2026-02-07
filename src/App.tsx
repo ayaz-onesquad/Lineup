@@ -14,6 +14,8 @@ import { OnboardingPage } from '@/pages/auth/OnboardingPage'
 import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { ClientsPage } from '@/pages/clients/ClientsPage'
 import { ClientDetailPage } from '@/pages/clients/ClientDetailPage'
+import { ContactsPage } from '@/pages/contacts/ContactsPage'
+import { ContactDetailPage } from '@/pages/contacts/ContactDetailPage'
 import { ProjectsPage } from '@/pages/projects/ProjectsPage'
 import { ProjectDetailPage } from '@/pages/projects/ProjectDetailPage'
 import { SetsPage } from '@/pages/sets/SetsPage'
@@ -88,6 +90,8 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/clients/:clientId" element={<ClientDetailPage />} />
+              <Route path="/contacts" element={<ContactsPage />} />
+              <Route path="/contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="/sets" element={<SetsPage />} />

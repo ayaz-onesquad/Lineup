@@ -45,6 +45,27 @@ export const setsApi = {
     return data || []
   },
 
+  getByClientId: async (clientId: string): Promise<SetWithRelations[]> => {
+    // Get sets through projects that belong to this client
+    const { data, error } = await supabase
+      .from('sets')
+      .select(`
+        *,
+        projects!inner (*),
+        project_phases (*),
+        owner:user_profiles!sets_owner_id_fkey (*),
+        lead:user_profiles!sets_lead_id_fkey (*),
+        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
+        pm:user_profiles!sets_pm_id_fkey (*)
+      `)
+      .eq('projects.client_id', clientId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data || []
+  },
+
   getByProjectId: async (projectId: string): Promise<SetWithRelations[]> => {
     const { data, error } = await supabase
       .from('sets')

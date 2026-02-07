@@ -22,6 +22,14 @@ export function useSetsByProject(projectId: string) {
   })
 }
 
+export function useSetsByClient(clientId: string) {
+  return useQuery({
+    queryKey: ['sets', 'client', clientId],
+    queryFn: () => setsApi.getByClientId(clientId),
+    enabled: !!clientId,
+  })
+}
+
 export function useSetsByPhase(phaseId: string) {
   return useQuery({
     queryKey: ['sets', 'phase', phaseId],
@@ -46,15 +54,29 @@ export function useSetMutations() {
   const createSet = useMutation({
     mutationFn: (input: CreateSetInput) =>
       setsApi.create(currentTenant!.id, user!.id, input),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      console.log('[useSets.createSet] Success, invalidating caches', { data, variables })
+      // Invalidate all sets-related queries aggressively
       queryClient.invalidateQueries({ queryKey: ['sets'] })
-      queryClient.invalidateQueries({ queryKey: ['project'] })
+      // Invalidate specific project queries (including hierarchy view)
+      if (variables.project_id) {
+        queryClient.invalidateQueries({ queryKey: ['project', variables.project_id] })
+        queryClient.invalidateQueries({ queryKey: ['sets', 'project', variables.project_id] })
+      }
+      // Invalidate phase queries if applicable
+      if (variables.phase_id) {
+        queryClient.invalidateQueries({ queryKey: ['phase', variables.phase_id] })
+        queryClient.invalidateQueries({ queryKey: ['sets', 'phase', variables.phase_id] })
+      }
+      // Invalidate all projects list queries
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
       toast({
         title: 'Set created',
         description: 'The set has been created successfully.',
       })
     },
     onError: (error: Error) => {
+      console.error('[useSets.createSet] Error:', error)
       toast({
         title: 'Failed to create set',
         description: error.message,
@@ -66,16 +88,30 @@ export function useSetMutations() {
   const updateSet = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateSetInput) =>
       setsApi.update(id, user!.id, input),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sets'] })
+    onSuccess: (data, variables) => {
+      console.log('[useSets.updateSet] Success, invalidating caches', { data, variables })
+      // Invalidate the specific set
       queryClient.invalidateQueries({ queryKey: ['set', variables.id] })
-      queryClient.invalidateQueries({ queryKey: ['project'] })
+      // Invalidate all sets-related queries
+      queryClient.invalidateQueries({ queryKey: ['sets'] })
+      // Invalidate project hierarchy queries (the updated set may have project_id or phase_id)
+      if (data?.project_id) {
+        queryClient.invalidateQueries({ queryKey: ['project', data.project_id] })
+        queryClient.invalidateQueries({ queryKey: ['sets', 'project', data.project_id] })
+      }
+      if (data?.phase_id) {
+        queryClient.invalidateQueries({ queryKey: ['phase', data.phase_id] })
+        queryClient.invalidateQueries({ queryKey: ['sets', 'phase', data.phase_id] })
+      }
+      // Invalidate all project queries to ensure UI refreshes
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
       toast({
         title: 'Set updated',
         description: 'The set has been updated successfully.',
       })
     },
     onError: (error: Error) => {
+      console.error('[useSets.updateSet] Error:', error)
       toast({
         title: 'Failed to update set',
         description: error.message,
@@ -87,14 +123,20 @@ export function useSetMutations() {
   const deleteSet = useMutation({
     mutationFn: setsApi.delete,
     onSuccess: () => {
+      console.log('[useSets.deleteSet] Success, invalidating caches')
+      // Invalidate all sets and project queries aggressively
       queryClient.invalidateQueries({ queryKey: ['sets'] })
+      queryClient.invalidateQueries({ queryKey: ['set'] })
       queryClient.invalidateQueries({ queryKey: ['project'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['phase'] })
       toast({
         title: 'Set archived',
         description: 'The set has been archived.',
       })
     },
     onError: (error: Error) => {
+      console.error('[useSets.deleteSet] Error:', error)
       toast({
         title: 'Failed to archive set',
         description: error.message,

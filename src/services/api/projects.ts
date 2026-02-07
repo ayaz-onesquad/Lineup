@@ -102,12 +102,21 @@ export const projectsApi = {
     userId: string,
     input: CreateProjectInput
   ): Promise<Project> => {
+    console.log('[projectsApi.create] Input received:', { tenantId, userId, client_id: input.client_id })
+
+    // Validate client_id BEFORE cleaning - catch empty strings early
+    if (!input.client_id || input.client_id.trim() === '') {
+      console.error('[projectsApi.create] client_id is empty or missing')
+      throw new Error('Client is required. Please select a client before creating a project.')
+    }
+
     // Clean UUID fields to prevent "invalid UUID" errors
     const cleanedInput = cleanUUIDFields(input, ['client_id', 'lead_id', 'secondary_lead_id', 'pm_id'])
 
-    // Validate client_id is a valid UUID
+    // Validate client_id is a valid UUID after cleaning
     if (!cleanedInput.client_id || !isValidUUID(cleanedInput.client_id)) {
-      throw new Error('A valid client must be selected')
+      console.error('[projectsApi.create] client_id is not a valid UUID:', cleanedInput.client_id)
+      throw new Error('Invalid client selected. Please select a valid client.')
     }
 
     // Generate project code

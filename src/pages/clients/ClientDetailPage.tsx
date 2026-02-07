@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,9 +7,10 @@ import { useClient, useClientMutations } from '@/hooks/useClients'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useProjectsByClient } from '@/hooks/useProjects'
 import { useContacts, useContactMutations } from '@/hooks/useContacts'
+import { useSetsByClient } from '@/hooks/useSets'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -29,7 +30,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import {
   Form,
@@ -68,9 +68,6 @@ import {
 import {
   ArrowLeft,
   Building2,
-  Mail,
-  Phone,
-  Calendar,
   FolderKanban,
   Users,
   FileText,
@@ -80,10 +77,15 @@ import {
   Trash2,
   Loader2,
   MoreVertical,
+  Save,
+  X,
+  ExternalLink,
+  Layers,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
-import { ViewEditToggle } from '@/components/shared/ViewEditToggle'
+import { ViewEditField } from '@/components/shared/ViewEditField'
+import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -138,6 +140,7 @@ export function ClientDetailPage() {
   const { data: client, isLoading: clientLoading } = useClient(safeClientId)
   const { data: projects, isLoading: projectsLoading } = useProjectsByClient(safeClientId)
   const { data: contacts, isLoading: contactsLoading } = useContacts(safeClientId)
+  const { data: clientSets, isLoading: setsLoading } = useSetsByClient(safeClientId)
   const { data: tenantUsers } = useTenantUsers()
   const { updateClient } = useClientMutations()
   const { createContact, updateContact, deleteContact, setPrimaryContact } = useContactMutations(safeClientId)
@@ -331,6 +334,14 @@ export function ClientDetailPage() {
 
   return (
     <div className="page-carbon p-6 space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs
+        items={[
+          { label: 'Clients', href: '/clients' },
+          { label: client.name, displayId: client.display_id },
+        ]}
+      />
+
       {/* Header - Title is non-editable, shows Name | ID format */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -350,242 +361,161 @@ export function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Client Info Card */}
+      {/* Client Info Card - Mendix-style consistent layout */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          <ViewEditToggle
-            isEditing={isEditing}
-            isSaving={isSaving}
-            onEdit={() => setIsEditing(true)}
-            onCancel={handleCancelEdit}
-            onSave={clientForm.handleSubmit(handleSaveClient)}
-          >
-            {{
-              view: (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-md bg-muted">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Company</p>
-                        <p className="font-medium">{client.company_name}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-md bg-muted">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Industry</p>
-                        <p className="font-medium">
-                          {INDUSTRY_OPTIONS.find((o) => o.value === client.industry)?.label || '-'}
-                        </p>
-                      </div>
-                    </div>
-                    {primaryContact && (
-                      <>
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-md bg-muted">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Primary Contact</p>
-                            <p className="font-medium">
-                              {primaryContact.first_name} {primaryContact.last_name}
-                            </p>
-                            {primaryContact.email && (
-                              <p className="text-sm text-muted-foreground">{primaryContact.email}</p>
-                            )}
-                          </div>
-                        </div>
-                        {primaryContact.phone && (
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-md bg-muted">
-                              <Phone className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">Phone</p>
-                              <p className="font-medium">{primaryContact.phone}</p>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-md bg-muted">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Client Since</p>
-                        <p className="font-medium">{formatDate(client.created_at)}</p>
-                      </div>
-                    </div>
-                  </div>
-                  {client.overview && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Overview</p>
-                      <p className="text-sm">{client.overview}</p>
-                    </div>
+          {/* Edit/Save buttons */}
+          <div className="flex justify-end gap-2 mb-4">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={clientForm.handleSubmit(handleSaveClient)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
                   )}
+                  Save
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
+
+          {/* Fields with consistent layout - same grid in view/edit */}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <ViewEditField
+                type="text"
+                label="Client Name"
+                required
+                isEditing={isEditing}
+                value={clientForm.watch('name')}
+                onChange={(v) => clientForm.setValue('name', v)}
+                error={clientForm.formState.errors.name?.message}
+              />
+              <ViewEditField
+                type="text"
+                label="Company Name"
+                required
+                isEditing={isEditing}
+                value={clientForm.watch('company_name')}
+                onChange={(v) => clientForm.setValue('company_name', v)}
+                error={clientForm.formState.errors.company_name?.message}
+              />
+              <ViewEditField
+                type="select"
+                label="Industry"
+                isEditing={isEditing}
+                value={clientForm.watch('industry') || ''}
+                onChange={(v) => clientForm.setValue('industry', v)}
+                options={INDUSTRY_OPTIONS}
+                placeholder="Select industry"
+              />
+              <ViewEditField
+                type="badge"
+                label="Status"
+                isEditing={isEditing}
+                value={clientForm.watch('status')}
+                onChange={(v) => clientForm.setValue('status', v as 'active' | 'inactive' | 'onboarding')}
+                options={[
+                  { value: 'active', label: 'Active', variant: 'default' },
+                  { value: 'inactive', label: 'Inactive', variant: 'secondary' },
+                  { value: 'onboarding', label: 'Onboarding', variant: 'outline' },
+                ]}
+              />
+              <ViewEditField
+                type="select"
+                label="Relationship Manager"
+                isEditing={isEditing}
+                value={clientForm.watch('relationship_manager_id') || ''}
+                onChange={(v) => clientForm.setValue('relationship_manager_id', v)}
+                options={tenantUsers?.map((u) => ({
+                  value: u.user_id,
+                  label: u.user_profiles?.full_name || 'Unknown User',
+                })) || []}
+                placeholder="Select manager"
+              />
+              <ViewEditField
+                type="select"
+                label="Referral Source"
+                isEditing={isEditing}
+                value={clientForm.watch('referral_source') || ''}
+                onChange={(v) => clientForm.setValue('referral_source', v)}
+                options={REFERRAL_SOURCE_OPTIONS}
+                placeholder="Select source"
+              />
+            </div>
+
+            {/* Primary Contact info (read-only) */}
+            {primaryContact && !isEditing && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6 p-4 rounded-lg bg-muted/50">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Primary Contact</p>
+                  <p className="font-medium">
+                    {primaryContact.first_name} {primaryContact.last_name}
+                  </p>
                 </div>
-              ),
-              edit: (
-                <Form {...clientForm}>
-                  <form className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                    <FormField
-                      control={clientForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Client Name *</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={clientForm.control}
-                      name="company_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Company Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={clientForm.control}
-                      name="industry"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Industry</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select industry" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {INDUSTRY_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={clientForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="inactive">Inactive</SelectItem>
-                              <SelectItem value="onboarding">Onboarding</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={clientForm.control}
-                      name="relationship_manager_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Relationship Manager</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || undefined}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select manager" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {tenantUsers?.map((user) => (
-                                <SelectItem key={user.user_id} value={user.user_id}>
-                                  {user.user_profiles?.full_name || 'Unknown User'}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={clientForm.control}
-                      name="referral_source"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Referral Source</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || undefined}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select source" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {REFERRAL_SOURCE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="col-span-full">
-                      <FormField
-                        control={clientForm.control}
-                        name="overview"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Overview</FormLabel>
-                            <FormControl>
-                              <Textarea {...field} rows={3} placeholder="Brief description of the client..." />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={clientForm.control}
-                      name="portal_enabled"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center gap-2 space-y-0">
-                          <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                          <FormLabel className="!mt-0">Client Portal Enabled</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  </form>
-                </Form>
-              ),
-            }}
-          </ViewEditToggle>
+                {primaryContact.email && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Email</p>
+                    <p>{primaryContact.email}</p>
+                  </div>
+                )}
+                {primaryContact.phone && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Phone</p>
+                    <p>{primaryContact.phone}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Overview */}
+            <ViewEditField
+              type="textarea"
+              label="Overview"
+              isEditing={isEditing}
+              value={clientForm.watch('overview') || ''}
+              onChange={(v) => clientForm.setValue('overview', v)}
+              placeholder="Brief description of the client..."
+              rows={3}
+            />
+
+            {/* Portal toggle */}
+            <ViewEditField
+              type="switch"
+              label="Client Portal"
+              isEditing={isEditing}
+              value={clientForm.watch('portal_enabled')}
+              onChange={(v) => clientForm.setValue('portal_enabled', v)}
+              description="Allow client to access the portal"
+            />
+
+            {/* Client Since - read-only */}
+            {!isEditing && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Client Since</p>
+                <p>{formatDate(client.created_at)}</p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -614,38 +544,124 @@ export function ClientDetailPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="sets" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Sets
+            {clientSets && clientSets.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {clientSets.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
             Documents
           </TabsTrigger>
         </TabsList>
 
-        {/* Details Tab */}
-        <TabsContent value="details" className="mt-6">
+        {/* Details Tab - Structured sections */}
+        <TabsContent value="details" className="mt-6 space-y-6">
+          {/* Primary Contact Section */}
           <Card className="card-carbon">
             <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                Primary Contact
+              </h3>
+              {primaryContact ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Client Portal</p>
-                    <p>{client.portal_enabled ? 'Enabled' : 'Disabled'}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Name</p>
+                    <p className="font-medium">{primaryContact.first_name} {primaryContact.last_name}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
-                    <Badge variant={client.status === 'active' ? 'default' : 'secondary'}>
-                      {client.status}
-                    </Badge>
+                    <p className="text-sm font-medium text-muted-foreground">Role</p>
+                    <p>{primaryContact.role ? CONTACT_ROLE_OPTIONS.find(o => o.value === primaryContact.role)?.label || primaryContact.role : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Email</p>
+                    <p>{primaryContact.email || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                    <p>{primaryContact.phone || '—'}</p>
                   </div>
                 </div>
+              ) : (
+                <p className="text-muted-foreground">No primary contact set. Add a contact in the Contacts tab.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Business Info Section */}
+          <Card className="card-carbon">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+                Business Information
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Company Name</p>
+                  <p className="font-medium">{client.company_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Industry</p>
+                  <p>{client.industry ? INDUSTRY_OPTIONS.find(o => o.value === client.industry)?.label || client.industry : '—'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Status</p>
+                  <Badge variant={client.status === 'active' ? 'default' : client.status === 'onboarding' ? 'outline' : 'secondary'}>
+                    {client.status}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Relationship Manager</p>
+                  <p>{client.relationship_manager?.full_name || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Referral Source</p>
+                  <p>{client.referral_source ? REFERRAL_SOURCE_OPTIONS.find(o => o.value === client.referral_source)?.label || client.referral_source : '—'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Client Since</p>
+                  <p>{formatDate(client.created_at)}</p>
+                </div>
               </div>
-              <AuditTrail
-                created_at={client.created_at}
-                created_by={client.created_by}
-                updated_at={client.updated_at}
-                updated_by={client.updated_by}
-                creator={client.creator}
-                updater={client.updater}
-              />
+              {client.overview && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-muted-foreground">Overview</p>
+                  <p className="mt-1 whitespace-pre-wrap">{client.overview}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Settings Section */}
+          <Card className="card-carbon">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                Settings
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Client Portal</p>
+                  <Badge variant={client.portal_enabled ? 'default' : 'secondary'}>
+                    {client.portal_enabled ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t">
+                <AuditTrail
+                  created_at={client.created_at}
+                  created_by={client.created_by}
+                  updated_at={client.updated_at}
+                  updated_by={client.updated_by}
+                  creator={client.creator}
+                  updater={client.updater}
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -713,7 +729,11 @@ export function ClientDetailPage() {
                   </TableHeader>
                   <TableBody>
                     {contacts?.map((contact) => (
-                      <TableRow key={contact.id}>
+                      <TableRow
+                        key={contact.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onDoubleClick={() => navigate(`/contacts/${contact.id}`)}
+                      >
                         <TableCell className="font-medium">
                           {contact.first_name} {contact.last_name}
                         </TableCell>
@@ -752,9 +772,13 @@ export function ClientDetailPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/contacts/${contact.id}`)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenContactDialog(contact)}>
                                 <Edit className="mr-2 h-4 w-4" />
-                                Edit Details
+                                Quick Edit
                               </DropdownMenuItem>
                               {!contact.is_primary && (
                                 <DropdownMenuItem onClick={() => handleSetPrimary(contact.id)}>
@@ -781,7 +805,7 @@ export function ClientDetailPage() {
           )}
         </TabsContent>
 
-        {/* Projects Tab */}
+        {/* Projects Tab - Data Grid */}
         <TabsContent value="projects" className="mt-6">
           <div className="flex justify-end mb-4">
             <Button onClick={() => openCreateModal('project', { client_id: safeClientId })}>
@@ -790,11 +814,34 @@ export function ClientDetailPage() {
             </Button>
           </div>
           {projectsLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-24 w-full" />
-              ))}
-            </div>
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Health</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           ) : projects?.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
@@ -809,41 +856,211 @@ export function ClientDetailPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4">
-              {projects?.map((project) => (
-                <Link key={project.id} to={`/projects/${project.id}`}>
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <CardTitle className="text-lg">{project.name}</CardTitle>
-                          {project.display_id && (
-                            <Badge variant="outline" className="font-mono">
-                              #{project.display_id}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Health</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projects?.map((project) => (
+                      <TableRow
+                        key={project.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onDoubleClick={() => navigate(`/projects/${project.id}`)}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {project.name}
+                            {project.display_id && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                #{project.display_id}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{project.project_code}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(project.status)} variant="outline">
+                            {project.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="outline" className={getHealthColor(project.health)}>
                             {project.health.replace('_', ' ')}
                           </Badge>
-                        </div>
-                      </div>
-                      <CardDescription>{project.project_code}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-2">
-                        <Progress value={project.completion_percentage} className="h-2 flex-1" />
-                        <span className="text-sm text-muted-foreground">
-                          {project.completion_percentage}%
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={project.completion_percentage} className="h-2 w-20" />
+                            <span className="text-xs text-muted-foreground">{project.completion_percentage}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Project
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}?edit=true`)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Project
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Sets Tab - All sets from client's projects */}
+        <TabsContent value="sets" className="mt-6">
+          {setsLoading ? (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Progress</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : !clientSets || clientSets.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Layers className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No sets yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create projects and add sets to see them here
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientSets.map((set) => (
+                      <TableRow
+                        key={set.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onDoubleClick={() => navigate(`/sets/${set.id}`)}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {set.name}
+                            {set.display_id && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                #{set.display_id}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/projects/${set.project_id}`}
+                            className="flex items-center gap-2 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FolderKanban className="h-3 w-3 text-muted-foreground" />
+                            {set.projects?.name || '—'}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(set.status)} variant="outline">
+                            {set.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={
+                            set.urgency === 'high' && set.importance === 'high'
+                              ? 'border-red-500 text-red-700'
+                              : ''
+                          }>
+                            U:{set.urgency[0].toUpperCase()} I:{set.importance[0].toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 h-2 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full bg-primary"
+                                style={{ width: `${set.completion_percentage}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {set.completion_percentage}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to={`/projects/${set.project_id}`}>
+                                  <FolderKanban className="mr-2 h-4 w-4" />
+                                  View Project
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 

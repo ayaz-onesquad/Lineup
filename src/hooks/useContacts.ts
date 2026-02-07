@@ -4,6 +4,16 @@ import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
 import type { CreateContactInput, UpdateContactInput } from '@/types/database'
 
+export function useAllContacts() {
+  const { currentTenant } = useTenantStore()
+
+  return useQuery({
+    queryKey: ['contacts', 'all', currentTenant?.id],
+    queryFn: () => contactsApi.getAll(currentTenant!.id),
+    enabled: !!currentTenant?.id,
+  })
+}
+
 export function useContacts(clientId: string) {
   return useQuery({
     queryKey: ['contacts', clientId],
@@ -56,10 +66,15 @@ export function useContactMutations(clientId?: string) {
   const updateContact = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateContactInput) =>
       contactsApi.update(id, user!.id, input),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Invalidate single contact query
+      queryClient.invalidateQueries({ queryKey: ['contact', variables.id] })
+      // Invalidate all contacts list
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
       if (clientId) {
         queryClient.invalidateQueries({ queryKey: ['contacts', clientId] })
         queryClient.invalidateQueries({ queryKey: ['client', clientId] })
+        queryClient.invalidateQueries({ queryKey: ['primaryContact', clientId] })
       }
       toast({
         title: 'Contact updated',

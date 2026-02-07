@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useProjectWithHierarchy, useProjectMutations } from '@/hooks/useProjects'
+import { useSetsByProject } from '@/hooks/useSets'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,23 +27,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   ArrowLeft,
   ChevronRight,
@@ -52,18 +36,17 @@ import {
   FileText,
   MessageSquare,
   Building2,
-  Calendar,
   Edit,
   X,
   Save,
   Loader2,
-  User,
-  Users,
   MoreVertical,
   ExternalLink,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
+import { ViewEditField } from '@/components/shared/ViewEditField'
+import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import type { ProjectStatus, ProjectHealth } from '@/types/database'
 
 // Project form schema
@@ -85,6 +68,7 @@ export function ProjectDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
+  const { data: projectSets, isLoading: setsLoading } = useSetsByProject(projectId!)
   const { updateProject } = useProjectMutations()
   const { openDetailPanel, openCreateModal } = useUIStore()
 
@@ -214,6 +198,19 @@ export function ProjectDetailPage() {
 
   return (
     <div className="page-carbon p-6 space-y-6">
+      {/* Breadcrumbs with parent hierarchy */}
+      <Breadcrumbs
+        items={[
+          { label: 'Clients', href: '/clients' },
+          {
+            label: project.clients?.name || 'Client',
+            href: project.clients?.id ? `/clients/${project.clients.id}` : undefined,
+          },
+          { label: 'Projects', href: '/projects' },
+          { label: project.name, displayId: project.display_id },
+        ]}
+      />
+
       {/* Header - Title is non-editable, shows Name | ID format */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -234,233 +231,172 @@ export function ProjectDetailPage() {
             {project.project_code} • {project.clients?.name}
           </p>
         </div>
-        {isEditing ? (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
-              <X className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-            <Button onClick={form.handleSubmit(handleSaveProject)} disabled={isSaving}>
-              {isSaving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Save
-            </Button>
-          </div>
-        ) : (
-          <Button variant="outline" onClick={() => setIsEditing(true)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-        )}
+        {/* Edit button moved to within the card for consistent UX */}
       </div>
 
-      {/* Project Info Card */}
+      {/* Project Info Card - Mendix-style consistent layout */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          {isEditing ? (
-            <Form {...form}>
-              <form className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Project name..." />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+          {/* Edit/Save buttons */}
+          <div className="flex justify-end gap-2 mb-4">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={form.handleSubmit(handleSaveProject)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
                   )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea {...field} rows={3} placeholder="Project description..." />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="planning">Planning</SelectItem>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="on_hold">On Hold</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="health"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Health</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="on_track">On Track</SelectItem>
-                            <SelectItem value="at_risk">At Risk</SelectItem>
-                            <SelectItem value="delayed">Delayed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="expected_start_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expected Start</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="expected_end_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expected End</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="actual_start_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Actual Start</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="actual_end_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Actual End</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </form>
-            </Form>
-          ) : (
-            <div className="space-y-6">
-              {/* Progress Row */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Overall Progress</p>
-                  <p className="text-2xl font-bold">{project.completion_percentage}%</p>
-                </div>
-                {project.expected_end_date && (
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Due Date</p>
-                    <p className="font-medium">{formatDate(project.expected_end_date)}</p>
-                  </div>
-                )}
-              </div>
-              <Progress value={project.completion_percentage} className="h-3" />
+                  Save
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
 
-              {/* Info Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-muted">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Client</p>
-                    <p className="font-medium">{project.clients?.name || '-'}</p>
-                  </div>
-                </div>
-                {project.lead && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-md bg-muted">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Lead</p>
-                      <p className="font-medium">{project.lead.full_name}</p>
-                    </div>
-                  </div>
-                )}
-                {project.pm && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-md bg-muted">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Project Manager</p>
-                      <p className="font-medium">{project.pm.full_name}</p>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-muted">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Created</p>
-                    <p className="font-medium">{formatDate(project.created_at)}</p>
-                  </div>
-                </div>
+          {/* Progress section - always visible */}
+          <div className="space-y-3 mb-6 p-4 rounded-lg bg-muted/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Overall Progress</p>
+                <p className="text-2xl font-bold">{project.completion_percentage}%</p>
               </div>
-
-              {/* Description */}
-              {project.description && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Description</p>
-                  <p className="text-sm">{project.description}</p>
+              {project.expected_end_date && (
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Due Date</p>
+                  <p className="font-medium">{formatDate(project.expected_end_date)}</p>
                 </div>
               )}
             </div>
-          )}
+            <Progress value={project.completion_percentage} className="h-3" />
+          </div>
+
+          {/* Fields with consistent layout - same grid in view/edit */}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <ViewEditField
+                type="text"
+                label="Project Name"
+                required
+                isEditing={isEditing}
+                value={form.watch('name')}
+                onChange={(v) => form.setValue('name', v)}
+                error={form.formState.errors.name?.message}
+              />
+              <ViewEditField
+                type="badge"
+                label="Status"
+                isEditing={isEditing}
+                value={form.watch('status')}
+                onChange={(v) => form.setValue('status', v as ProjectStatus)}
+                options={[
+                  { value: 'planning', label: 'Planning', variant: 'secondary' },
+                  { value: 'active', label: 'Active', variant: 'default' },
+                  { value: 'on_hold', label: 'On Hold', variant: 'outline' },
+                  { value: 'completed', label: 'Completed', variant: 'default' },
+                  { value: 'cancelled', label: 'Cancelled', variant: 'secondary' },
+                ]}
+              />
+              <ViewEditField
+                type="badge"
+                label="Health"
+                isEditing={isEditing}
+                value={form.watch('health')}
+                onChange={(v) => form.setValue('health', v as ProjectHealth)}
+                options={[
+                  { value: 'on_track', label: 'On Track', variant: 'default' },
+                  { value: 'at_risk', label: 'At Risk', variant: 'outline' },
+                  { value: 'delayed', label: 'Delayed', variant: 'secondary' },
+                ]}
+              />
+            </div>
+
+            {/* Client & Team info (read-only) */}
+            {!isEditing && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Client</p>
+                  <p className="font-medium">{project.clients?.name || '—'}</p>
+                </div>
+                {project.lead && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>
+                    <p className="font-medium">{project.lead.full_name}</p>
+                  </div>
+                )}
+                {project.pm && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Project Manager</p>
+                    <p className="font-medium">{project.pm.full_name}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Project Code</p>
+                  <p className="font-mono">{project.project_code}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Dates Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <ViewEditField
+                type="date"
+                label="Expected Start"
+                isEditing={isEditing}
+                value={form.watch('expected_start_date') || ''}
+                onChange={(v) => form.setValue('expected_start_date', v)}
+              />
+              <ViewEditField
+                type="date"
+                label="Expected End"
+                isEditing={isEditing}
+                value={form.watch('expected_end_date') || ''}
+                onChange={(v) => form.setValue('expected_end_date', v)}
+              />
+              <ViewEditField
+                type="date"
+                label="Actual Start"
+                isEditing={isEditing}
+                value={form.watch('actual_start_date') || ''}
+                onChange={(v) => form.setValue('actual_start_date', v)}
+              />
+              <ViewEditField
+                type="date"
+                label="Actual End"
+                isEditing={isEditing}
+                value={form.watch('actual_end_date') || ''}
+                onChange={(v) => form.setValue('actual_end_date', v)}
+              />
+            </div>
+
+            {/* Description */}
+            <ViewEditField
+              type="textarea"
+              label="Description"
+              isEditing={isEditing}
+              value={form.watch('description') || ''}
+              onChange={(v) => form.setValue('description', v)}
+              placeholder="Project description..."
+              rows={3}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -483,9 +419,9 @@ export function ProjectDetailPage() {
           <TabsTrigger value="sets" className="gap-2">
             <Layers className="h-4 w-4" />
             Sets
-            {project.phases && (
+            {projectSets && projectSets.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {project.phases.reduce((acc, phase) => acc + (phase.sets?.length || 0), 0)}
+                {projectSets.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -684,7 +620,7 @@ export function ProjectDetailPage() {
           )}
         </TabsContent>
 
-        {/* Sets Tab - Flat view of all sets across phases */}
+        {/* Sets Tab - Flat view of all sets using dedicated query */}
         <TabsContent value="sets" className="mt-6">
           <div className="flex justify-end mb-4">
             <Button
@@ -695,93 +631,90 @@ export function ProjectDetailPage() {
               Add Set
             </Button>
           </div>
-          {(() => {
-            const allSets = project.phases?.flatMap(phase =>
-              (phase.sets || []).map(set => ({ ...set, phaseName: phase.name }))
-            ) || []
-            return allSets.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Layers className="h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No sets yet</p>
-                  <Button
-                    className="mt-4"
-                    onClick={() => openCreateModal('set', { project_id: project.id })}
-                  >
-                    Create First Set
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Phase</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Priority</TableHead>
-                        <TableHead>Progress</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
+          {setsLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : !projectSets || projectSets.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Layers className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No sets yet</p>
+                <Button
+                  className="mt-4"
+                  onClick={() => openCreateModal('set', { project_id: project.id })}
+                >
+                  Create First Set
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phase</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projectSets.map((set) => (
+                      <TableRow
+                        key={set.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => openDetailPanel('set', set.id)}
+                      >
+                        <TableCell className="font-medium">{set.name}</TableCell>
+                        <TableCell>{set.project_phases?.name || '—'}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(set.status)} variant="outline">
+                            {set.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={
+                            set.urgency === 'high' && set.importance === 'high'
+                              ? 'border-red-500 text-red-700'
+                              : ''
+                          }>
+                            U:{set.urgency[0].toUpperCase()} I:{set.importance[0].toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={set.completion_percentage} className="h-2 w-20" />
+                            <span className="text-xs text-muted-foreground">{set.completion_percentage}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Details
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {allSets.map((set) => (
-                        <TableRow
-                          key={set.id}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => openDetailPanel('set', set.id)}
-                        >
-                          <TableCell className="font-medium">{set.name}</TableCell>
-                          <TableCell>{set.phaseName}</TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(set.status)} variant="outline">
-                              {set.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={
-                              set.urgency === 'high' && set.importance === 'high'
-                                ? 'border-red-500 text-red-700'
-                                : ''
-                            }>
-                              U:{set.urgency[0].toUpperCase()} I:{set.importance[0].toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Progress value={set.completion_percentage} className="h-2 w-20" />
-                              <span className="text-xs text-muted-foreground">{set.completion_percentage}%</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
-                                  <ExternalLink className="mr-2 h-4 w-4" />
-                                  View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Edit Details
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )
-          })()}
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Details Tab */}

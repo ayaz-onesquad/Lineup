@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Form,
   FormControl,
@@ -25,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertCircle } from 'lucide-react'
 
 const projectSchema = z.object({
   client_id: z.string().min(1, 'Client is required'),
@@ -46,7 +47,7 @@ interface ProjectFormProps {
 
 export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
   const { createProject } = useProjectMutations()
-  const { data: clients } = useClients()
+  const { data: clients, isLoading: clientsLoading } = useClients()
   const { data: users } = useTenantUsers()
 
   const form = useForm<ProjectFormData>({
@@ -83,21 +84,32 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
           name="client_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Client *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a client" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {clients?.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormLabel>
+                Client <span className="text-destructive">*</span>
+              </FormLabel>
+              {clientsLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : !clients || clients.length === 0 ? (
+                <div className="flex items-center gap-2 p-3 rounded-md border border-destructive/50 bg-destructive/10">
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-sm text-destructive">No clients available. Create a client first.</span>
+                </div>
+              ) : (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger className={!field.value ? 'border-destructive/50' : ''}>
+                      <SelectValue placeholder="Select a client (required)" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <FormMessage />
             </FormItem>
           )}
@@ -208,7 +220,11 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
           )}
         />
 
-        <Button type="submit" className="w-full" disabled={createProject.isPending}>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={createProject.isPending || clientsLoading || !clients?.length}
+        >
           {createProject.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Create Project
         </Button>
