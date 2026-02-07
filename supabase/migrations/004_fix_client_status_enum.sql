@@ -1,7 +1,7 @@
 -- ============================================
 -- FIX CLIENT STATUS ENUM
 -- Version: 004
--- Description: Create client_status ENUM type and update related functions
+-- Description: Create client_status ENUM type, set 'onboarding' as default, update related functions
 -- ============================================
 
 -- ============================================
@@ -33,6 +33,23 @@ BEGIN
 EXCEPTION
   WHEN undefined_object THEN
     -- Type doesn't exist, already created above
+    NULL;
+END $$;
+
+-- ============================================
+-- 2.5 SET DEFAULT STATUS TO 'onboarding' FOR NEW CLIENTS
+-- ============================================
+-- Alter the clients table to set 'onboarding' as the default status
+
+DO $$
+BEGIN
+  ALTER TABLE clients ALTER COLUMN status SET DEFAULT 'onboarding'::client_status;
+EXCEPTION
+  WHEN undefined_object THEN
+    -- Column doesn't exist or type mismatch, skip
+    NULL;
+  WHEN others THEN
+    -- Other errors, skip
     NULL;
 END $$;
 
@@ -76,8 +93,8 @@ BEGIN
     RAISE EXCEPTION 'contact last_name is required';
   END IF;
 
-  -- Get status with default
-  v_status := COALESCE(p_client_data->>'status', 'active');
+  -- Get status with default (onboarding for new clients)
+  v_status := COALESCE(p_client_data->>'status', 'onboarding');
 
   -- Insert client
   INSERT INTO clients (

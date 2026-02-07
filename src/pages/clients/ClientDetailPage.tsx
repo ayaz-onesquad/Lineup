@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useClient, useClientMutations } from '@/hooks/useClients'
+import { useTenantUsers } from '@/hooks/useTenant'
 import { useProjectsByClient } from '@/hooks/useProjects'
 import { useContacts, useContactMutations } from '@/hooks/useContacts'
 import { useUIStore } from '@/stores'
@@ -12,6 +13,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -64,11 +79,12 @@ import {
   Star,
   Trash2,
   Loader2,
+  MoreVertical,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditToggle } from '@/components/shared/ViewEditToggle'
-import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType } from '@/types/database'
+import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
 const clientFormSchema = z.object({
@@ -78,9 +94,22 @@ const clientFormSchema = z.object({
   industry: z.string().optional(),
   status: z.enum(['active', 'inactive', 'onboarding']),
   portal_enabled: z.boolean(),
+  relationship_manager_id: z.string().optional(),
+  referral_source: z.string().optional(),
 })
 
 type ClientFormValues = z.infer<typeof clientFormSchema>
+
+const REFERRAL_SOURCE_OPTIONS = [
+  { value: 'referral', label: 'Referral' },
+  { value: 'website', label: 'Website' },
+  { value: 'social_media', label: 'Social Media' },
+  { value: 'advertising', label: 'Advertising' },
+  { value: 'event', label: 'Event' },
+  { value: 'partner', label: 'Partner' },
+  { value: 'cold_outreach', label: 'Cold Outreach' },
+  { value: 'other', label: 'Other' },
+]
 
 // Contact form schema
 const contactFormSchema = z.object({
@@ -98,13 +127,18 @@ type ContactFormValues = z.infer<typeof contactFormSchema>
 export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Guard: clientId is required for this page
   const safeClientId = clientId ?? ''
 
+  // Check for ?edit=true query param to auto-enter edit mode
+  const shouldEditOnLoad = searchParams.get('edit') === 'true'
+
   const { data: client, isLoading: clientLoading } = useClient(safeClientId)
   const { data: projects, isLoading: projectsLoading } = useProjectsByClient(safeClientId)
   const { data: contacts, isLoading: contactsLoading } = useContacts(safeClientId)
+  const { data: tenantUsers } = useTenantUsers()
   const { updateClient } = useClientMutations()
   const { createContact, updateContact, deleteContact, setPrimaryContact } = useContactMutations(safeClientId)
   const { openCreateModal } = useUIStore()
@@ -128,6 +162,8 @@ export function ClientDetailPage() {
       industry: client?.industry || '',
       status: client?.status || 'active',
       portal_enabled: client?.portal_enabled || false,
+      relationship_manager_id: client?.relationship_manager_id || '',
+      referral_source: client?.referral_source || '',
     },
   })
 
@@ -155,9 +191,20 @@ export function ClientDetailPage() {
         industry: client.industry || '',
         status: client.status,
         portal_enabled: client.portal_enabled,
+        relationship_manager_id: client.relationship_manager_id || '',
+        referral_source: client.referral_source || '',
       })
     }
   }, [client?.id, isEditing])
+
+  // Auto-enter edit mode when ?edit=true is in URL
+  useEffect(() => {
+    if (shouldEditOnLoad && client && !isEditing) {
+      setIsEditing(true)
+      // Clear the query param after entering edit mode
+      setSearchParams({}, { replace: true })
+    }
+  }, [shouldEditOnLoad, client])
 
   const handleSaveClient = async (data: ClientFormValues) => {
     if (!safeClientId) return
@@ -171,6 +218,8 @@ export function ClientDetailPage() {
         industry: data.industry as IndustryType | undefined,
         status: data.status,
         portal_enabled: data.portal_enabled,
+        relationship_manager_id: data.relationship_manager_id || undefined,
+        referral_source: data.referral_source as ReferralSource | undefined,
       })
       setIsEditing(false)
     } finally {
@@ -186,6 +235,8 @@ export function ClientDetailPage() {
       industry: client?.industry || '',
       status: client?.status || 'active',
       portal_enabled: client?.portal_enabled || false,
+      relationship_manager_id: client?.relationship_manager_id || '',
+      referral_source: client?.referral_source || '',
     })
     setIsEditing(false)
   }
@@ -455,6 +506,54 @@ export function ClientDetailPage() {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={clientForm.control}
+                      name="relationship_manager_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Relationship Manager</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select manager" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {tenantUsers?.map((user) => (
+                                <SelectItem key={user.user_id} value={user.user_id}>
+                                  {user.user_profiles?.full_name || 'Unknown User'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={clientForm.control}
+                      name="referral_source"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Referral Source</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select source" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {REFERRAL_SOURCE_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <div className="col-span-full">
                       <FormField
                         control={clientForm.control}
@@ -560,11 +659,34 @@ export function ClientDetailPage() {
             </Button>
           </div>
           {contactsLoading ? (
-            <div className="space-y-4">
-              {[1, 2].map((i) => (
-                <Skeleton key={i} className="h-20 w-full" />
-              ))}
-            </div>
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="w-[80px] text-center">Primary</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           ) : contacts?.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
@@ -576,78 +698,86 @@ export function ClientDetailPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4">
-              {contacts?.map((contact) => (
-                <Card key={contact.id} className={contact.is_primary ? 'border-primary' : ''}>
-                  <CardContent className="pt-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                          <span className="text-sm font-medium">
-                            {contact.first_name[0]}
-                            {contact.last_name[0]}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">
-                              {contact.first_name} {contact.last_name}
-                            </p>
-                            {contact.is_primary && (
-                              <Badge variant="default" className="gap-1">
-                                <Star className="h-3 w-3" />
-                                Primary
-                              </Badge>
-                            )}
-                            {contact.role && (
-                              <Badge variant="outline">
-                                {CONTACT_ROLE_OPTIONS.find((o) => o.value === contact.role)?.label ||
-                                  contact.role}
-                              </Badge>
-                            )}
-                          </div>
-                          {contact.email && (
-                            <p className="text-sm text-muted-foreground">{contact.email}</p>
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="w-[80px] text-center">Primary</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contacts?.map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell className="font-medium">
+                          {contact.first_name} {contact.last_name}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {contact.is_primary ? (
+                            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mx-auto" />
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => handleSetPrimary(contact.id)}
+                              title="Set as primary"
+                            >
+                              <Star className="h-4 w-4 text-muted-foreground" />
+                            </Button>
                           )}
-                          {contact.phone && (
-                            <p className="text-sm text-muted-foreground">{contact.phone}</p>
+                        </TableCell>
+                        <TableCell>
+                          {contact.role ? (
+                            <Badge variant="outline">
+                              {CONTACT_ROLE_OPTIONS.find((o) => o.value === contact.role)?.label ||
+                                contact.role}
+                            </Badge>
+                          ) : (
+                            '-'
                           )}
-                          {contact.relationship && (
-                            <p className="text-sm text-muted-foreground mt-1">{contact.relationship}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {!contact.is_primary && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSetPrimary(contact.id)}
-                          >
-                            <Star className="h-4 w-4 mr-1" />
-                            Set Primary
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenContactDialog(contact)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteContactId(contact.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                        </TableCell>
+                        <TableCell>{contact.phone || '-'}</TableCell>
+                        <TableCell>{contact.email || '-'}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenContactDialog(contact)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Details
+                              </DropdownMenuItem>
+                              {!contact.is_primary && (
+                                <DropdownMenuItem onClick={() => handleSetPrimary(contact.id)}>
+                                  <Star className="mr-2 h-4 w-4" />
+                                  Set as Primary
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => setDeleteContactId(contact.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 

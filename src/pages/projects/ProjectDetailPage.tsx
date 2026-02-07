@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,6 +11,20 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -33,7 +47,6 @@ import {
   ArrowLeft,
   ChevronRight,
   Plus,
-  FolderKanban,
   Layers,
   CheckSquare,
   FileText,
@@ -46,6 +59,8 @@ import {
   Loader2,
   User,
   Users,
+  MoreVertical,
+  ExternalLink,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
@@ -68,9 +83,13 @@ type ProjectFormValues = z.infer<typeof projectFormSchema>
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
   const { updateProject } = useProjectMutations()
   const { openDetailPanel, openCreateModal } = useUIStore()
+
+  // Check for ?edit=true query param to auto-enter edit mode
+  const shouldEditOnLoad = searchParams.get('edit') === 'true'
 
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set())
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set())
@@ -107,6 +126,15 @@ export function ProjectDetailPage() {
       })
     }
   }, [project?.id, isEditing])
+
+  // Auto-enter edit mode when ?edit=true is in URL
+  useEffect(() => {
+    if (shouldEditOnLoad && project && !isEditing) {
+      setIsEditing(true)
+      // Clear the query param after entering edit mode
+      setSearchParams({}, { replace: true })
+    }
+  }, [shouldEditOnLoad, project])
 
   const togglePhase = (phaseId: string) => {
     const newExpanded = new Set(expandedPhases)
@@ -437,15 +465,29 @@ export function ProjectDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="hierarchy">
+      <Tabs defaultValue="details">
         <TabsList>
-          <TabsTrigger value="hierarchy" className="gap-2">
-            <FolderKanban className="h-4 w-4" />
-            Hierarchy
-          </TabsTrigger>
           <TabsTrigger value="details" className="gap-2">
             <Building2 className="h-4 w-4" />
             Details
+          </TabsTrigger>
+          <TabsTrigger value="phases" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Phases
+            {project.phases && project.phases.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {project.phases.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="sets" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Sets
+            {project.phases && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {project.phases.reduce((acc, phase) => acc + (phase.sets?.length || 0), 0)}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
@@ -457,7 +499,7 @@ export function ProjectDetailPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="hierarchy" className="mt-6">
+        <TabsContent value="phases" className="mt-6">
           <div className="flex justify-end mb-4">
             <Button
               variant="outline"
@@ -640,6 +682,106 @@ export function ProjectDetailPage() {
                 ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Sets Tab - Flat view of all sets across phases */}
+        <TabsContent value="sets" className="mt-6">
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              onClick={() => openCreateModal('set', { project_id: project.id })}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Set
+            </Button>
+          </div>
+          {(() => {
+            const allSets = project.phases?.flatMap(phase =>
+              (phase.sets || []).map(set => ({ ...set, phaseName: phase.name }))
+            ) || []
+            return allSets.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <Layers className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No sets yet</p>
+                  <Button
+                    className="mt-4"
+                    onClick={() => openCreateModal('set', { project_id: project.id })}
+                  >
+                    Create First Set
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Phase</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allSets.map((set) => (
+                        <TableRow
+                          key={set.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => openDetailPanel('set', set.id)}
+                        >
+                          <TableCell className="font-medium">{set.name}</TableCell>
+                          <TableCell>{set.phaseName}</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(set.status)} variant="outline">
+                              {set.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={
+                              set.urgency === 'high' && set.importance === 'high'
+                                ? 'border-red-500 text-red-700'
+                                : ''
+                            }>
+                              U:{set.urgency[0].toUpperCase()} I:{set.importance[0].toUpperCase()}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={set.completion_percentage} className="h-2 w-20" />
+                              <span className="text-xs text-muted-foreground">{set.completion_percentage}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Details
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )
+          })()}
         </TabsContent>
 
         {/* Details Tab */}

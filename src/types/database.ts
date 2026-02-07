@@ -99,6 +99,16 @@ export type IndustryType =
   | 'government'
   | 'other'
 
+export type ReferralSource =
+  | 'referral'
+  | 'website'
+  | 'social_media'
+  | 'advertising'
+  | 'event'
+  | 'partner'
+  | 'cold_outreach'
+  | 'other'
+
 export interface Client {
   id: string
   tenant_id: string
@@ -114,6 +124,8 @@ export interface Client {
   location?: string
   status: ClientStatus
   portal_enabled: boolean
+  relationship_manager_id?: string
+  referral_source?: ReferralSource
   created_by: string
   updated_by?: string
   created_at: string
@@ -124,6 +136,7 @@ export interface Client {
 export interface ClientWithRelations extends Client {
   contacts?: Contact[]
   primary_contact?: Contact
+  relationship_manager?: UserProfile
   creator?: UserProfile
   updater?: UserProfile
 }
@@ -403,6 +416,8 @@ export interface CreateClientInput {
   location?: string
   status?: ClientStatus
   portal_enabled?: boolean
+  relationship_manager_id?: string
+  referral_source?: ReferralSource
 }
 
 export interface UpdateClientInput extends Partial<CreateClientInput> {

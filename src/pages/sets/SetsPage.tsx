@@ -13,7 +13,7 @@ import type { SetWithRelations } from '@/types/database'
 
 export function SetsPage() {
   const [search, setSearch] = useState('')
-  const [viewMode, setViewMode] = useState<'matrix' | 'list'>('matrix')
+  const [viewMode, setViewMode] = useState<'matrix' | 'list'>('list')
   const { data: sets, isLoading } = useSets()
   const { openCreateModal, openDetailPanel } = useUIStore()
 

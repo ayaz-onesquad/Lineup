@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2 } from 'lucide-react'
+import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2, Edit } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -167,6 +167,12 @@ export function ClientsPage() {
                             <Link to={`/clients/${client.id}`}>
                               <ExternalLink className="mr-2 h-4 w-4" />
                               View Details
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link to={`/clients/${client.id}?edit=true`}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Details
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem

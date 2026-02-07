@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -60,6 +61,13 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
       show_in_client_portal: true,
     },
   })
+
+  // Update form when defaultValues change (e.g., when modal opens with context)
+  useEffect(() => {
+    if (defaultValues?.client_id) {
+      form.setValue('client_id', defaultValues.client_id)
+    }
+  }, [defaultValues?.client_id])
 
   const onSubmit = async (data: ProjectFormData) => {
     await createProject.mutateAsync(data)

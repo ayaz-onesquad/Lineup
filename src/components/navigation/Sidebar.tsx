@@ -26,7 +26,7 @@ const mainNavItems = [
   { href: '/clients', label: 'Clients', icon: Users },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/sets', label: 'All Sets', icon: Layers },
-  { href: '/requirements', label: 'All Tasks', icon: CheckSquare },
+  { href: '/requirements', label: 'Requirements', icon: CheckSquare },
 ]
 
 const bottomNavItems = [
