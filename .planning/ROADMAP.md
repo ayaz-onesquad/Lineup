@@ -80,10 +80,12 @@ Plans:
   7. Sets have `budget_days` (numeric) and `budget_hours` (numeric) fields
   8. All detail pages (Projects, Sets, Requirements) use full-page views, not modals
   9. Parent relationships editable via searchable dropdowns in Edit Mode
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] TBD
+- [ ] 03-01-PLAN.md — Add editable team member dropdowns to ProjectDetailPage
+- [ ] 03-02-PLAN.md — Add budget fields to Sets (schema + UI)
+- [ ] 03-03-PLAN.md — Verify all Phase 3 requirements complete
 
 ### Phase 4: CORE Workflow & Audit
 **Goal**: CORE methodology features complete with priority display, review workflow, smart navigation, and audit trails
@@ -110,5 +112,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation Fixes | 3/3 | Complete | 2026-02-05 |
 | 2. Client & Contact System | 4/4 | Complete | 2026-02-06 |
-| 3. Projects & Sets Enhancement | 0/TBD | Not started | - |
+| 3. Projects & Sets Enhancement | 0/3 | Not started | - |
 | 4. CORE Workflow & Audit | 0/TBD | Not started | - |
