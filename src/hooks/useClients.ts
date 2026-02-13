@@ -109,6 +109,41 @@ export function useClientMutations() {
   }
 }
 
+// Standalone create client mutation (for when linking existing contact)
+export function useCreateClient() {
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+  const { currentTenant } = useTenantStore()
+  const tenantId = currentTenant?.id
+
+  return useMutation({
+    mutationFn: (input: CreateClientInput) => {
+      if (!tenantId) {
+        throw new Error('Cannot create client: No tenant selected')
+      }
+      if (!user?.id) {
+        throw new Error('Cannot create client: User not authenticated')
+      }
+      return clientsApi.create(tenantId, user.id, input)
+    },
+    onSuccess: (newClient) => {
+      queryClient.invalidateQueries({ queryKey: ['clients', tenantId] })
+      queryClient.setQueryData(['client', newClient.id], newClient)
+      toast({
+        title: 'Client created',
+        description: 'The client has been created successfully.',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to create client',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+}
+
 export function useCreateClientWithContact() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()

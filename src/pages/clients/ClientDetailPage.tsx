@@ -6,8 +6,9 @@ import { z } from 'zod'
 import { useClient, useClientMutations } from '@/hooks/useClients'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useProjectsByClient } from '@/hooks/useProjects'
-import { useContacts, useContactMutations } from '@/hooks/useContacts'
+import { useContacts, useContactMutations, useUnlinkedContacts } from '@/hooks/useContacts'
 import { useSetsByClient } from '@/hooks/useSets'
+import { useRequirementsByClient } from '@/hooks/useRequirements'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -81,8 +82,12 @@ import {
   X,
   ExternalLink,
   Layers,
+  Link2,
+  Unlink,
+  ChevronDown,
+  CheckSquare,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -94,7 +99,7 @@ const clientFormSchema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
   overview: z.string().optional(),
   industry: z.string().optional(),
-  status: z.enum(['active', 'inactive', 'onboarding']),
+  status: z.enum(['onboarding', 'active', 'inactive', 'prospective']),
   portal_enabled: z.boolean(),
   relationship_manager_id: z.string().optional(),
   referral_source: z.string().optional(),
@@ -102,29 +107,24 @@ const clientFormSchema = z.object({
 
 type ClientFormValues = z.infer<typeof clientFormSchema>
 
-const REFERRAL_SOURCE_OPTIONS = [
-  { value: 'referral', label: 'Referral' },
-  { value: 'website', label: 'Website' },
-  { value: 'social_media', label: 'Social Media' },
-  { value: 'advertising', label: 'Advertising' },
-  { value: 'event', label: 'Event' },
-  { value: 'partner', label: 'Partner' },
-  { value: 'cold_outreach', label: 'Cold Outreach' },
-  { value: 'other', label: 'Other' },
-]
-
-// Contact form schema
+// Contact form schema (for editing global contact info)
 const contactFormSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   phone: z.string().optional(),
-  role: z.string().optional(),
   relationship: z.string().optional(),
-  is_primary: z.boolean(),
 })
 
 type ContactFormValues = z.infer<typeof contactFormSchema>
+
+// Relationship form schema (for editing client-contact relationship)
+const relationshipFormSchema = z.object({
+  role: z.string().optional(),
+  is_primary: z.boolean(),
+})
+
+type RelationshipFormValues = z.infer<typeof relationshipFormSchema>
 
 export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
@@ -141,9 +141,11 @@ export function ClientDetailPage() {
   const { data: projects, isLoading: projectsLoading } = useProjectsByClient(safeClientId)
   const { data: contacts, isLoading: contactsLoading } = useContacts(safeClientId)
   const { data: clientSets, isLoading: setsLoading } = useSetsByClient(safeClientId)
+  const { data: clientRequirements, isLoading: requirementsLoading } = useRequirementsByClient(safeClientId)
   const { data: tenantUsers } = useTenantUsers()
+  const { data: unlinkedContacts, isLoading: unlinkedLoading } = useUnlinkedContacts(safeClientId)
   const { updateClient } = useClientMutations()
-  const { createContact, updateContact, deleteContact, setPrimaryContact } = useContactMutations(safeClientId)
+  const { createContact, updateContact, deleteContact, setPrimaryContact, linkToClient, unlinkFromClient, updateRelationship } = useContactMutations(safeClientId)
   const { openCreateModal } = useUIStore()
 
   // Edit mode state
@@ -154,6 +156,13 @@ export function ClientDetailPage() {
   const [contactDialogOpen, setContactDialogOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null)
+  const [linkContactDialogOpen, setLinkContactDialogOpen] = useState(false)
+  const [selectedContactToLink, setSelectedContactToLink] = useState<string>('')
+  const [unlinkContactId, setUnlinkContactId] = useState<string | null>(null)
+
+  // Relationship dialog state (for editing is_primary/role on client_contacts)
+  const [relationshipDialogOpen, setRelationshipDialogOpen] = useState(false)
+  const [editingRelationship, setEditingRelationship] = useState<Contact | null>(null)
 
   // Client form
   const clientForm = useForm<ClientFormValues>({
@@ -170,7 +179,7 @@ export function ClientDetailPage() {
     },
   })
 
-  // Contact form
+  // Contact form (for global contact info editing)
   const contactForm = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
@@ -178,8 +187,15 @@ export function ClientDetailPage() {
       last_name: '',
       email: '',
       phone: '',
-      role: '',
       relationship: '',
+    },
+  })
+
+  // Relationship form (for editing client-contact link properties)
+  const relationshipForm = useForm<RelationshipFormValues>({
+    resolver: zodResolver(relationshipFormSchema),
+    defaultValues: {
+      role: '',
       is_primary: false,
     },
   })
@@ -244,6 +260,7 @@ export function ClientDetailPage() {
     setIsEditing(false)
   }
 
+  // Open dialog for editing global contact info (name, email, phone)
   const handleOpenContactDialog = (contact?: Contact) => {
     if (contact) {
       setEditingContact(contact)
@@ -252,9 +269,7 @@ export function ClientDetailPage() {
         last_name: contact.last_name,
         email: contact.email || '',
         phone: contact.phone || '',
-        role: contact.role || '',
         relationship: contact.relationship || '',
-        is_primary: contact.is_primary,
       })
     } else {
       setEditingContact(null)
@@ -263,14 +278,23 @@ export function ClientDetailPage() {
         last_name: '',
         email: '',
         phone: '',
-        role: '',
         relationship: '',
-        is_primary: contacts?.length === 0, // First contact is primary by default
       })
     }
     setContactDialogOpen(true)
   }
 
+  // Open dialog for editing client-contact relationship (role, is_primary)
+  const handleOpenRelationshipDialog = (contact: Contact) => {
+    setEditingRelationship(contact)
+    relationshipForm.reset({
+      role: contact.role || '',
+      is_primary: (contact as { is_primary?: boolean }).is_primary ?? false,
+    })
+    setRelationshipDialogOpen(true)
+  }
+
+  // Save global contact info (updates contacts table)
   const handleSaveContact = async (data: ContactFormValues) => {
     if (editingContact) {
       const input: UpdateContactInput = {
@@ -278,9 +302,7 @@ export function ClientDetailPage() {
         last_name: data.last_name,
         email: data.email || undefined,
         phone: data.phone || undefined,
-        role: (data.role as ContactRole) || undefined,
         relationship: data.relationship || undefined,
-        is_primary: data.is_primary,
       }
       await updateContact.mutateAsync({ id: editingContact.id, ...input })
     } else {
@@ -290,13 +312,28 @@ export function ClientDetailPage() {
         last_name: data.last_name,
         email: data.email || undefined,
         phone: data.phone || undefined,
-        role: (data.role as ContactRole) || undefined,
         relationship: data.relationship || undefined,
-        is_primary: data.is_primary,
+        is_primary: contacts?.length === 0, // First contact is primary by default
       }
       await createContact.mutateAsync(input)
     }
     setContactDialogOpen(false)
+  }
+
+  // Save relationship data (updates client_contacts table for is_primary AND role)
+  // Role is now stored in client_contacts (client-specific), not in contacts table (global)
+  const handleSaveRelationship = async (data: RelationshipFormValues) => {
+    if (!editingRelationship) return
+
+    // Use updateRelationship which only updates client_contacts table (not contacts)
+    await updateRelationship.mutateAsync({
+      contactId: editingRelationship.id,
+      clientId: safeClientId,
+      role: (data.role as ContactRole) || undefined,
+      is_primary: data.is_primary,
+    })
+
+    setRelationshipDialogOpen(false)
   }
 
   const handleDeleteContact = async () => {
@@ -307,6 +344,23 @@ export function ClientDetailPage() {
 
   const handleSetPrimary = async (contactId: string) => {
     await setPrimaryContact.mutateAsync({ id: contactId, clientId: safeClientId })
+  }
+
+  const handleLinkContact = async () => {
+    if (!selectedContactToLink) return
+    await linkToClient.mutateAsync({
+      client_id: safeClientId,
+      contact_id: selectedContactToLink,
+      is_primary: contacts?.length === 0, // First contact is primary by default
+    })
+    setLinkContactDialogOpen(false)
+    setSelectedContactToLink('')
+  }
+
+  const handleUnlinkContact = async () => {
+    if (!unlinkContactId) return
+    await unlinkFromClient.mutateAsync({ clientId: safeClientId, contactId: unlinkContactId })
+    setUnlinkContactId(null)
   }
 
   const primaryContact = contacts?.find((c) => c.is_primary)
@@ -361,7 +415,7 @@ export function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Client Info Card - Mendix-style consistent layout */}
+      {/* Header Info Card - Key fields only: Name, Industry, Status, Relationship Manager */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
@@ -398,123 +452,54 @@ export function ClientDetailPage() {
             )}
           </div>
 
-          {/* Fields with consistent layout - same grid in view/edit */}
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-              <ViewEditField
-                type="text"
-                label="Client Name"
-                required
-                isEditing={isEditing}
-                value={clientForm.watch('name')}
-                onChange={(v) => clientForm.setValue('name', v)}
-                error={clientForm.formState.errors.name?.message}
-              />
-              <ViewEditField
-                type="text"
-                label="Company Name"
-                required
-                isEditing={isEditing}
-                value={clientForm.watch('company_name')}
-                onChange={(v) => clientForm.setValue('company_name', v)}
-                error={clientForm.formState.errors.company_name?.message}
-              />
-              <ViewEditField
-                type="select"
-                label="Industry"
-                isEditing={isEditing}
-                value={clientForm.watch('industry') || ''}
-                onChange={(v) => clientForm.setValue('industry', v)}
-                options={INDUSTRY_OPTIONS}
-                placeholder="Select industry"
-              />
-              <ViewEditField
-                type="badge"
-                label="Status"
-                isEditing={isEditing}
-                value={clientForm.watch('status')}
-                onChange={(v) => clientForm.setValue('status', v as 'active' | 'inactive' | 'onboarding')}
-                options={[
-                  { value: 'active', label: 'Active', variant: 'default' },
-                  { value: 'inactive', label: 'Inactive', variant: 'secondary' },
-                  { value: 'onboarding', label: 'Onboarding', variant: 'outline' },
-                ]}
-              />
-              <ViewEditField
-                type="select"
-                label="Relationship Manager"
-                isEditing={isEditing}
-                value={clientForm.watch('relationship_manager_id') || ''}
-                onChange={(v) => clientForm.setValue('relationship_manager_id', v)}
-                options={tenantUsers?.map((u) => ({
-                  value: u.user_id,
-                  label: u.user_profiles?.full_name || 'Unknown User',
-                })) || []}
-                placeholder="Select manager"
-              />
-              <ViewEditField
-                type="select"
-                label="Referral Source"
-                isEditing={isEditing}
-                value={clientForm.watch('referral_source') || ''}
-                onChange={(v) => clientForm.setValue('referral_source', v)}
-                options={REFERRAL_SOURCE_OPTIONS}
-                placeholder="Select source"
-              />
-            </div>
-
-            {/* Primary Contact info (read-only) */}
-            {primaryContact && !isEditing && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6 p-4 rounded-lg bg-muted/50">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Primary Contact</p>
-                  <p className="font-medium">
-                    {primaryContact.first_name} {primaryContact.last_name}
-                  </p>
-                </div>
-                {primaryContact.email && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Email</p>
-                    <p>{primaryContact.email}</p>
-                  </div>
-                )}
-                {primaryContact.phone && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Phone</p>
-                    <p>{primaryContact.phone}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Overview */}
+          {/* Header fields: Name, Industry, Status, Relationship Manager only */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <ViewEditField
-              type="textarea"
-              label="Overview"
+              type="text"
+              label="Client Name"
+              required
               isEditing={isEditing}
-              value={clientForm.watch('overview') || ''}
-              onChange={(v) => clientForm.setValue('overview', v)}
-              placeholder="Brief description of the client..."
-              rows={3}
+              value={clientForm.watch('name')}
+              onChange={(v) => clientForm.setValue('name', v)}
+              error={clientForm.formState.errors.name?.message}
             />
-
-            {/* Portal toggle */}
             <ViewEditField
-              type="switch"
-              label="Client Portal"
+              type="select"
+              label="Industry"
               isEditing={isEditing}
-              value={clientForm.watch('portal_enabled')}
-              onChange={(v) => clientForm.setValue('portal_enabled', v)}
-              description="Allow client to access the portal"
+              value={clientForm.watch('industry') || ''}
+              onChange={(v) => clientForm.setValue('industry', v)}
+              options={INDUSTRY_OPTIONS}
+              placeholder="Select industry"
+              searchable
             />
-
-            {/* Client Since - read-only */}
-            {!isEditing && (
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-1">Client Since</p>
-                <p>{formatDate(client.created_at)}</p>
-              </div>
-            )}
+            <ViewEditField
+              type="badge"
+              label="Status"
+              isEditing={isEditing}
+              value={clientForm.watch('status')}
+              onChange={(v) => clientForm.setValue('status', v as 'active' | 'inactive' | 'onboarding')}
+              options={[
+                { value: 'onboarding', label: 'Onboarding', variant: 'outline' },
+                { value: 'active', label: 'Active', variant: 'default' },
+                { value: 'inactive', label: 'Inactive', variant: 'secondary' },
+                { value: 'prospective', label: 'Prospective', variant: 'outline' },
+              ]}
+            />
+            <ViewEditField
+              type="select"
+              label="Relationship Manager"
+              isEditing={isEditing}
+              value={clientForm.watch('relationship_manager_id') || ''}
+              onChange={(v) => clientForm.setValue('relationship_manager_id', v)}
+              options={tenantUsers?.filter(u => u.user_profiles?.id).map((u) => ({
+                value: u.user_profiles!.id,
+                label: u.user_profiles!.full_name || 'Unknown User',
+              })) || []}
+              placeholder="Select manager"
+              searchable
+              clearable
+            />
           </div>
         </CardContent>
       </Card>
@@ -553,15 +538,24 @@ export function ClientDetailPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="requirements" className="gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Requirements
+            {clientRequirements && clientRequirements.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {clientRequirements.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
             Documents
           </TabsTrigger>
         </TabsList>
 
-        {/* Details Tab - Structured sections */}
+        {/* Details Tab - Editable sections using ViewEditField */}
         <TabsContent value="details" className="mt-6 space-y-6">
-          {/* Primary Contact Section */}
+          {/* Primary Contact Section - Read-only summary, edit in Contacts tab */}
           <Card className="card-carbon">
             <CardContent className="pt-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -593,7 +587,7 @@ export function ClientDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Business Info Section */}
+          {/* Business Info Section - Editable fields */}
           <Card className="card-carbon">
             <CardContent className="pt-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -601,43 +595,46 @@ export function ClientDetailPage() {
                 Business Information
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <ViewEditField
+                  type="text"
+                  label="Company Name"
+                  required
+                  isEditing={isEditing}
+                  value={clientForm.watch('company_name')}
+                  onChange={(v) => clientForm.setValue('company_name', v)}
+                  error={clientForm.formState.errors.company_name?.message}
+                />
+                <ViewEditField
+                  type="select"
+                  label="Referral Source"
+                  isEditing={isEditing}
+                  value={clientForm.watch('referral_source') || ''}
+                  onChange={(v) => clientForm.setValue('referral_source', v)}
+                  options={REFERRAL_SOURCE_OPTIONS}
+                  placeholder="Select source"
+                  searchable
+                  clearable
+                />
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Company Name</p>
-                  <p className="font-medium">{client.company_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Industry</p>
-                  <p>{client.industry ? INDUSTRY_OPTIONS.find(o => o.value === client.industry)?.label || client.industry : '—'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <Badge variant={client.status === 'active' ? 'default' : client.status === 'onboarding' ? 'outline' : 'secondary'}>
-                    {client.status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Relationship Manager</p>
-                  <p>{client.relationship_manager?.full_name || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Referral Source</p>
-                  <p>{client.referral_source ? REFERRAL_SOURCE_OPTIONS.find(o => o.value === client.referral_source)?.label || client.referral_source : '—'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Client Since</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Client Since</p>
                   <p>{formatDate(client.created_at)}</p>
                 </div>
               </div>
-              {client.overview && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-muted-foreground">Overview</p>
-                  <p className="mt-1 whitespace-pre-wrap">{client.overview}</p>
-                </div>
-              )}
+              <div className="mt-4">
+                <ViewEditField
+                  type="textarea"
+                  label="Overview"
+                  isEditing={isEditing}
+                  value={clientForm.watch('overview') || ''}
+                  onChange={(v) => clientForm.setValue('overview', v)}
+                  placeholder="Brief description of the client..."
+                  rows={3}
+                />
+              </div>
             </CardContent>
           </Card>
 
-          {/* Settings Section */}
+          {/* Settings Section - Editable */}
           <Card className="card-carbon">
             <CardContent className="pt-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -645,12 +642,14 @@ export function ClientDetailPage() {
                 Settings
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Client Portal</p>
-                  <Badge variant={client.portal_enabled ? 'default' : 'secondary'}>
-                    {client.portal_enabled ? 'Enabled' : 'Disabled'}
-                  </Badge>
-                </div>
+                <ViewEditField
+                  type="switch"
+                  label="Client Portal"
+                  isEditing={isEditing}
+                  value={clientForm.watch('portal_enabled')}
+                  onChange={(v) => clientForm.setValue('portal_enabled', v)}
+                  description="Allow client to access the portal"
+                />
               </div>
               <div className="mt-6 pt-4 border-t">
                 <AuditTrail
@@ -669,10 +668,33 @@ export function ClientDetailPage() {
         {/* Contacts Tab */}
         <TabsContent value="contacts" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button onClick={() => handleOpenContactDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Contact
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Contact
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleOpenContactDialog()}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create New Contact
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setLinkContactDialogOpen(true)}
+                  disabled={!unlinkedContacts || unlinkedContacts.length === 0}
+                >
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Link Existing Contact
+                  {unlinkedContacts && unlinkedContacts.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                      {unlinkedContacts.length}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {contactsLoading ? (
             <Card className="card-carbon">
@@ -708,9 +730,18 @@ export function ClientDetailPage() {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Users className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No contacts yet</p>
-                <Button className="mt-4" onClick={() => handleOpenContactDialog()}>
-                  Add First Contact
-                </Button>
+                <div className="flex gap-2 mt-4">
+                  <Button onClick={() => handleOpenContactDialog()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create New
+                  </Button>
+                  {unlinkedContacts && unlinkedContacts.length > 0 && (
+                    <Button variant="outline" onClick={() => setLinkContactDialogOpen(true)}>
+                      <Link2 className="mr-2 h-4 w-4" />
+                      Link Existing ({unlinkedContacts.length})
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ) : (
@@ -778,7 +809,11 @@ export function ClientDetailPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenContactDialog(contact)}>
                                 <Edit className="mr-2 h-4 w-4" />
-                                Quick Edit
+                                Edit Global Info
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenRelationshipDialog(contact)}>
+                                <Users className="mr-2 h-4 w-4" />
+                                Edit Relationship
                               </DropdownMenuItem>
                               {!contact.is_primary && (
                                 <DropdownMenuItem onClick={() => handleSetPrimary(contact.id)}>
@@ -786,6 +821,10 @@ export function ClientDetailPage() {
                                   Set as Primary
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuItem onClick={() => setUnlinkContactId(contact.id)}>
+                                <Unlink className="mr-2 h-4 w-4" />
+                                Unlink from Client
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => setDeleteContactId(contact.id)}
@@ -933,6 +972,12 @@ export function ClientDetailPage() {
 
         {/* Sets Tab - All sets from client's projects */}
         <TabsContent value="sets" className="mt-6">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => openCreateModal('set', { client_id: safeClientId })}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Set
+            </Button>
+          </div>
           {setsLoading ? (
             <Card className="card-carbon">
               <CardContent className="p-0">
@@ -1002,14 +1047,18 @@ export function ClientDetailPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Link
-                            to={`/projects/${set.project_id}`}
-                            className="flex items-center gap-2 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                            {set.projects?.name || '—'}
-                          </Link>
+                          {set.project_id ? (
+                            <Link
+                              to={`/projects/${set.project_id}`}
+                              className="flex items-center gap-2 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <FolderKanban className="h-3 w-3 text-muted-foreground" />
+                              {set.projects?.name || '—'}
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge className={getStatusColor(set.status)} variant="outline">
@@ -1047,10 +1096,163 @@ export function ClientDetailPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem asChild>
-                                <Link to={`/projects/${set.project_id}`}>
-                                  <FolderKanban className="mr-2 h-4 w-4" />
-                                  View Project
+                                <Link to={`/sets/${set.id}`}>
+                                  <Layers className="mr-2 h-4 w-4" />
+                                  View Set
                                 </Link>
+                              </DropdownMenuItem>
+                              {set.project_id && (
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/projects/${set.project_id}`}>
+                                    <FolderKanban className="mr-2 h-4 w-4" />
+                                    View Project
+                                  </Link>
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Requirements Tab */}
+        <TabsContent value="requirements" className="mt-6">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => openCreateModal('requirement', { client_id: safeClientId })}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Requirement
+            </Button>
+          </div>
+          {requirementsLoading ? (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Set</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : !clientRequirements || clientRequirements.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No requirements yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create projects and sets to add requirements
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Set</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientRequirements.map((req) => (
+                      <TableRow
+                        key={req.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onDoubleClick={() => navigate(`/requirements/${req.id}`)}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {req.title}
+                            {req.display_id && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                #{req.display_id}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/sets/${req.set_id}`}
+                            className="hover:underline flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Layers className="h-3 w-3 text-muted-foreground" />
+                            {req.sets?.name || '—'}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/projects/${req.sets?.project_id}`}
+                            className="hover:underline flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FolderKanban className="h-3 w-3 text-muted-foreground" />
+                            {req.sets?.projects?.name || '—'}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{req.requirement_type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(req.status)} variant="outline">
+                            {req.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={
+                              req.urgency === 'high' && req.importance === 'high'
+                                ? 'border-red-500 text-red-700'
+                                : ''
+                            }
+                          >
+                            U:{req.urgency[0].toUpperCase()} I:{req.importance[0].toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}`)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1076,14 +1278,14 @@ export function ClientDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Contact Dialog */}
+      {/* Contact Dialog - Edit Global Info (name, email, phone) */}
       <Dialog open={contactDialogOpen} onOpenChange={setContactDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingContact ? 'Edit Contact' : 'Add Contact'}</DialogTitle>
+            <DialogTitle>{editingContact ? 'Edit Global Info' : 'Add Contact'}</DialogTitle>
             <DialogDescription>
               {editingContact
-                ? 'Update contact information.'
+                ? 'Update contact information. These changes apply globally across all clients this contact is linked to.'
                 : 'Add a new contact to this client.'}
             </DialogDescription>
           </DialogHeader>
@@ -1145,6 +1347,46 @@ export function ClientDetailPage() {
               />
               <FormField
                 control={contactForm.control}
+                name="relationship"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Relationship Notes</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="e.g., Main point of contact for web projects" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setContactDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createContact.isPending || updateContact.isPending}>
+                  {(createContact.isPending || updateContact.isPending) && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {editingContact ? 'Update' : 'Create'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Relationship Dialog - Edit Client-Contact Relationship (role, is_primary) */}
+      <Dialog open={relationshipDialogOpen} onOpenChange={setRelationshipDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Relationship</DialogTitle>
+            <DialogDescription>
+              Update this contact's relationship with {client?.name}. These settings only apply to this client.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...relationshipForm}>
+            <form onSubmit={relationshipForm.handleSubmit(handleSaveRelationship)} className="space-y-4">
+              <FormField
+                control={relationshipForm.control}
                 name="role"
                 render={({ field }) => (
                   <FormItem>
@@ -1168,20 +1410,7 @@ export function ClientDetailPage() {
                 )}
               />
               <FormField
-                control={contactForm.control}
-                name="relationship"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Relationship Notes</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="e.g., Main point of contact for web projects" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={contactForm.control}
+                control={relationshipForm.control}
                 name="is_primary"
                 render={({ field }) => (
                   <FormItem className="flex items-center gap-2 space-y-0">
@@ -1196,14 +1425,14 @@ export function ClientDetailPage() {
                 )}
               />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setContactDialogOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setRelationshipDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createContact.isPending || updateContact.isPending}>
-                  {(createContact.isPending || updateContact.isPending) && (
+                <Button type="submit" disabled={updateContact.isPending || setPrimaryContact.isPending}>
+                  {(updateContact.isPending || setPrimaryContact.isPending) && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {editingContact ? 'Update' : 'Create'}
+                  Update
                 </Button>
               </DialogFooter>
             </form>
@@ -1223,6 +1452,80 @@ export function ClientDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteContact}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Link Existing Contact Dialog */}
+      <Dialog open={linkContactDialogOpen} onOpenChange={setLinkContactDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link Existing Contact</DialogTitle>
+            <DialogDescription>
+              Select an existing contact to link to this client.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select
+              value={selectedContactToLink}
+              onValueChange={setSelectedContactToLink}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a contact..." />
+              </SelectTrigger>
+              <SelectContent>
+                {unlinkedLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                ) : unlinkedContacts && unlinkedContacts.length > 0 ? (
+                  unlinkedContacts.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {contact.first_name} {contact.last_name}
+                        </span>
+                        {contact.email && (
+                          <span className="text-xs text-muted-foreground">{contact.email}</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="py-4 text-center text-sm text-muted-foreground">
+                    No unlinked contacts available
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkContactDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleLinkContact}
+              disabled={!selectedContactToLink || linkToClient.isPending}
+            >
+              {linkToClient.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Link Contact
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unlink Contact Confirmation */}
+      <AlertDialog open={!!unlinkContactId} onOpenChange={() => setUnlinkContactId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlink Contact</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the contact from this client. The contact will still exist and can be linked again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUnlinkContact}>Unlink</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

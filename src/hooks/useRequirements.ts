@@ -26,6 +26,22 @@ export function useRequirementsBySet(setId: string) {
   })
 }
 
+export function useRequirementsByProject(projectId: string) {
+  return useQuery({
+    queryKey: ['requirements', 'project', projectId],
+    queryFn: () => requirementsApi.getByProjectId(projectId),
+    enabled: !!projectId,
+  })
+}
+
+export function useRequirementsByClient(clientId: string) {
+  return useQuery({
+    queryKey: ['requirements', 'client', clientId],
+    queryFn: () => requirementsApi.getByClientId(clientId),
+    enabled: !!clientId,
+  })
+}
+
 export function useMyRequirements() {
   const { user } = useAuthStore()
   const { currentTenant } = useTenantStore()
@@ -74,9 +90,10 @@ export function useRequirementMutations() {
   const updateRequirement = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateRequirementInput) =>
       requirementsApi.update(id, user!.id, input),
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
+      // Force immediate refetch for instant UI update
+      await queryClient.refetchQueries({ queryKey: ['requirement', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['requirements'] })
-      queryClient.invalidateQueries({ queryKey: ['requirement', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['sets'] })
       queryClient.invalidateQueries({ queryKey: ['project'] })
       toast({

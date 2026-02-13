@@ -58,6 +58,11 @@ export function useSetMutations() {
       console.log('[useSets.createSet] Success, invalidating caches', { data, variables })
       // Invalidate all sets-related queries aggressively
       queryClient.invalidateQueries({ queryKey: ['sets'] })
+      // Invalidate client queries (sets now can link directly to clients)
+      if (variables.client_id) {
+        queryClient.invalidateQueries({ queryKey: ['client', variables.client_id] })
+        queryClient.invalidateQueries({ queryKey: ['sets', 'client', variables.client_id] })
+      }
       // Invalidate specific project queries (including hierarchy view)
       if (variables.project_id) {
         queryClient.invalidateQueries({ queryKey: ['project', variables.project_id] })
@@ -68,8 +73,9 @@ export function useSetMutations() {
         queryClient.invalidateQueries({ queryKey: ['phase', variables.phase_id] })
         queryClient.invalidateQueries({ queryKey: ['sets', 'phase', variables.phase_id] })
       }
-      // Invalidate all projects list queries
+      // Invalidate all projects and clients list queries
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
       toast({
         title: 'Set created',
         description: 'The set has been created successfully.',
@@ -88,12 +94,17 @@ export function useSetMutations() {
   const updateSet = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateSetInput) =>
       setsApi.update(id, user!.id, input),
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
       console.log('[useSets.updateSet] Success, invalidating caches', { data, variables })
-      // Invalidate the specific set
-      queryClient.invalidateQueries({ queryKey: ['set', variables.id] })
+      // Force immediate refetch of the specific set for instant UI update
+      await queryClient.refetchQueries({ queryKey: ['set', variables.id] })
       // Invalidate all sets-related queries
       queryClient.invalidateQueries({ queryKey: ['sets'] })
+      // Invalidate client queries (sets can link directly to clients)
+      if (data?.client_id) {
+        queryClient.invalidateQueries({ queryKey: ['client', data.client_id] })
+        queryClient.invalidateQueries({ queryKey: ['sets', 'client', data.client_id] })
+      }
       // Invalidate project hierarchy queries (the updated set may have project_id or phase_id)
       if (data?.project_id) {
         queryClient.invalidateQueries({ queryKey: ['project', data.project_id] })
@@ -103,8 +114,9 @@ export function useSetMutations() {
         queryClient.invalidateQueries({ queryKey: ['phase', data.phase_id] })
         queryClient.invalidateQueries({ queryKey: ['sets', 'phase', data.phase_id] })
       }
-      // Invalidate all project queries to ensure UI refreshes
+      // Invalidate all project and client queries to ensure UI refreshes
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
       toast({
         title: 'Set updated',
         description: 'The set has been updated successfully.',

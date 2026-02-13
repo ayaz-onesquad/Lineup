@@ -38,7 +38,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from '@/hooks/use-toast'
-import { useAuthStore } from '@/stores'
 import type { Tenant } from '@/types/database'
 
 const createTenantSchema = z.object({
@@ -52,7 +51,6 @@ export function AdminDashboardPage() {
   const [search, setSearch] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
-  const { user } = useAuthStore()
 
   const { data: tenants, isLoading, refetch } = useQuery<Tenant[]>({
     queryKey: ['admin', 'tenants'],
@@ -80,7 +78,9 @@ export function AdminDashboardPage() {
   const onCreateTenant = async (data: CreateTenantForm) => {
     setIsCreating(true)
     try {
-      await tenantsApi.create(data, user?.id || '')
+      // SysAdmin creates tenant without being added as org_admin
+      // They can access all tenants via sys_admin role
+      await tenantsApi.createTenantOnly(data)
       toast({
         title: 'Tenant created',
         description: `${data.name} has been created successfully.`,
@@ -266,6 +266,14 @@ export function AdminDashboardPage() {
                     <TableCell>
                       {tenant.deleted_at ? (
                         <Badge variant="destructive">Deleted</Badge>
+                      ) : tenant.status === 'inactive' ? (
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                          Inactive
+                        </Badge>
+                      ) : tenant.status === 'suspended' ? (
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                          Suspended
+                        </Badge>
                       ) : (
                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                           Active

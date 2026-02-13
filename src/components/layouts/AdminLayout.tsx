@@ -28,7 +28,8 @@ export function AdminLayout() {
   const handleLogout = async () => {
     await authApi.signOut()
     logout()
-    navigate('/admin/login')
+    // SysAdmin logs out to /login, not /admin/login
+    navigate('/login')
   }
 
   return (

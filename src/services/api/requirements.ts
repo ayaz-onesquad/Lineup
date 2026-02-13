@@ -26,6 +26,19 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
   return cleaned as T
 }
 
+// Helper to clean date fields - convert empty strings to null
+function cleanDateFields<T>(input: T, fields: string[]): T {
+  const cleaned = { ...input } as Record<string, unknown>
+  for (const field of fields) {
+    const value = cleaned[field]
+    // Convert empty string to null for date columns
+    if (value === '' || value === undefined) {
+      cleaned[field] = null
+    }
+  }
+  return cleaned as T
+}
+
 export const requirementsApi = {
   getAll: async (tenantId: string): Promise<RequirementWithRelations[]> => {
     const { data, error } = await supabase
@@ -34,20 +47,14 @@ export const requirementsApi = {
         *,
         sets (
           *,
-          projects (*),
+          projects (*, clients (*)),
           project_phases (*)
         ),
-        assigned_to:user_profiles!requirements_assigned_to_id_fkey (*),
-        lead:user_profiles!requirements_lead_id_fkey (*),
-        secondary_lead:user_profiles!requirements_secondary_lead_id_fkey (*),
-        pm:user_profiles!requirements_pm_id_fkey (*),
-        reviewer:user_profiles!requirements_reviewer_id_fkey (*),
-        creator:user_profiles!requirements_created_by_fkey (*),
-        updater:user_profiles!requirements_updated_by_fkey (*)
+        assigned_to:assigned_to_id (id, full_name, avatar_url)
       `)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
-      .order('priority_score', { ascending: true })
+      .order('priority', { ascending: true })
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -59,15 +66,66 @@ export const requirementsApi = {
       .from('requirements')
       .select(`
         *,
-        assigned_to:user_profiles!requirements_assigned_to_id_fkey (*),
-        lead:user_profiles!requirements_lead_id_fkey (*),
-        secondary_lead:user_profiles!requirements_secondary_lead_id_fkey (*),
-        pm:user_profiles!requirements_pm_id_fkey (*),
-        reviewer:user_profiles!requirements_reviewer_id_fkey (*)
+        assigned_to:assigned_to_id (id, full_name, avatar_url)
       `)
       .eq('set_id', setId)
       .is('deleted_at', null)
       .order('requirement_order', { ascending: true })
+
+    if (error) throw error
+    return data || []
+  },
+
+  getByProjectId: async (projectId: string): Promise<RequirementWithRelations[]> => {
+    // Get all sets for this project, then get their requirements
+    const { data: sets, error: setsError } = await supabase
+      .from('sets')
+      .select('id')
+      .eq('project_id', projectId)
+      .is('deleted_at', null)
+
+    if (setsError) throw setsError
+    if (!sets || sets.length === 0) return []
+
+    const setIds = sets.map(s => s.id)
+    const { data, error } = await supabase
+      .from('requirements')
+      .select(`
+        *,
+        sets (
+          *,
+          projects (*, clients (*)),
+          project_phases (*)
+        ),
+        assigned_to:assigned_to_id (id, full_name, avatar_url)
+      `)
+      .in('set_id', setIds)
+      .is('deleted_at', null)
+      .order('priority', { ascending: true })
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data || []
+  },
+
+  getByClientId: async (clientId: string): Promise<RequirementWithRelations[]> => {
+    // Now requirements have direct client_id, so query directly
+    const { data, error } = await supabase
+      .from('requirements')
+      .select(`
+        *,
+        clients (*),
+        sets (
+          *,
+          projects (*, clients (*)),
+          project_phases (*)
+        ),
+        assigned_to:assigned_to_id (id, full_name, avatar_url)
+      `)
+      .eq('client_id', clientId)
+      .is('deleted_at', null)
+      .order('priority', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     return data || []
@@ -83,16 +141,16 @@ export const requirementsApi = {
         *,
         sets (
           *,
-          projects (*),
+          projects (*, clients (*)),
           project_phases (*)
         ),
-        assigned_to:user_profiles!requirements_assigned_to_id_fkey (*)
+        assigned_to:assigned_to_id (id, full_name, avatar_url)
       `)
       .eq('tenant_id', tenantId)
       .eq('assigned_to_id', userId)
       .is('deleted_at', null)
-      .order('priority_score', { ascending: true })
-      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('priority', { ascending: true })
+      .order('expected_due_date', { ascending: true, nullsFirst: false })
 
     if (error) throw error
     return data || []
@@ -105,16 +163,14 @@ export const requirementsApi = {
         *,
         sets (
           *,
-          projects (*),
+          projects (*, clients (*)),
           project_phases (*)
         ),
-        assigned_to:user_profiles!requirements_assigned_to_id_fkey (*),
-        lead:user_profiles!requirements_lead_id_fkey (*),
-        secondary_lead:user_profiles!requirements_secondary_lead_id_fkey (*),
-        pm:user_profiles!requirements_pm_id_fkey (*),
-        reviewer:user_profiles!requirements_reviewer_id_fkey (*),
-        creator:user_profiles!requirements_created_by_fkey (*),
-        updater:user_profiles!requirements_updated_by_fkey (*)
+        assigned_to:assigned_to_id (id, full_name, avatar_url),
+        lead:lead_id (id, full_name, avatar_url),
+        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+        pm:pm_id (id, full_name, avatar_url),
+        reviewer:reviewer_id (id, full_name, avatar_url)
       `)
       .eq('id', id)
       .is('deleted_at', null)
@@ -130,25 +186,38 @@ export const requirementsApi = {
     input: CreateRequirementInput
   ): Promise<Requirement> => {
     // Clean UUID fields
-    const cleanedInput = cleanUUIDFields(input, [
-      'set_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
+    let cleanedInput = cleanUUIDFields(input, [
+      'client_id', 'set_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
     ])
 
-    // Validate set_id
-    if (!cleanedInput.set_id || !isValidUUID(cleanedInput.set_id)) {
-      throw new Error('A valid set must be selected')
+    // Clean date fields - convert empty strings to null
+    cleanedInput = cleanDateFields(cleanedInput, [
+      'expected_due_date', 'actual_due_date', 'completed_date', 'expected_start_date', 'actual_start_date'
+    ])
+
+    // Validate client_id (required)
+    if (!cleanedInput.client_id || !isValidUUID(cleanedInput.client_id)) {
+      throw new Error('A valid client must be selected')
     }
 
-    // Get next order
-    const { data: existingReqs } = await supabase
-      .from('requirements')
-      .select('requirement_order')
-      .eq('set_id', cleanedInput.set_id)
-      .is('deleted_at', null)
-      .order('requirement_order', { ascending: false })
-      .limit(1)
+    // Set_id is now optional - validate only if provided
+    if (cleanedInput.set_id && !isValidUUID(cleanedInput.set_id)) {
+      cleanedInput.set_id = undefined
+    }
 
-    const nextOrder = cleanedInput.requirement_order ?? ((existingReqs?.[0]?.requirement_order ?? -1) + 1)
+    // Get next order (only if set is assigned)
+    let nextOrder = 0
+    if (cleanedInput.set_id) {
+      const { data: existingReqs } = await supabase
+        .from('requirements')
+        .select('requirement_order')
+        .eq('set_id', cleanedInput.set_id)
+        .is('deleted_at', null)
+        .order('requirement_order', { ascending: false })
+        .limit(1)
+
+      nextOrder = cleanedInput.requirement_order ?? ((existingReqs?.[0]?.requirement_order ?? -1) + 1)
+    }
 
     const { data, error } = await supabase
       .from('requirements')
@@ -168,21 +237,33 @@ export const requirementsApi = {
 
     if (error) throw error
 
-    // Update set completion
-    const { setsApi } = await import('./sets')
-    await setsApi.updateCompletionPercentage(cleanedInput.set_id)
+    // Update set completion (only if set is assigned)
+    if (cleanedInput.set_id) {
+      const { setsApi } = await import('./sets')
+      await setsApi.updateCompletionPercentage(cleanedInput.set_id)
+    }
 
     return data
   },
 
   update: async (id: string, userId: string, input: UpdateRequirementInput): Promise<Requirement> => {
     // Clean UUID fields
-    const cleanedInput = cleanUUIDFields(input, [
-      'set_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
+    // Note: client_id and set_id are excluded from cleaning because they should never change after creation
+    let cleanedInput = cleanUUIDFields(input, [
+      'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
     ])
 
+    // Clean date fields - convert empty strings to null (fixes "revert" bug when clearing dates)
+    cleanedInput = cleanDateFields(cleanedInput, [
+      'expected_due_date', 'actual_due_date', 'completed_date', 'expected_start_date', 'actual_start_date'
+    ])
+
+    // Explicitly remove client_id and set_id from updates to prevent accidental nullification
+    // Requirements should not change their client or set after creation
+    const { client_id: _removedClientId, set_id: _removedSetId, ...inputWithoutSetId } = cleanedInput
+
     const updates: Record<string, unknown> = {
-      ...cleanedInput,
+      ...inputWithoutSetId,
       updated_by: userId,
     }
 
@@ -229,8 +310,8 @@ export const requirementsApi = {
 
     if (error) throw error
 
-    // Update set completion
-    if (req) {
+    // Update set completion (only if set is assigned)
+    if (req?.set_id) {
       const { setsApi } = await import('./sets')
       await setsApi.updateCompletionPercentage(req.set_id)
     }

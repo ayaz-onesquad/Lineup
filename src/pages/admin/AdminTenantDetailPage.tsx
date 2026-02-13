@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { tenantsApi, clientsApi, projectsApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   Table,
   TableBody,
@@ -15,6 +18,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,15 +46,106 @@ import {
   Calendar,
   Trash2,
   RefreshCw,
+  Plus,
+  Loader2,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  Power,
+  AlertTriangle,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import { useState } from 'react'
-import type { Tenant, Client, ProjectWithRelations } from '@/types/database'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import type { Tenant, Client, ProjectWithRelations, TenantUserWithProfile, UserRole } from '@/types/database'
+
+// User role options
+const ROLE_OPTIONS = [
+  { value: 'org_admin', label: 'Organization Admin', description: 'Full access to tenant' },
+  { value: 'org_user', label: 'Organization User', description: 'Standard team member' },
+  { value: 'client_user', label: 'Client User', description: 'Limited portal access' },
+]
+
+// Timezone options (common ones)
+const TIMEZONE_OPTIONS = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Phoenix', label: 'Arizona (No DST)' },
+  { value: 'America/Anchorage', label: 'Alaska Time' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time' },
+  { value: 'UTC', label: 'UTC' },
+  { value: 'Europe/London', label: 'London (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Central European Time' },
+  { value: 'Asia/Tokyo', label: 'Japan Standard Time' },
+  { value: 'Asia/Shanghai', label: 'China Standard Time' },
+  { value: 'Australia/Sydney', label: 'Australian Eastern Time' },
+]
+
+// Form schema for creating a user
+const createUserSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Valid email is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['org_admin', 'org_user', 'client_user'] as const),
+  phone: z.string().optional(),
+  timezone: z.string().optional(),
+  sendWelcomeEmail: z.boolean(),
+})
+
+type CreateUserFormData = z.infer<typeof createUserSchema>
 
 export function AdminTenantDetailPage() {
   const { tenantId } = useParams<{ tenantId: string }>()
+  const queryClient = useQueryClient()
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeactivating, setIsDeactivating] = useState(false)
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false)
+  const [showPassword, setShowPassword] = useState(true) // Show by default for admin
+  const [passwordCopied, setPasswordCopied] = useState(false)
+  const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false)
+  const [deleteConfirmationName, setDeleteConfirmationName] = useState('')
+
+  // Copy password to clipboard
+  const copyPassword = () => {
+    const password = createUserForm.getValues('password')
+    if (password) {
+      navigator.clipboard.writeText(password)
+      setPasswordCopied(true)
+      setTimeout(() => setPasswordCopied(false), 2000)
+    }
+  }
+
+  // Create user form
+  const createUserForm = useForm<CreateUserFormData>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      role: 'org_user',
+      phone: '',
+      timezone: 'America/New_York',
+      sendWelcomeEmail: true,
+    },
+  })
 
   const { data: tenant, isLoading: tenantLoading, refetch } = useQuery<Tenant | null>({
     queryKey: ['admin', 'tenants', tenantId],
@@ -54,7 +157,6 @@ export function AdminTenantDetailPage() {
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ['admin', 'tenants', tenantId, 'clients'],
     queryFn: async () => {
-      // In a real app, you'd have an admin API to get tenant-specific data
       return clientsApi.getAll(tenantId!)
     },
     enabled: !!tenantId,
@@ -69,16 +171,100 @@ export function AdminTenantDetailPage() {
     enabled: !!tenantId,
   })
 
-  const handleDelete = async () => {
-    if (!tenantId) return
-    setIsDeleting(true)
-    try {
-      await tenantsApi.delete(tenantId)
+  // Get users for this tenant
+  const { data: users, isLoading: usersLoading } = useQuery<TenantUserWithProfile[]>({
+    queryKey: ['admin', 'tenants', tenantId, 'users'],
+    queryFn: async () => {
+      return tenantsApi.getUsers(tenantId!)
+    },
+    enabled: !!tenantId,
+  })
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: (data: CreateUserFormData) =>
+      tenantsApi.createUser(tenantId!, {
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        timezone: data.timezone,
+        role: data.role as UserRole,
+        sendWelcomeEmail: data.sendWelcomeEmail,
+      }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'tenants', tenantId, 'users'] })
       toast({
-        title: 'Tenant deleted',
-        description: 'The tenant has been soft deleted.',
+        title: 'User created successfully',
+        description: (
+          <div className="space-y-2">
+            <p><strong>Email:</strong> {variables.email}</p>
+            <p><strong>Password:</strong> <code className="bg-muted px-1 py-0.5 rounded font-mono text-sm">{variables.password}</code></p>
+            <p className="text-sm text-muted-foreground">Share these credentials with the user.</p>
+          </div>
+        ),
+        duration: 15000, // Keep visible for 15 seconds
+      })
+      setIsCreateUserOpen(false)
+      createUserForm.reset()
+      setShowPassword(true) // Reset to show for next user
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to create user',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const onCreateUser = (data: CreateUserFormData) => {
+    createUserMutation.mutate(data)
+  }
+
+  // Step 1: Deactivate tenant (blocks user login)
+  const handleDeactivate = async () => {
+    if (!tenantId) return
+    setIsDeactivating(true)
+    try {
+      await tenantsApi.deactivateTenant(tenantId)
+      toast({
+        title: 'Tenant deactivated',
+        description: 'Users can no longer log in to this tenant. You can now permanently delete it if needed.',
       })
       refetch()
+    } catch (error) {
+      toast({
+        title: 'Failed to deactivate tenant',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeactivating(false)
+    }
+  }
+
+  // Step 2: Permanently delete tenant (requires confirmation)
+  const handlePermanentDelete = async () => {
+    if (!tenantId || !tenant) return
+    if (deleteConfirmationName.toLowerCase() !== tenant.name.toLowerCase()) {
+      toast({
+        title: 'Confirmation failed',
+        description: 'The tenant name you entered does not match.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setIsDeleting(true)
+    try {
+      await tenantsApi.permanentlyDeleteTenant(tenantId, deleteConfirmationName)
+      toast({
+        title: 'Tenant permanently deleted',
+        description: 'The tenant and all associated data have been permanently removed.',
+      })
+      // Navigate back to admin dashboard since tenant no longer exists
+      window.location.href = '/admin'
     } catch (error) {
       toast({
         title: 'Failed to delete tenant',
@@ -87,16 +273,19 @@ export function AdminTenantDetailPage() {
       })
     } finally {
       setIsDeleting(false)
+      setShowPermanentDeleteDialog(false)
+      setDeleteConfirmationName('')
     }
   }
 
+  // Restore (reactivate) tenant
   const handleRestore = async () => {
     if (!tenantId) return
     try {
       await tenantsApi.activateTenant(tenantId)
       toast({
         title: 'Tenant restored',
-        description: 'The tenant has been restored.',
+        description: 'The tenant has been reactivated. Users can now log in.',
       })
       refetch()
     } catch (error) {
@@ -131,6 +320,14 @@ export function AdminTenantDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs
+        items={[
+          { label: 'Admin', href: '/admin' },
+          { label: tenant.name },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link to="/admin">
@@ -141,7 +338,11 @@ export function AdminTenantDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">{tenant.name}</h1>
-            {tenant.deleted_at ? (
+            {tenant.status === 'inactive' ? (
+              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                Inactive
+              </Badge>
+            ) : tenant.deleted_at ? (
               <Badge variant="destructive">Deleted</Badge>
             ) : (
               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -151,33 +352,121 @@ export function AdminTenantDetailPage() {
           </div>
           <p className="text-muted-foreground">{tenant.slug}</p>
         </div>
-        {tenant.deleted_at ? (
-          <Button variant="outline" onClick={handleRestore}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Restore Tenant
-          </Button>
-        ) : (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={isDeleting}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Tenant
+
+        {/* Action buttons based on tenant status */}
+        <div className="flex items-center gap-2">
+          {tenant.status === 'inactive' ? (
+            <>
+              {/* Inactive tenant: Show Restore and Permanent Delete buttons */}
+              <Button variant="outline" onClick={handleRestore}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reactivate
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will soft delete the tenant and all associated data. The tenant can be restored later.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+              <Dialog open={showPermanentDeleteDialog} onOpenChange={setShowPermanentDeleteDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Permanently Delete
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-destructive">
+                      <AlertTriangle className="h-5 w-5" />
+                      Permanently Delete Tenant
+                    </DialogTitle>
+                    <DialogDescription className="space-y-2">
+                      <p>
+                        This action <strong>cannot be undone</strong>. This will permanently delete the tenant
+                        <strong> "{tenant.name}"</strong> and all associated data including:
+                      </p>
+                      <ul className="list-disc list-inside text-sm space-y-1">
+                        <li>All clients and contacts</li>
+                        <li>All projects, phases, sets, and requirements</li>
+                        <li>All user associations with this tenant</li>
+                        <li>All documents and activity history</li>
+                      </ul>
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">
+                        To confirm, type the tenant name: <strong>{tenant.name}</strong>
+                      </label>
+                      <Input
+                        value={deleteConfirmationName}
+                        onChange={(e) => setDeleteConfirmationName(e.target.value)}
+                        placeholder="Enter tenant name to confirm"
+                        className="font-mono"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowPermanentDeleteDialog(false)
+                        setDeleteConfirmationName('')
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handlePermanentDelete}
+                      disabled={
+                        isDeleting ||
+                        deleteConfirmationName.toLowerCase() !== tenant.name.toLowerCase()
+                      }
+                    >
+                      {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Delete Forever
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          ) : tenant.deleted_at ? (
+            // Soft-deleted tenant: Show Restore button
+            <Button variant="outline" onClick={handleRestore}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Restore Tenant
+            </Button>
+          ) : (
+            // Active tenant: Show Deactivate button (Step 1 of deletion workflow)
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-yellow-600 border-yellow-300 hover:bg-yellow-50" disabled={isDeactivating}>
+                  <Power className="mr-2 h-4 w-4" />
+                  Deactivate Tenant
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Deactivate Tenant?</AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-2">
+                    <p>
+                      This will <strong>block all users</strong> from logging into this tenant.
+                    </p>
+                    <p>
+                      After deactivation, you can either reactivate the tenant or proceed to permanent deletion.
+                    </p>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeactivate}
+                    className="bg-yellow-600 hover:bg-yellow-700"
+                  >
+                    {isDeactivating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Deactivate
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       </div>
 
       {/* Overview Stats */}
@@ -358,15 +647,309 @@ export function AdminTenantDetailPage() {
         </TabsContent>
 
         <TabsContent value="users" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">User management coming soon</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                This feature will allow viewing and managing tenant users
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex justify-end mb-4">
+            <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create User
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Create New User</DialogTitle>
+                  <DialogDescription>
+                    Add a new user to this tenant. They will receive an email to confirm their account.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...createUserForm}>
+                  <form onSubmit={createUserForm.handleSubmit(onCreateUser)} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={createUserForm.control}
+                        name="firstName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>First Name *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="John" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={createUserForm.control}
+                        name="lastName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Last Name *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Doe" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={createUserForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email *</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="john.doe@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={createUserForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Temporary Password *</FormLabel>
+                          <FormControl>
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <Input
+                                  type={showPassword ? 'text' : 'password'}
+                                  placeholder="Enter temporary password"
+                                  className="pr-10 font-mono"
+                                  {...field}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                >
+                                  {showPassword ? (
+                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={copyPassword}
+                                disabled={!field.value}
+                                title="Copy password"
+                              >
+                                {passwordCopied ? (
+                                  <Check className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormDescription>
+                            Must be at least 8 characters. Share this password with the user.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={createUserForm.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>User Role *</FormLabel>
+                          <FormControl>
+                            <SearchableSelect
+                              options={ROLE_OPTIONS}
+                              value={field.value}
+                              onValueChange={(value) => field.onChange(value || 'org_user')}
+                              placeholder="Select role..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={createUserForm.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Phone</FormLabel>
+                            <FormControl>
+                              <Input type="tel" placeholder="+1 (555) 000-0000" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={createUserForm.control}
+                        name="timezone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Timezone</FormLabel>
+                            <FormControl>
+                              <SearchableSelect
+                                options={TIMEZONE_OPTIONS}
+                                value={field.value}
+                                onValueChange={(value) => field.onChange(value || '')}
+                                placeholder="Select timezone..."
+                                clearable
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={createUserForm.control}
+                      name="sendWelcomeEmail"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Send Welcome Email</FormLabel>
+                            <FormDescription>
+                              Send an email with login instructions
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsCreateUserOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={createUserMutation.isPending}>
+                        {createUserMutation.isPending && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Create User
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Filter out sys_admin users - they are global and not tenant-specific */}
+          {(() => {
+            const filteredUsers = users?.filter(u => u.role !== 'sys_admin') || []
+
+            if (usersLoading) {
+              return (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-16" />
+                  ))}
+                </div>
+              )
+            }
+
+            if (filteredUsers.length === 0) {
+              return (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No users found</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Create a user to add them to this tenant
+                    </p>
+                  </CardContent>
+                </Card>
+              )
+            }
+
+            return (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                            <span className="text-sm font-medium">
+                              {user.user_profiles?.full_name
+                                ?.split(' ')
+                                .map((n) => n[0])
+                                .join('')
+                                .toUpperCase() || '?'}
+                            </span>
+                          </div>
+                          {user.user_profiles?.full_name || 'Unknown'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {/* Email is not stored in user_profiles, would need auth.users */}
+                        —
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            user.role === 'org_admin'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : user.role === 'org_user'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }
+                        >
+                          {user.role.replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            user.status === 'active'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : user.status === 'invited'
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                              : 'bg-red-50 text-red-700 border-red-200'
+                          }
+                        >
+                          {user.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(user.created_at)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+            )
+          })()}
         </TabsContent>
       </Tabs>
     </div>

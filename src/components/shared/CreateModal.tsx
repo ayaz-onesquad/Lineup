@@ -7,12 +7,13 @@ import {
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-// Import form components (will be created later)
+// Import form components
 import { ClientForm } from '@/components/forms/ClientForm'
 import { ProjectForm } from '@/components/forms/ProjectForm'
 import { PhaseForm } from '@/components/forms/PhaseForm'
 import { SetForm } from '@/components/forms/SetForm'
 import { RequirementForm } from '@/components/forms/RequirementForm'
+import { ContactForm } from '@/components/forms/ContactForm'
 
 export function CreateModal() {
   const { createModalOpen, createModalType, createModalContext, closeCreateModal } =
@@ -30,8 +31,9 @@ export function CreateModal() {
         </DialogHeader>
 
         <Tabs defaultValue={createModalType || 'requirement'} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="client">Client</TabsTrigger>
+            <TabsTrigger value="contact">Contact</TabsTrigger>
             <TabsTrigger value="project">Project</TabsTrigger>
             <TabsTrigger value="phase">Phase</TabsTrigger>
             <TabsTrigger value="set">Set</TabsTrigger>
@@ -40,6 +42,13 @@ export function CreateModal() {
 
           <TabsContent value="client" className="mt-4">
             <ClientForm onSuccess={handleSuccess} />
+          </TabsContent>
+
+          <TabsContent value="contact" className="mt-4">
+            <ContactForm
+              defaultValues={createModalContext}
+              onSuccess={handleSuccess}
+            />
           </TabsContent>
 
           <TabsContent value="project" className="mt-4">

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement'
+export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement' | 'contact'
 
 interface DetailPanelState {
   isOpen: boolean

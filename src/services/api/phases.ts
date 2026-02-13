@@ -10,10 +10,7 @@ export const phasesApi = {
   getByProjectId: async (projectId: string): Promise<PhaseWithRelations[]> => {
     const { data, error } = await supabase
       .from('project_phases')
-      .select(`
-        *,
-        owner:user_profiles!project_phases_owner_id_fkey (*)
-      `)
+      .select('*')
       .eq('project_id', projectId)
       .is('deleted_at', null)
       .order('phase_order', { ascending: true })
@@ -27,8 +24,7 @@ export const phasesApi = {
       .from('project_phases')
       .select(`
         *,
-        projects (*),
-        owner:user_profiles!project_phases_owner_id_fkey (*)
+        projects (*)
       `)
       .eq('id', id)
       .is('deleted_at', null)

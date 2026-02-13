@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   Select,
   SelectContent,
@@ -39,8 +40,10 @@ interface SelectFieldProps extends BaseFieldProps {
   type: 'select'
   value: string
   onChange: (value: string) => void
-  options: readonly { readonly value: string; readonly label: string }[] | Array<{ value: string; label: string }>
+  options: readonly { readonly value: string; readonly label: string; readonly description?: string }[] | Array<{ value: string; label: string; description?: string }>
   placeholder?: string
+  searchable?: boolean // Use SearchableSelect component instead of regular Select
+  clearable?: boolean
 }
 
 interface SwitchFieldProps extends BaseFieldProps {
@@ -137,24 +140,38 @@ export function ViewEditField(props: ViewEditFieldProps) {
     }
 
     case 'select': {
-      const { value, onChange, options, placeholder } = props
+      const { value, onChange, options, placeholder, searchable, clearable } = props
       const selectedOption = options.find((o) => o.value === value)
       return (
         <div className={cn('min-h-[52px]', className)}>
           {renderLabel()}
           {isEditing ? (
-            <Select value={value} onValueChange={onChange}>
-              <SelectTrigger className={cn('h-9', error && 'border-destructive')}>
-                <SelectValue placeholder={placeholder} />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            searchable ? (
+              <SearchableSelect
+                options={options.map(o => ({
+                  value: o.value,
+                  label: o.label,
+                  description: 'description' in o ? o.description : undefined,
+                }))}
+                value={value}
+                onValueChange={(v) => onChange(v || '')}
+                placeholder={placeholder}
+                clearable={clearable}
+              />
+            ) : (
+              <Select value={value} onValueChange={onChange}>
+                <SelectTrigger className={cn('h-9', error && 'border-destructive')}>
+                  <SelectValue placeholder={placeholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )
           ) : (
             <p className="h-9 flex items-center">{selectedOption?.label || '—'}</p>
           )}

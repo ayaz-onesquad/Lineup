@@ -8,11 +8,11 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return ''
   const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+  // MM/DD/YYYY format
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${month}/${day}/${year}`
 }
 
 export function formatDateTime(date: Date | string | null | undefined): string {
@@ -91,25 +91,53 @@ export function getUrgencyImportanceColor(urgency: string, importance: string): 
  * Calculate Eisenhower Priority Score (1-6)
  * Lower number = higher priority
  *
- * Quadrant mapping:
- * 1 = Critical + High Importance (Do First - Urgent & Important)
- * 2 = High + High (Do Second - Urgent & Important)
- * 3 = Critical/High + Medium (Do Third)
- * 4 = Medium + High (Schedule - Important but not Urgent)
- * 5 = Low importance or Low urgency with Medium importance (Delegate)
- * 6 = Low + Low (Delete/Defer)
+ * Eisenhower Matrix Mapping:
+ * 1 = Critical (Importance) + High (Urgency) - Crisis/Do First
+ * 2 = High + High - Important & Urgent
+ * 3 = High + Medium - Schedule
+ * 4 = Medium + Medium - Plan
+ * 5 = Medium + Low - Delegate
+ * 6 = Low + Low - Eliminate/Defer
  */
 export type UrgencyLevel = 'low' | 'medium' | 'high' | 'critical'
-export type ImportanceLevel = 'low' | 'medium' | 'high'
+export type ImportanceLevel = 'low' | 'medium' | 'high' | 'critical'
 export type PriorityScore = 1 | 2 | 3 | 4 | 5 | 6
 
-export function getPriorityScore(urgency: UrgencyLevel, importance: ImportanceLevel): PriorityScore {
-  if (urgency === 'critical' && importance === 'high') return 1
-  if (urgency === 'high' && importance === 'high') return 2
-  if ((urgency === 'critical' || urgency === 'high') && importance === 'medium') return 3
-  if (urgency === 'medium' && importance === 'high') return 4
-  if (importance === 'low' || (urgency === 'low' && importance === 'medium')) return 5
+export function calculateEisenhowerPriority(importance: ImportanceLevel | string, urgency: UrgencyLevel | string): PriorityScore {
+  // Default to medium if null/undefined
+  const imp = importance || 'medium'
+  const urg = urgency || 'medium'
+
+  // Eisenhower Matrix Priority (1-6):
+  // Note: 'critical' is only valid for urgency, not importance
+
+  // Priority 1: Critical urgency + High importance (Crisis - do immediately)
+  if (urg === 'critical' && imp === 'high') return 1
+
+  // Priority 2: High urgency + High importance (Important & Urgent)
+  if (urg === 'high' && imp === 'high') return 2
+
+  // Priority 3: Critical/High urgency + Medium importance, or Medium urgency + High importance
+  if (((urg === 'critical' || urg === 'high') && imp === 'medium') ||
+      (urg === 'medium' && imp === 'high')) return 3
+
+  // Priority 4: Low urgency + High importance, or Medium + Medium
+  if ((urg === 'low' && imp === 'high') ||
+      (urg === 'medium' && imp === 'medium') ||
+      (urg === 'critical' && imp === 'low')) return 4
+
+  // Priority 5: High/Medium urgency + Low importance, or Low urgency + Medium importance
+  if ((urg === 'high' && imp === 'low') ||
+      (urg === 'medium' && imp === 'low') ||
+      (urg === 'low' && imp === 'medium')) return 5
+
+  // Priority 6: Low urgency + Low importance (Eliminate quadrant) - default fallback
   return 6
+}
+
+// Alias for backwards compatibility
+export function getPriorityScore(urgency: UrgencyLevel, importance: ImportanceLevel): PriorityScore {
+  return calculateEisenhowerPriority(importance, urgency)
 }
 
 export function getPriorityLabel(score: PriorityScore): string {
@@ -160,12 +188,21 @@ export function getUrgencyLabel(urgency: UrgencyLevel): string {
 
 export function getImportanceLabel(importance: ImportanceLevel): string {
   const labels: Record<ImportanceLevel, string> = {
+    critical: 'Critical',
     high: 'High',
     medium: 'Medium',
     low: 'Low',
   }
   return labels[importance]
 }
+
+// Client status options for dropdown
+export const CLIENT_STATUS_OPTIONS = [
+  { value: 'prospective', label: 'Prospective', description: 'Potential new client' },
+  { value: 'onboarding', label: 'Onboarding', description: 'In onboarding process' },
+  { value: 'active', label: 'Active', description: 'Active client' },
+  { value: 'inactive', label: 'Inactive', description: 'Inactive client' },
+] as const
 
 // Industry options for dropdown - focused on agency clients
 export const INDUSTRY_OPTIONS = [
@@ -199,6 +236,18 @@ export const CONTACT_ROLE_OPTIONS = [
   { value: 'other', label: 'Other' },
 ] as const
 
+// Referral source options for dropdown
+export const REFERRAL_SOURCE_OPTIONS = [
+  { value: 'referral', label: 'Referral' },
+  { value: 'website', label: 'Website' },
+  { value: 'social_media', label: 'Social Media' },
+  { value: 'advertising', label: 'Advertising' },
+  { value: 'event', label: 'Event' },
+  { value: 'partner', label: 'Partner' },
+  { value: 'cold_outreach', label: 'Cold Outreach' },
+  { value: 'other', label: 'Other' },
+] as const
+
 // Urgency options for dropdown
 export const URGENCY_OPTIONS = [
   { value: 'critical', label: 'Critical', description: 'Must be done immediately' },
@@ -207,7 +256,7 @@ export const URGENCY_OPTIONS = [
   { value: 'low', label: 'Low', description: 'Can wait' },
 ] as const
 
-// Importance options for dropdown
+// Importance options for dropdown (Critical is NOT an option - only for Urgency)
 export const IMPORTANCE_OPTIONS = [
   { value: 'high', label: 'High', description: 'Critical for project success' },
   { value: 'medium', label: 'Medium', description: 'Important but not critical' },

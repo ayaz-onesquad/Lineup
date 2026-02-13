@@ -29,7 +29,9 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
 export const projectsApi = {
   getAll: async (tenantId: string): Promise<ProjectWithRelations[]> => {
     console.log('[projectsApi.getAll] Fetching projects for tenant:', tenantId)
-    const { data, error } = await supabase
+
+    // First, get the projects with client data
+    const { data: projects, error } = await supabase
       .from('projects')
       .select(`
         *,
@@ -39,13 +41,51 @@ export const projectsApi = {
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
-    console.log('[projectsApi.getAll] Result:', { data, error, count: data?.length })
-    if (error) throw error
-    return data || []
+    if (error) {
+      console.error('[projectsApi.getAll] Error fetching projects:', error)
+      throw error
+    }
+
+    if (!projects || projects.length === 0) {
+      console.log('[projectsApi.getAll] No projects found')
+      return []
+    }
+
+    // Collect all user IDs that need profile info
+    const userIds = new Set<string>()
+    projects.forEach(p => {
+      if (p.lead_id) userIds.add(p.lead_id)
+      if (p.secondary_lead_id) userIds.add(p.secondary_lead_id)
+      if (p.pm_id) userIds.add(p.pm_id)
+    })
+
+    // Fetch user profiles if there are any to fetch
+    let profileMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', Array.from(userIds))
+
+      if (profiles) {
+        profileMap = new Map(profiles.map(p => [p.user_id, { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }]))
+      }
+    }
+
+    // Map projects with user profile data
+    const result = projects.map(p => ({
+      ...p,
+      lead: p.lead_id ? profileMap.get(p.lead_id) || null : null,
+      secondary_lead: p.secondary_lead_id ? profileMap.get(p.secondary_lead_id) || null : null,
+      pm: p.pm_id ? profileMap.get(p.pm_id) || null : null,
+    }))
+
+    console.log('[projectsApi.getAll] Result:', { count: result.length })
+    return result
   },
 
   getByClientId: async (clientId: string, tenantId: string): Promise<ProjectWithRelations[]> => {
-    const { data, error } = await supabase
+    const { data: projects, error } = await supabase
       .from('projects')
       .select(`
         *,
@@ -57,11 +97,39 @@ export const projectsApi = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+    if (!projects || projects.length === 0) return []
+
+    // Collect all user IDs
+    const userIds = new Set<string>()
+    projects.forEach(p => {
+      if (p.lead_id) userIds.add(p.lead_id)
+      if (p.secondary_lead_id) userIds.add(p.secondary_lead_id)
+      if (p.pm_id) userIds.add(p.pm_id)
+    })
+
+    // Fetch user profiles
+    let profileMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', Array.from(userIds))
+
+      if (profiles) {
+        profileMap = new Map(profiles.map(p => [p.user_id, { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }]))
+      }
+    }
+
+    return projects.map(p => ({
+      ...p,
+      lead: p.lead_id ? profileMap.get(p.lead_id) || null : null,
+      secondary_lead: p.secondary_lead_id ? profileMap.get(p.secondary_lead_id) || null : null,
+      pm: p.pm_id ? profileMap.get(p.pm_id) || null : null,
+    }))
   },
 
   getById: async (id: string): Promise<ProjectWithRelations | null> => {
-    const { data, error } = await supabase
+    const { data: project, error } = await supabase
       .from('projects')
       .select(`
         *,
@@ -72,11 +140,41 @@ export const projectsApi = {
       .single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    if (!project) return null
+
+    // Collect user IDs
+    const userIds = new Set<string>()
+    if (project.lead_id) userIds.add(project.lead_id)
+    if (project.secondary_lead_id) userIds.add(project.secondary_lead_id)
+    if (project.pm_id) userIds.add(project.pm_id)
+    if (project.created_by) userIds.add(project.created_by)
+    if (project.updated_by) userIds.add(project.updated_by)
+
+    // Fetch user profiles
+    let profileMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', Array.from(userIds))
+
+      if (profiles) {
+        profileMap = new Map(profiles.map(p => [p.user_id, { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }]))
+      }
+    }
+
+    return {
+      ...project,
+      lead: project.lead_id ? profileMap.get(project.lead_id) || null : null,
+      secondary_lead: project.secondary_lead_id ? profileMap.get(project.secondary_lead_id) || null : null,
+      pm: project.pm_id ? profileMap.get(project.pm_id) || null : null,
+      creator: project.created_by ? profileMap.get(project.created_by) || null : null,
+      updater: project.updated_by ? profileMap.get(project.updated_by) || null : null,
+    }
   },
 
   getWithHierarchy: async (id: string): Promise<ProjectWithRelations | null> => {
-    const { data, error } = await supabase
+    const { data: project, error } = await supabase
       .from('projects')
       .select(`
         *,
@@ -94,7 +192,37 @@ export const projectsApi = {
       .single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    if (!project) return null
+
+    // Collect user IDs
+    const userIds = new Set<string>()
+    if (project.lead_id) userIds.add(project.lead_id)
+    if (project.secondary_lead_id) userIds.add(project.secondary_lead_id)
+    if (project.pm_id) userIds.add(project.pm_id)
+    if (project.created_by) userIds.add(project.created_by)
+    if (project.updated_by) userIds.add(project.updated_by)
+
+    // Fetch user profiles
+    let profileMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', Array.from(userIds))
+
+      if (profiles) {
+        profileMap = new Map(profiles.map(p => [p.user_id, { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }]))
+      }
+    }
+
+    return {
+      ...project,
+      lead: project.lead_id ? profileMap.get(project.lead_id) || null : null,
+      secondary_lead: project.secondary_lead_id ? profileMap.get(project.secondary_lead_id) || null : null,
+      pm: project.pm_id ? profileMap.get(project.pm_id) || null : null,
+      creator: project.created_by ? profileMap.get(project.created_by) || null : null,
+      updater: project.updated_by ? profileMap.get(project.updated_by) || null : null,
+    }
   },
 
   create: async (
@@ -159,12 +287,17 @@ export const projectsApi = {
 
   update: async (id: string, userId: string, input: UpdateProjectInput): Promise<Project> => {
     // Clean UUID fields to prevent "invalid UUID" errors
-    const cleanedInput = cleanUUIDFields(input, ['client_id', 'lead_id', 'secondary_lead_id', 'pm_id'])
+    // Note: client_id is excluded because it should never change after creation
+    const cleanedInput = cleanUUIDFields(input, ['lead_id', 'secondary_lead_id', 'pm_id'])
+
+    // Explicitly remove client_id from updates to prevent accidental nullification
+    // Projects should not change their client after creation
+    const { client_id: _removedClientId, ...updateData } = cleanedInput
 
     const { data, error } = await supabase
       .from('projects')
       .update({
-        ...cleanedInput,
+        ...updateData,
         updated_by: userId,
       })
       .eq('id', id)

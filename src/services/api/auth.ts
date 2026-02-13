@@ -1,5 +1,6 @@
 import { supabase } from '@/services/supabase'
 import type { UserProfile, Tenant, TenantUser } from '@/types/database'
+import { checkRateLimit, RATE_LIMITS, RateLimitError, isValidEmail, enforceMaxLength, INPUT_LIMITS } from '@/lib/security'
 
 export interface SignUpData {
   email: string
@@ -12,14 +13,40 @@ export interface SignInData {
   password: string
 }
 
+export { RateLimitError }
+
+// Admin-only: create user with specific details
+export interface AdminCreateUserData {
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+  phone?: string
+  timezone?: string
+}
+
 export const authApi = {
   signUp: async ({ email, password, fullName }: SignUpData) => {
+    // Rate limiting: 3 signups per minute
+    const rateLimitResult = checkRateLimit('auth:signup', RATE_LIMITS.signup)
+    if (!rateLimitResult.allowed) {
+      const seconds = Math.ceil((rateLimitResult.retryAfterMs || 60000) / 1000)
+      throw new RateLimitError(`Too many signup attempts. Please try again in ${seconds} seconds.`, rateLimitResult.retryAfterMs)
+    }
+
+    // Input validation
+    if (!isValidEmail(email)) {
+      throw new Error('Please enter a valid email address')
+    }
+    const sanitizedName = enforceMaxLength(fullName.trim(), INPUT_LIMITS.name)
+    const sanitizedEmail = enforceMaxLength(email.trim().toLowerCase(), INPUT_LIMITS.email)
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: sanitizedEmail,
       password,
       options: {
         data: {
-          full_name: fullName,
+          full_name: sanitizedName,
         },
       },
     })
@@ -29,10 +56,50 @@ export const authApi = {
   },
 
   signIn: async ({ email, password }: SignInData) => {
+    // Input validation
+    const sanitizedEmail = enforceMaxLength(email.trim().toLowerCase(), INPUT_LIMITS.email)
+
+    // SERVER-SIDE Rate limiting: Check against database (persists across page refreshes)
+    try {
+      const { data: rateLimitData, error: rateLimitError } = await supabase
+        .rpc('check_rate_limit', { p_email: sanitizedEmail, p_action_type: 'login' })
+
+      if (!rateLimitError && rateLimitData && !rateLimitData.allowed) {
+        const seconds = rateLimitData.retry_after_seconds || 300
+        throw new RateLimitError(
+          `Too many login attempts. Please try again in ${seconds} seconds.`,
+          seconds * 1000
+        )
+      }
+    } catch (e) {
+      // If rate limit check is a RateLimitError, rethrow it
+      if (e instanceof RateLimitError) throw e
+      // Otherwise, fall back to client-side rate limiting (for backwards compatibility)
+      console.warn('Server-side rate limit check failed, using client-side:', e)
+      const rateLimitResult = checkRateLimit(`auth:signin:${email}`, RATE_LIMITS.auth)
+      if (!rateLimitResult.allowed) {
+        const seconds = Math.ceil((rateLimitResult.retryAfterMs || 60000) / 1000)
+        throw new RateLimitError(`Too many login attempts. Please try again in ${seconds} seconds.`, rateLimitResult.retryAfterMs)
+      }
+    }
+
+    // Attempt login
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: sanitizedEmail,
       password,
     })
+
+    // Record the attempt (server-side)
+    try {
+      await supabase.rpc('record_login_attempt', {
+        p_email: sanitizedEmail,
+        p_success: !error,
+        p_error_message: error?.message || null,
+      })
+    } catch (recordError) {
+      // Non-blocking - don't fail login because of recording failure
+      console.warn('Failed to record login attempt:', recordError)
+    }
 
     if (error) throw error
     return data
@@ -44,7 +111,20 @@ export const authApi = {
   },
 
   resetPassword: async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    // Rate limiting: 3 password resets per 15 minutes
+    const rateLimitResult = checkRateLimit(`auth:reset:${email}`, RATE_LIMITS.passwordReset)
+    if (!rateLimitResult.allowed) {
+      const minutes = Math.ceil((rateLimitResult.retryAfterMs || 900000) / 60000)
+      throw new RateLimitError(`Too many password reset requests. Please try again in ${minutes} minutes.`, rateLimitResult.retryAfterMs)
+    }
+
+    // Input validation
+    if (!isValidEmail(email)) {
+      throw new Error('Please enter a valid email address')
+    }
+    const sanitizedEmail = enforceMaxLength(email.trim().toLowerCase(), INPUT_LIMITS.email)
+
+    const { error } = await supabase.auth.resetPasswordForEmail(sanitizedEmail, {
       redirectTo: `${window.location.origin}/reset-password`,
     })
 
@@ -158,6 +238,81 @@ export const authApi = {
     }
 
     return (data?.length || 0) > 0
+  },
+
+  // Admin function to create a new user (requires admin privileges)
+  // This preserves the admin's session by saving and restoring it
+  adminCreateUser: async (data: AdminCreateUserData): Promise<{ userId: string; profile: UserProfile }> => {
+    const fullName = `${data.firstName} ${data.lastName}`
+
+    // CRITICAL: Save the current admin session BEFORE creating the new user
+    // signUp() may auto-login as the new user, which would kick out the admin
+    const { data: currentSession } = await supabase.auth.getSession()
+    const adminSession = currentSession?.session
+
+    if (!adminSession) {
+      throw new Error('Admin session not found. Please log in again.')
+    }
+
+    try {
+      // Create the auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone: data.phone,
+            timezone: data.timezone,
+          },
+        },
+      })
+
+      if (authError) throw authError
+      if (!authData.user) throw new Error('Failed to create user')
+
+      const newUserId = authData.user.id
+
+      // CRITICAL: Restore the admin's session immediately
+      // This prevents the admin from being logged out as the new user
+      const { error: restoreError } = await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      })
+
+      if (restoreError) {
+        console.error('Failed to restore admin session:', restoreError)
+        // Don't throw - user was created, just need to re-login
+      }
+
+      // Create user profile (the trigger may not fire for admin-created users)
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: newUserId,
+          full_name: fullName,
+        })
+        .select()
+        .single()
+
+      if (profileError) throw profileError
+
+      return {
+        userId: newUserId,
+        profile,
+      }
+    } catch (error) {
+      // If anything fails, try to restore admin session
+      if (adminSession) {
+        await supabase.auth.setSession({
+          access_token: adminSession.access_token,
+          refresh_token: adminSession.refresh_token,
+        }).catch(() => {
+          // Silent fail - admin may need to re-login
+        })
+      }
+      throw error
+    }
   },
 
   // Get user's highest role - kept for backward compatibility

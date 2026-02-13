@@ -14,10 +14,7 @@ export const discussionsApi = {
   ): Promise<DiscussionWithAuthor[]> => {
     let query = supabase
       .from('discussions')
-      .select(`
-        *,
-        author:user_profiles!discussions_author_id_fkey (*)
-      `)
+      .select('*')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .is('parent_discussion_id', null)
@@ -31,28 +28,51 @@ export const discussionsApi = {
     const { data, error } = await query
 
     if (error) throw error
+    if (!data || data.length === 0) return []
 
-    // Fetch replies for each discussion
-    const discussionsWithReplies = await Promise.all(
-      (data || []).map(async (discussion) => {
-        const { data: replies } = await supabase
-          .from('discussions')
-          .select(`
-            *,
-            author:user_profiles!discussions_author_id_fkey (*)
-          `)
-          .eq('parent_discussion_id', discussion.id)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: true })
+    // Get all author IDs (including from replies)
+    const allDiscussionIds = data.map(d => d.id)
 
-        return {
-          ...discussion,
-          replies: replies || [],
-        }
+    // Fetch all replies
+    const { data: allReplies } = await supabase
+      .from('discussions')
+      .select('*')
+      .in('parent_discussion_id', allDiscussionIds)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+
+    // Collect all author IDs
+    const authorIds = new Set<string>()
+    data.forEach(d => authorIds.add(d.author_id))
+    allReplies?.forEach(r => authorIds.add(r.author_id))
+
+    // Fetch all user profiles
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .in('user_id', Array.from(authorIds))
+
+    const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || [])
+
+    // Map replies to their parents with author data
+    const repliesMap = new Map<string, DiscussionWithAuthor[]>()
+    allReplies?.forEach(reply => {
+      const parentId = reply.parent_discussion_id
+      if (!repliesMap.has(parentId)) {
+        repliesMap.set(parentId, [])
+      }
+      repliesMap.get(parentId)!.push({
+        ...reply,
+        author: profileMap.get(reply.author_id),
       })
-    )
+    })
 
-    return discussionsWithReplies
+    // Build discussions with authors and replies
+    return data.map(discussion => ({
+      ...discussion,
+      author: profileMap.get(discussion.author_id),
+      replies: repliesMap.get(discussion.id) || [],
+    }))
   },
 
   create: async (

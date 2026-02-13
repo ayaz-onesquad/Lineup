@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useProjects } from '@/hooks/useProjects'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -9,13 +9,27 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, FolderKanban, Grid, List } from 'lucide-react'
+import { Plus, Search, FolderKanban, Grid, List, MoreVertical, ExternalLink, Edit, Building2, User } from 'lucide-react'
 import { getStatusColor, getHealthColor, formatDate } from '@/lib/utils'
 
 export function ProjectsPage() {
@@ -155,39 +169,105 @@ export function ProjectsPage() {
           ))}
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredProjects?.map((project) => (
-              <Card
-                key={project.id}
-                className="hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => openDetailPanel('project', project.id)}
-                onDoubleClick={() => navigate(`/projects/${project.id}`)}
-              >
-                <CardContent className="flex items-center gap-4 py-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{project.name}</span>
+        // List View - Data Grid (Table) format with columns: Client, Project Name, Status, Health, Lead
+        <Card className="card-carbon">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Project Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Health</TableHead>
+                  <TableHead>Lead</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProjects?.map((project) => (
+                  <TableRow
+                    key={project.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => openDetailPanel('project', project.id)}
+                    onDoubleClick={() => navigate(`/projects/${project.id}`)}
+                  >
+                    <TableCell>
+                      {project.clients?.id ? (
+                        <Link
+                          to={`/clients/${project.clients.id}`}
+                          className="flex items-center gap-2 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                          {project.clients?.name || '—'}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {project.name}
+                        {project.display_id && (
+                          <Badge variant="outline" className="font-mono text-xs">
+                            #{project.display_id}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <Badge className={getStatusColor(project.status)} variant="outline">
                         {project.status}
                       </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {project.project_code} • {project.clients?.name}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-32">
-                      <Progress value={project.completion_percentage} className="h-2" />
-                    </div>
-                    <span className="text-sm w-10">{project.completion_percentage}%</span>
-                    <Badge variant="outline" className={getHealthColor(project.health)}>
-                      {project.health.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-          ))}
-        </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getHealthColor(project.health)}>
+                        {project.health.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {project.lead ? (
+                        <div className="flex items-center gap-2">
+                          {project.lead.avatar_url ? (
+                            <img
+                              src={project.lead.avatar_url}
+                              alt={project.lead.full_name}
+                              className="h-6 w-6 rounded-full"
+                            />
+                          ) : (
+                            <User className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="text-sm">{project.lead.full_name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            View Project
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}?edit=true`)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Project
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

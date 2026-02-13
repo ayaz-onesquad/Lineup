@@ -83,6 +83,8 @@ export function OnboardingPage() {
       navigate('/dashboard', { replace: true })
     } catch {
       // Error is handled by the mutation's onError
+    } finally {
+      // Always reset submitting state to allow retry
       setIsSubmitting(false)
     }
   }

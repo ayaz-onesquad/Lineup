@@ -69,10 +69,10 @@ export function SetDetail({ id }: SetDetailProps) {
             <span>{set.owner.full_name}</span>
           </div>
         )}
-        {set.due_date && (
+        {set.expected_end_date && (
           <div className="flex items-center gap-2 text-sm">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>Due {formatDate(set.due_date)}</span>
+            <span>Due {formatDate(set.expected_end_date)}</span>
           </div>
         )}
         {set.description && (

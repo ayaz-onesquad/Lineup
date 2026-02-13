@@ -25,9 +25,9 @@ export function DashboardPage() {
 
   const activeProjects = projects?.filter((p) => p.status === 'active') || []
   const openSets = sets?.filter((s) => s.status === 'open' || s.status === 'in_progress') || []
-  const myTasks = requirements?.filter((r) => r.assigned_to_id === profile?.user_id) || []
-  const overdueTasks = requirements?.filter(
-    (r) => r.due_date && new Date(r.due_date) < new Date() && r.status !== 'completed'
+  const myRequirements = requirements?.filter((r) => r.assigned_to_id === profile?.user_id) || []
+  const overdueRequirements = requirements?.filter(
+    (r) => r.expected_due_date && new Date(r.expected_due_date) < new Date() && r.status !== 'completed'
   ) || []
 
   const stats = [
@@ -48,16 +48,16 @@ export function DashboardPage() {
       bgColor: 'bg-purple-100',
     },
     {
-      title: 'My Tasks',
-      value: myTasks.filter((t) => t.status !== 'completed').length,
-      total: myTasks.length,
+      title: 'My Requirements',
+      value: myRequirements.filter((r) => r.status !== 'completed').length,
+      total: myRequirements.length,
       icon: CheckSquare,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
     {
       title: 'Overdue',
-      value: overdueTasks.length,
+      value: overdueRequirements.length,
       total: requirements?.length || 0,
       icon: AlertTriangle,
       color: 'text-red-600',
@@ -165,14 +165,14 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* My Tasks */}
+        {/* My Requirements */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              My Tasks
+              My Requirements
             </CardTitle>
-            <CardDescription>Tasks assigned to you</CardDescription>
+            <CardDescription>Requirements assigned to you</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[300px]">
@@ -182,13 +182,13 @@ export function DashboardPage() {
                     <Skeleton key={i} className="h-16 w-full" />
                   ))}
                 </div>
-              ) : myTasks.length === 0 ? (
+              ) : myRequirements.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
-                  No tasks assigned to you
+                  No requirements assigned to you
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {myTasks
+                  {myRequirements
                     .filter((t) => t.status !== 'completed')
                     .slice(0, 8)
                     .map((task) => (
@@ -213,15 +213,15 @@ export function DashboardPage() {
                             {task.sets?.projects?.name} • {task.sets?.name}
                           </p>
                         </div>
-                        {task.due_date && (
+                        {task.expected_due_date && (
                           <span
                             className={`text-xs ${
-                              new Date(task.due_date) < new Date()
+                              new Date(task.expected_due_date) < new Date()
                                 ? 'text-red-600'
                                 : 'text-muted-foreground'
                             }`}
                           >
-                            {formatDateTime(task.due_date)}
+                            {formatDateTime(task.expected_due_date)}
                           </span>
                         )}
                       </div>

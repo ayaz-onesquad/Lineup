@@ -24,17 +24,18 @@ import {
 import { Loader2 } from 'lucide-react'
 
 const setSchema = z.object({
-  // Filter field (not persisted)
-  client_id: z.string().optional(),
-  // Actual fields
-  project_id: z.string().min(1, 'Project is required'),
+  // Client is required - sets always belong to a client
+  client_id: z.string().min(1, 'Client is required'),
+  // Project is optional - sets can exist without a project
+  project_id: z.string().optional(),
   phase_id: z.string().optional(),
   name: z.string().min(1, 'Set name is required'),
   description: z.string().optional(),
   urgency: z.enum(['low', 'medium', 'high', 'critical']),
   importance: z.enum(['low', 'medium', 'high']),
-  due_date: z.string().optional(),
-  owner_id: z.string().optional(),
+  expected_start_date: z.string().optional(),
+  expected_end_date: z.string().optional(),
+  // Owner removed from quick create form per UX cleanup
   lead_id: z.string().optional(),
   secondary_lead_id: z.string().optional(),
   pm_id: z.string().optional(),
@@ -57,15 +58,15 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
   const form = useForm<SetFormData>({
     resolver: zodResolver(setSchema),
     defaultValues: {
-      client_id: '',
+      client_id: defaultValues?.client_id || '',
       project_id: defaultValues?.project_id || '',
       phase_id: defaultValues?.phase_id || '',
       name: '',
       description: '',
       urgency: 'medium',
       importance: 'medium',
-      due_date: '',
-      owner_id: '',
+      expected_start_date: '',
+      expected_end_date: '',
       lead_id: '',
       secondary_lead_id: '',
       pm_id: '',
@@ -96,20 +97,37 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
     }
   }, [selectedClientId, filteredProjects, form])
 
-  // Initialize from defaultValues - find client from project
+  // Initialize from defaultValues - find client from project if not directly provided
   useEffect(() => {
+    // If client_id is already set via defaultValues, don't override
+    if (defaultValues?.client_id) return
+
+    // If project_id is provided, derive client_id from project
     if (defaultValues?.project_id && allProjects) {
       const project = allProjects.find((p) => p.id === defaultValues.project_id)
       if (project) {
         form.setValue('client_id', project.client_id)
       }
     }
-  }, [defaultValues?.project_id, allProjects, form])
+  }, [defaultValues?.project_id, defaultValues?.client_id, allProjects, form])
 
   const onSubmit = async (data: SetFormData) => {
-    // Extract only the fields we need (exclude filter fields)
-    const { client_id, ...setData } = data
-    await createSet.mutateAsync(setData)
+    // Client is now a required field that gets persisted
+    await createSet.mutateAsync({
+      client_id: data.client_id,
+      project_id: data.project_id || undefined,
+      phase_id: data.phase_id || undefined,
+      name: data.name,
+      description: data.description,
+      urgency: data.urgency,
+      importance: data.importance,
+      expected_start_date: data.expected_start_date || undefined,
+      expected_end_date: data.expected_end_date || undefined,
+      lead_id: data.lead_id,
+      secondary_lead_id: data.secondary_lead_id,
+      pm_id: data.pm_id,
+      show_in_client_portal: data.show_in_client_portal,
+    })
     form.reset()
     onSuccess?.()
   }
@@ -129,9 +147,10 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
     [filteredProjects]
   )
 
+  // IMPORTANT: Use user_profiles.id (not user_id) because FK references user_profiles table
   const userOptions = useMemo(() =>
-    users?.map((u) => ({
-      value: u.user_id,
+    users?.filter((u) => u.user_profiles?.id).map((u) => ({
+      value: u.user_profiles!.id,
       label: u.user_profiles?.full_name || 'Unknown',
     })) || [],
     [users]
@@ -140,25 +159,25 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* Cascading Filters */}
+        {/* Client (required) and Project (optional) */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="client_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Client</FormLabel>
+                <FormLabel>Client *</FormLabel>
                 <FormControl>
                   <SearchableSelect
                     options={clientOptions}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
-                    placeholder="All clients"
+                    placeholder="Select client..."
                     searchPlaceholder="Search clients..."
                     emptyMessage="No clients found."
-                    clearable
                   />
                 </FormControl>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -168,16 +187,16 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
             name="project_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Project *</FormLabel>
+                <FormLabel>Project</FormLabel>
                 <FormControl>
                   <SearchableSelect
                     options={projectOptions}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
-                    placeholder="Select project..."
+                    placeholder="Select project (optional)..."
                     searchPlaceholder="Search projects..."
                     emptyMessage="No projects found."
-                    disabled={projectOptions.length === 0}
+                    clearable
                   />
                 </FormControl>
                 <FormMessage />
@@ -266,44 +285,39 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="due_date"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Due Date</FormLabel>
-              <FormControl>
-                <Input type="date" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Team Assignment */}
+        {/* Schedule Section */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="owner_id"
+            name="expected_start_date"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Owner</FormLabel>
+                <FormLabel>Expected Start</FormLabel>
                 <FormControl>
-                  <SearchableSelect
-                    options={userOptions}
-                    value={field.value}
-                    onValueChange={(value) => field.onChange(value || '')}
-                    placeholder="Select owner"
-                    searchPlaceholder="Search team..."
-                    emptyMessage="No team members found."
-                    clearable
-                  />
+                  <Input type="date" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
 
+          <FormField
+            control={form.control}
+            name="expected_end_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Expected End</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Team Assignment - Owner removed from quick create form */}
+        <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
             name="lead_id"
@@ -325,9 +339,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
               </FormItem>
             )}
           />
-        </div>
 
-        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="secondary_lead_id"

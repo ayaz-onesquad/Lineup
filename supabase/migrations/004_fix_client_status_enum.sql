@@ -54,6 +54,29 @@ EXCEPTION
 END $$;
 
 -- ============================================
+-- 2.6 ALLOW NULL EMAIL IN CONTACTS TABLE
+-- ============================================
+-- Drop the NOT NULL constraint on email if it exists
+
+DO $$
+BEGIN
+  ALTER TABLE contacts ALTER COLUMN email DROP NOT NULL;
+EXCEPTION
+  WHEN others THEN
+    -- Constraint doesn't exist or other error, skip
+    NULL;
+END $$;
+
+-- Also allow NULL email in clients table (deprecated field)
+DO $$
+BEGIN
+  ALTER TABLE clients ALTER COLUMN email DROP NOT NULL;
+EXCEPTION
+  WHEN others THEN
+    NULL;
+END $$;
+
+-- ============================================
 -- 3. RECREATE ATOMIC CREATE FUNCTION WITH PROPER STATUS HANDLING
 -- ============================================
 -- Drop and recreate to ensure clean state

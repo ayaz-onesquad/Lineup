@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores'
+import { Loader2 } from 'lucide-react'
 
 interface AuthProviderProps {
   children: ReactNode
@@ -55,9 +56,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [setUser, setLoading, logout])
 
-  // Don't render children until auth is initialized
+  // Show loading spinner while auth is initializing (prevents blank screen)
   if (!ready) {
-    return null
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return <>{children}</>

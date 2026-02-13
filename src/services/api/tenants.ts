@@ -1,12 +1,38 @@
 import { supabase } from '@/services/supabase'
-import type { Tenant, TenantUser, TenantUserWithProfile, CreateTenantInput } from '@/types/database'
+import type { Tenant, TenantUser, TenantUserWithProfile, CreateTenantInput, UserRole } from '@/types/database'
 import { generateSlug } from '@/lib/utils'
+import { authApi, type AdminCreateUserData } from './auth'
+
+// Input for creating a new user in a tenant
+export interface CreateTenantUserInput extends AdminCreateUserData {
+  role: UserRole
+  sendWelcomeEmail?: boolean
+}
 
 export const tenantsApi = {
-  create: async (input: CreateTenantInput, userId: string): Promise<Tenant> => {
+  // Create tenant and add creator as org_admin (for regular user onboarding)
+  // Uses RPC function to bypass RLS for new users who don't have tenant access yet
+  create: async (input: CreateTenantInput, _userId: string): Promise<Tenant> => {
     const slug = input.slug || generateSlug(input.name)
 
-    // Create tenant
+    // Use RPC function that has SECURITY DEFINER to bypass RLS
+    const { data, error } = await supabase.rpc('create_tenant_for_onboarding', {
+      p_name: input.name,
+      p_slug: slug,
+    })
+
+    if (error) throw error
+
+    // RPC returns JSON, cast to Tenant
+    return data as Tenant
+  },
+
+  // SysAdmin: Create tenant without adding creator as org_admin
+  // Used when SysAdmin creates tenants from admin dashboard
+  createTenantOnly: async (input: CreateTenantInput): Promise<Tenant> => {
+    const slug = input.slug || generateSlug(input.name)
+
+    // Create tenant only - SysAdmin is global and shouldn't be added as org_admin
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -19,18 +45,6 @@ export const tenantsApi = {
       .single()
 
     if (tenantError) throw tenantError
-
-    // Add user as org_admin
-    const { error: userError } = await supabase
-      .from('tenant_users')
-      .insert({
-        tenant_id: tenant.id,
-        user_id: userId,
-        role: 'org_admin',
-        status: 'active',
-      })
-
-    if (userError) throw userError
 
     return tenant
   },
@@ -70,17 +84,30 @@ export const tenantsApi = {
   },
 
   getUsers: async (tenantId: string): Promise<TenantUserWithProfile[]> => {
-    const { data, error } = await supabase
+    // First get tenant users
+    const { data: tenantUsers, error } = await supabase
       .from('tenant_users')
-      .select(`
-        *,
-        user_profiles!tenant_users_user_id_fkey (*)
-      `)
+      .select('*')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+    if (!tenantUsers || tenantUsers.length === 0) return []
+
+    // Get user profiles for all tenant users
+    const userIds = tenantUsers.map(tu => tu.user_id)
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .in('user_id', userIds)
+
+    // Map profiles to tenant users
+    const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || [])
+
+    return tenantUsers.map(tu => ({
+      ...tu,
+      user_profiles: profileMap.get(tu.user_id) || undefined,
+    }))
   },
 
   inviteUser: async (
@@ -138,6 +165,49 @@ export const tenantsApi = {
     if (error) throw error
   },
 
+  // Create a new user and add them to a tenant
+  createUser: async (
+    tenantId: string,
+    input: CreateTenantUserInput
+  ): Promise<TenantUserWithProfile> => {
+    // 1. Create the auth user and profile
+    const { userId, profile } = await authApi.adminCreateUser({
+      email: input.email,
+      password: input.password,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone,
+      timezone: input.timezone,
+    })
+
+    // 2. Add user to tenant with specified role
+    const { data: tenantUser, error: tenantError } = await supabase
+      .from('tenant_users')
+      .insert({
+        tenant_id: tenantId,
+        user_id: userId,
+        role: input.role,
+        status: 'active',
+      })
+      .select()
+      .single()
+
+    if (tenantError) {
+      // If we fail to add to tenant, the user is still created
+      // This is a partial failure state
+      console.error('Failed to add user to tenant:', tenantError)
+      throw new Error(`User created but failed to add to tenant: ${tenantError.message}`)
+    }
+
+    // TODO: If sendWelcomeEmail is true, trigger welcome email
+    // This would require an edge function or email service integration
+
+    return {
+      ...tenantUser,
+      user_profiles: profile,
+    }
+  },
+
   // SysAdmin functions
   getAll: async (): Promise<Tenant[]> => {
     const { data, error } = await supabase
@@ -159,6 +229,7 @@ export const tenantsApi = {
     return data || []
   },
 
+  // Soft delete (legacy - prefer deactivateTenant for new workflow)
   delete: async (id: string): Promise<void> => {
     const { error } = await supabase
       .from('tenants')
@@ -180,9 +251,34 @@ export const tenantsApi = {
   activateTenant: async (id: string): Promise<void> => {
     const { error } = await supabase
       .from('tenants')
-      .update({ status: 'active' })
+      .update({ status: 'active', deleted_at: null })
       .eq('id', id)
 
     if (error) throw error
+  },
+
+  // Step 1 of deletion: Deactivate tenant (blocks user login)
+  deactivateTenant: async (id: string): Promise<void> => {
+    const { error } = await supabase.rpc('deactivate_tenant', { p_tenant_id: id })
+    if (error) throw error
+  },
+
+  // Step 2 of deletion: Permanently delete tenant (requires confirmation)
+  permanentlyDeleteTenant: async (id: string, confirmationName: string): Promise<void> => {
+    const { error } = await supabase.rpc('permanently_delete_tenant', {
+      p_tenant_id: id,
+      p_confirmation_name: confirmationName,
+    })
+    if (error) throw error
+  },
+
+  // Check if tenant is accessible (not inactive/deleted)
+  checkTenantAccess: async (id: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc('check_tenant_access', { p_tenant_id: id })
+    if (error) {
+      console.error('Failed to check tenant access:', error)
+      return false
+    }
+    return data === true
   },
 }

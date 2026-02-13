@@ -1,12 +1,19 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTenantUsers } from '@/hooks/useTenant'
-import { useAuthStore } from '@/stores'
+import { useAuthStore, useTenantStore } from '@/stores'
+import { tenantsApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Switch } from '@/components/ui/switch'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   Table,
   TableBody,
@@ -25,26 +32,121 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Plus, Users, Mail } from 'lucide-react'
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Plus, Users, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
+import { toast } from '@/hooks/use-toast'
+import type { UserRole } from '@/types/database'
+
+// User role options (excludes sys_admin - only SysAdmin can create SysAdmins)
+const ROLE_OPTIONS = [
+  { value: 'org_admin', label: 'Organization Admin', description: 'Full access to manage organization' },
+  { value: 'org_user', label: 'Team Member', description: 'Can manage projects and requirements' },
+  { value: 'client_user', label: 'Client User', description: 'Read-only access to client portal' },
+]
+
+// Form schema for creating a user
+const createUserSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Valid email is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['org_admin', 'org_user', 'client_user'] as const),
+  phone: z.string().optional(),
+  sendWelcomeEmail: z.boolean(),
+})
+
+type CreateUserFormData = z.infer<typeof createUserSchema>
 
 export function TeamPage() {
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('org_user')
+  const [createUserOpen, setCreateUserOpen] = useState(false)
+  const [showPassword, setShowPassword] = useState(true)
+  const [passwordCopied, setPasswordCopied] = useState(false)
   const { data: users, isLoading } = useTenantUsers()
   const { role: currentUserRole } = useAuthStore()
+  const { currentTenant } = useTenantStore()
+  const currentTenantId = currentTenant?.id
+  const queryClient = useQueryClient()
 
   const isAdmin = currentUserRole === 'org_admin' || currentUserRole === 'sys_admin'
 
+  // Create user form
+  const createUserForm = useForm<CreateUserFormData>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      role: 'org_user',
+      phone: '',
+      sendWelcomeEmail: true,
+    },
+  })
+
+  // Copy password to clipboard
+  const copyPassword = () => {
+    const password = createUserForm.getValues('password')
+    if (password) {
+      navigator.clipboard.writeText(password)
+      setPasswordCopied(true)
+      setTimeout(() => setPasswordCopied(false), 2000)
+    }
+  }
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: (data: CreateUserFormData) =>
+      tenantsApi.createUser(currentTenantId!, {
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        role: data.role as UserRole,
+        sendWelcomeEmail: data.sendWelcomeEmail,
+      }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tenantUsers'] })
+      toast({
+        title: 'User created successfully',
+        description: (
+          <div className="space-y-2">
+            <p><strong>Email:</strong> {variables.email}</p>
+            <p><strong>Password:</strong> <code className="bg-muted px-1 py-0.5 rounded font-mono text-sm">{variables.password}</code></p>
+            <p className="text-sm text-muted-foreground">Share these credentials with the user.</p>
+          </div>
+        ),
+        duration: 15000,
+      })
+      setCreateUserOpen(false)
+      createUserForm.reset()
+      setShowPassword(true)
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to create user',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const onCreateUser = (data: CreateUserFormData) => {
+    createUserMutation.mutate(data)
+  }
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
+      case 'sys_admin':
+        return 'bg-red-100 text-red-800'
       case 'org_admin':
         return 'bg-purple-100 text-purple-800'
       case 'org_user':
@@ -56,74 +158,194 @@ export function TeamPage() {
     }
   }
 
-  const handleInvite = () => {
-    // Invite logic here
-    console.log('Invite:', inviteEmail, inviteRole)
-    setInviteOpen(false)
-    setInviteEmail('')
-    setInviteRole('org_user')
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Team</h1>
-          <p className="text-muted-foreground">Manage team members and invitations</p>
+          <p className="text-muted-foreground">Manage team members and access</p>
         </div>
         {isAdmin && (
-          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+          <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Invite Member
+                Create User
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>Invite Team Member</DialogTitle>
+                <DialogTitle>Create New User</DialogTitle>
                 <DialogDescription>
-                  Send an invitation to join your organization
+                  Add a new team member to your organization
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email Address</label>
-                  <Input
-                    type="email"
-                    placeholder="colleague@company.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
+              <Form {...createUserForm}>
+                <form onSubmit={createUserForm.handleSubmit(onCreateUser)} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={createUserForm.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createUserForm.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Doe" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={createUserForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email *</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="john.doe@example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Role</label>
-                  <Select value={inviteRole} onValueChange={setInviteRole}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="org_admin">Admin</SelectItem>
-                      <SelectItem value="org_user">Team Member</SelectItem>
-                      <SelectItem value="client_user">Client User</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {inviteRole === 'org_admin' && 'Full access to manage organization'}
-                    {inviteRole === 'org_user' && 'Can manage projects and tasks'}
-                    {inviteRole === 'client_user' && 'Read-only access to client portal'}
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setInviteOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleInvite}>
-                  <Mail className="mr-2 h-4 w-4" />
-                  Send Invitation
-                </Button>
-              </DialogFooter>
+
+                  <FormField
+                    control={createUserForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Temporary Password *</FormLabel>
+                        <FormControl>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Enter temporary password"
+                                className="pr-10 font-mono"
+                                {...field}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                onClick={() => setShowPassword(!showPassword)}
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </Button>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={copyPassword}
+                              disabled={!field.value}
+                              title="Copy password"
+                            >
+                              {passwordCopied ? (
+                                <Check className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </FormControl>
+                        <FormDescription>
+                          Must be at least 8 characters. Share this password with the user.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createUserForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>User Role *</FormLabel>
+                        <FormControl>
+                          <SearchableSelect
+                            options={ROLE_OPTIONS}
+                            value={field.value}
+                            onValueChange={(value) => field.onChange(value || 'org_user')}
+                            placeholder="Select role..."
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createUserForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl>
+                          <Input type="tel" placeholder="+1 (555) 000-0000" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createUserForm.control}
+                    name="sendWelcomeEmail"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <FormLabel>Send Welcome Email</FormLabel>
+                          <FormDescription>
+                            Send an email with login instructions
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCreateUserOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createUserMutation.isPending}>
+                      {createUserMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Create User
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
         )}

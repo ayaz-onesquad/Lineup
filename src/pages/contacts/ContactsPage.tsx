@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAllContacts } from '@/hooks/useContacts'
+import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,13 +21,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Users, Search, Star, MoreVertical, ExternalLink, Building2 } from 'lucide-react'
+import { Users, Search, Star, MoreVertical, ExternalLink, Building2, Plus } from 'lucide-react'
 import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
 export function ContactsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const { data: contacts, isLoading } = useAllContacts()
+  const { openCreateModal } = useUIStore()
 
   const filteredContacts = contacts?.filter((contact) => {
     const searchLower = search.toLowerCase()
@@ -50,6 +52,10 @@ export function ContactsPage() {
           <h1 className="text-3xl font-bold tracking-tight">All Contacts</h1>
           <p className="text-muted-foreground">Manage contacts across all clients</p>
         </div>
+        <Button onClick={() => openCreateModal('contact')}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Contact
+        </Button>
       </div>
 
       {/* Search */}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSets } from '@/hooks/useSets'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -7,11 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Plus, Search, Layers, Grid, LayoutGrid } from 'lucide-react'
-import { formatDate, getStatusColor } from '@/lib/utils'
+import { getStatusColor } from '@/lib/utils'
 import type { SetWithRelations } from '@/types/database'
 
 export function SetsPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'matrix' | 'list'>('list')
   const { data: sets, isLoading } = useSets()
@@ -38,6 +48,7 @@ export function SetsPage() {
       key={set.id}
       className="p-3 rounded-lg border bg-background hover:shadow-md transition-shadow cursor-pointer"
       onClick={() => openDetailPanel('set', set.id)}
+      onDoubleClick={() => navigate(`/sets/${set.id}`)}
     >
       <div className="flex items-center justify-between mb-2">
         <span className="font-medium text-sm truncate">{set.name}</span>
@@ -198,68 +209,68 @@ export function SetsPage() {
           </Card>
         </div>
       ) : (
-        /* List View */
-        <div className="space-y-3">
-          {filteredSets?.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
+        /* List View - Table Format */
+        <Card className="card-carbon">
+          <CardContent className="p-0">
+            {filteredSets?.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
                 <Layers className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No sets found</p>
                 <Button className="mt-4" onClick={() => openCreateModal('set')}>
                   Create your first set
                 </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredSets?.map((set) => (
-              <Card
-                key={set.id}
-                className="hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => openDetailPanel('set', set.id)}
-              >
-                <CardContent className="flex items-center gap-4 py-4">
-                  <div
-                    className={`w-1 h-12 rounded-full ${
-                      set.urgency === 'high' && set.importance === 'high'
-                        ? 'bg-red-500'
-                        : set.importance === 'high'
-                        ? 'bg-blue-500'
-                        : set.urgency === 'high'
-                        ? 'bg-amber-500'
-                        : 'bg-gray-400'
-                    }`}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{set.name}</span>
-                      <Badge className={getStatusColor(set.status)} variant="outline">
-                        {set.status}
-                      </Badge>
-                      <Badge variant="outline">
-                        U:{set.urgency[0].toUpperCase()} I:{set.importance[0].toUpperCase()}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {set.projects?.name}
-                      {set.project_phases && ` • ${set.project_phases.name}`}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-24">
-                      <Progress value={set.completion_percentage} className="h-2" />
-                    </div>
-                    <span className="text-sm w-10">{set.completion_percentage}%</span>
-                    {set.due_date && (
-                      <span className="text-sm text-muted-foreground">
-                        {formatDate(set.due_date)}
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Project</TableHead>
+                    <TableHead>Set Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Assigned To</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSets?.map((set) => (
+                    <TableRow
+                      key={set.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => openDetailPanel('set', set.id)}
+                      onDoubleClick={() => navigate(`/sets/${set.id}`)}
+                    >
+                      <TableCell>
+                        {/* Show direct client if available, otherwise show project's client */}
+                        {set.clients?.name || set.projects?.clients?.name || '—'}
+                      </TableCell>
+                      <TableCell>
+                        {set.projects?.name || '—'}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {set.name}
+                          {set.display_id && (
+                            <Badge variant="outline" className="font-mono text-xs">
+                              #{set.display_id}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(set.status)} variant="outline">
+                          {set.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {set.owner?.full_name || set.lead?.full_name || '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   )

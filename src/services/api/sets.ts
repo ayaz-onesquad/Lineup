@@ -27,18 +27,17 @@ export const setsApi = {
       .from('sets')
       .select(`
         *,
-        projects (*),
+        clients:client_id (id, name),
+        projects (*, clients (*)),
         project_phases (*),
-        owner:user_profiles!sets_owner_id_fkey (*),
-        lead:user_profiles!sets_lead_id_fkey (*),
-        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
-        pm:user_profiles!sets_pm_id_fkey (*),
-        creator:user_profiles!sets_created_by_fkey (*),
-        updater:user_profiles!sets_updated_by_fkey (*)
+        owner:owner_id (id, full_name, avatar_url),
+        lead:lead_id (id, full_name, avatar_url),
+        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+        pm:pm_id (id, full_name, avatar_url)
       `)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
-      .order('priority_score', { ascending: true })
+      .order('priority', { ascending: true })
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -46,24 +45,51 @@ export const setsApi = {
   },
 
   getByClientId: async (clientId: string): Promise<SetWithRelations[]> => {
-    // Get sets through projects that belong to this client
-    const { data, error } = await supabase
+    // Get sets that belong to this client either:
+    // 1. Directly via client_id
+    // 2. Through a project that belongs to this client
+
+    // First, get sets with direct client_id
+    const { data: directSets, error: directError } = await supabase
       .from('sets')
       .select(`
         *,
-        projects!inner (*),
+        projects (*,clients (*)),
         project_phases (*),
-        owner:user_profiles!sets_owner_id_fkey (*),
-        lead:user_profiles!sets_lead_id_fkey (*),
-        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
-        pm:user_profiles!sets_pm_id_fkey (*)
+        owner:owner_id (id, full_name, avatar_url),
+        lead:lead_id (id, full_name, avatar_url),
+        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+        pm:pm_id (id, full_name, avatar_url)
+      `)
+      .eq('client_id', clientId)
+      .is('deleted_at', null)
+
+    if (directError) throw directError
+
+    // Then, get sets through projects (for sets without direct client_id)
+    const { data: projectSets, error: projectError } = await supabase
+      .from('sets')
+      .select(`
+        *,
+        projects!inner (*,clients (*)),
+        project_phases (*),
+        owner:owner_id (id, full_name, avatar_url),
+        lead:lead_id (id, full_name, avatar_url),
+        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+        pm:pm_id (id, full_name, avatar_url)
       `)
       .eq('projects.client_id', clientId)
+      .is('client_id', null) // Only get project-linked sets that don't have direct client_id
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
 
-    if (error) throw error
-    return data || []
+    if (projectError) throw projectError
+
+    // Combine and dedupe by id, then sort by created_at descending
+    const allSets = [...(directSets || []), ...(projectSets || [])]
+    const uniqueSets = Array.from(new Map(allSets.map(s => [s.id, s])).values())
+    uniqueSets.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    return uniqueSets
   },
 
   getByProjectId: async (projectId: string): Promise<SetWithRelations[]> => {
@@ -71,11 +97,7 @@ export const setsApi = {
       .from('sets')
       .select(`
         *,
-        project_phases (*),
-        owner:user_profiles!sets_owner_id_fkey (*),
-        lead:user_profiles!sets_lead_id_fkey (*),
-        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
-        pm:user_profiles!sets_pm_id_fkey (*)
+        project_phases (*)
       `)
       .eq('project_id', projectId)
       .is('deleted_at', null)
@@ -88,13 +110,7 @@ export const setsApi = {
   getByPhaseId: async (phaseId: string): Promise<SetWithRelations[]> => {
     const { data, error } = await supabase
       .from('sets')
-      .select(`
-        *,
-        owner:user_profiles!sets_owner_id_fkey (*),
-        lead:user_profiles!sets_lead_id_fkey (*),
-        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
-        pm:user_profiles!sets_pm_id_fkey (*)
-      `)
+      .select('*')
       .eq('phase_id', phaseId)
       .is('deleted_at', null)
       .order('set_order', { ascending: true })
@@ -108,14 +124,13 @@ export const setsApi = {
       .from('sets')
       .select(`
         *,
-        projects (*),
+        clients:client_id (id, name),
+        projects (*, clients (*)),
         project_phases (*),
-        owner:user_profiles!sets_owner_id_fkey (*),
-        lead:user_profiles!sets_lead_id_fkey (*),
-        secondary_lead:user_profiles!sets_secondary_lead_id_fkey (*),
-        pm:user_profiles!sets_pm_id_fkey (*),
-        creator:user_profiles!sets_created_by_fkey (*),
-        updater:user_profiles!sets_updated_by_fkey (*)
+        owner:owner_id (id, full_name, avatar_url),
+        lead:lead_id (id, full_name, avatar_url),
+        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+        pm:pm_id (id, full_name, avatar_url)
       `)
       .eq('id', id)
       .is('deleted_at', null)
@@ -132,22 +147,34 @@ export const setsApi = {
   ): Promise<Set> => {
     // Clean UUID fields
     const cleanedInput = cleanUUIDFields(input, [
-      'project_id', 'phase_id', 'owner_id', 'lead_id', 'secondary_lead_id', 'pm_id'
+      'client_id', 'project_id', 'phase_id', 'owner_id', 'lead_id', 'secondary_lead_id', 'pm_id'
     ])
 
-    // Validate project_id
-    if (!cleanedInput.project_id || !isValidUUID(cleanedInput.project_id)) {
-      throw new Error('A valid project must be selected')
+    // Validate client_id (required)
+    if (!cleanedInput.client_id || !isValidUUID(cleanedInput.client_id)) {
+      throw new Error('A valid client must be selected')
     }
 
-    // Get next order
-    const { data: existingSets } = await supabase
+    // Get next order (either by client or project)
+    let orderQuery = supabase
       .from('sets')
       .select('set_order')
-      .eq('project_id', cleanedInput.project_id)
+      .eq('client_id', cleanedInput.client_id)
       .is('deleted_at', null)
       .order('set_order', { ascending: false })
       .limit(1)
+
+    if (cleanedInput.project_id) {
+      orderQuery = supabase
+        .from('sets')
+        .select('set_order')
+        .eq('project_id', cleanedInput.project_id)
+        .is('deleted_at', null)
+        .order('set_order', { ascending: false })
+        .limit(1)
+    }
+
+    const { data: existingSets } = await orderQuery
 
     const nextOrder = cleanedInput.set_order ?? ((existingSets?.[0]?.set_order ?? -1) + 1)
 
@@ -171,15 +198,18 @@ export const setsApi = {
   },
 
   update: async (id: string, userId: string, input: UpdateSetInput): Promise<Set> => {
-    // Clean UUID fields
+    // Clean UUID fields - include client_id and project_id for re-linking
     const cleanedInput = cleanUUIDFields(input, [
-      'project_id', 'phase_id', 'owner_id', 'lead_id', 'secondary_lead_id', 'pm_id'
+      'client_id', 'project_id', 'phase_id', 'owner_id', 'lead_id', 'secondary_lead_id', 'pm_id'
     ])
+
+    // Prepare update data - all fields are allowed to be updated
+    const updateData = { ...cleanedInput }
 
     const { data, error } = await supabase
       .from('sets')
       .update({
-        ...cleanedInput,
+        ...updateData,
         updated_by: userId,
       })
       .eq('id', id)

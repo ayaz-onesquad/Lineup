@@ -16,7 +16,7 @@ export interface UserProfile {
 }
 
 // Tenant types
-export type TenantStatus = 'active' | 'suspended' | 'cancelled'
+export type TenantStatus = 'active' | 'inactive' | 'suspended' | 'cancelled'
 export type PlanTier = 'starter' | 'professional' | 'business'
 
 export interface Tenant {
@@ -57,7 +57,7 @@ export type ContactRole = 'owner' | 'executive' | 'manager' | 'coordinator' | 't
 export interface Contact {
   id: string
   tenant_id: string
-  client_id: string
+  client_id?: string // Now optional - contacts can exist independently
   display_id: number
   first_name: string
   last_name: string
@@ -65,7 +65,7 @@ export interface Contact {
   phone?: string
   role?: ContactRole
   relationship?: string
-  is_primary: boolean
+  // is_primary is now in client_contacts join table, NOT here
   created_by: string
   updated_by?: string
   created_at: string
@@ -73,13 +73,35 @@ export interface Contact {
   deleted_at?: string
 }
 
+// Join table for many-to-many client-contact relationship
+export interface ClientContact {
+  id: string
+  tenant_id?: string // Auto-populated from parent client via trigger
+  client_id: string
+  contact_id: string
+  is_primary: boolean
+  role?: ContactRole // Client-specific role (stored in join table, not contacts)
+  created_at: string
+  created_by?: string
+  updated_at?: string
+  updated_by?: string
+}
+
+export interface ClientContactWithRelations extends ClientContact {
+  clients?: Client
+  contacts?: Contact
+}
+
 export interface ContactWithCreator extends Contact {
   creator?: UserProfile
   updater?: UserProfile
+  clients?: { id: string; name: string } // Single client for backwards compat
+  client_contacts?: ClientContactWithRelations[] // All linked clients
+  is_primary?: boolean // Comes from client_contacts join table when fetched for a specific client
 }
 
 // Client types
-export type ClientStatus = 'active' | 'inactive' | 'onboarding'
+export type ClientStatus = 'onboarding' | 'active' | 'inactive' | 'prospective'
 export type IndustryType =
   | 'saas'
   | 'ecommerce'
@@ -143,7 +165,7 @@ export interface ClientWithRelations extends Client {
 
 // Urgency and Importance for Eisenhower Matrix
 export type UrgencyLevel = 'low' | 'medium' | 'high' | 'critical'
-export type ImportanceLevel = 'low' | 'medium' | 'high'
+export type ImportanceLevel = 'low' | 'medium' | 'high' // Note: 'critical' is only for Urgency
 
 // Priority score (1-6, lower is higher priority)
 export type PriorityScore = 1 | 2 | 3 | 4 | 5 | 6
@@ -230,7 +252,8 @@ export type SetStatus = 'open' | 'in_progress' | 'completed' | 'cancelled'
 export interface Set {
   id: string
   tenant_id: string
-  project_id: string
+  client_id?: string // Direct link to client (sets can exist without project)
+  project_id?: string // Optional - sets can link directly to client
   phase_id?: string
   display_id: number
   name: string
@@ -238,10 +261,9 @@ export interface Set {
   set_order: number
   urgency: UrgencyLevel
   importance: ImportanceLevel
-  priority_score: PriorityScore
+  priority: number // Eisenhower Matrix priority (1-6)
   status: SetStatus
   completion_percentage: number
-  due_date?: string
   expected_start_date?: string
   expected_end_date?: string
   actual_start_date?: string
@@ -251,6 +273,8 @@ export interface Set {
   lead_id?: string
   secondary_lead_id?: string
   pm_id?: string
+  budget_days?: number
+  budget_hours?: number
   show_in_client_portal: boolean
   created_by: string
   updated_by?: string
@@ -261,7 +285,8 @@ export interface Set {
 }
 
 export interface SetWithRelations extends Set {
-  projects?: Project
+  clients?: Client // Direct client relation for client-only sets
+  projects?: ProjectWithRelations
   project_phases?: ProjectPhase
   owner?: UserProfile
   lead?: UserProfile
@@ -287,7 +312,8 @@ export type ReviewStatus = 'not_required' | 'pending' | 'in_review' | 'approved'
 export interface Requirement {
   id: string
   tenant_id: string
-  set_id: string
+  client_id: string
+  set_id?: string
   display_id: number
   title: string
   description?: string
@@ -296,17 +322,18 @@ export interface Requirement {
   status: RequirementStatus
   urgency: UrgencyLevel
   importance: ImportanceLevel
-  priority_score: PriorityScore
+  priority: number // Eisenhower Matrix priority (1-6)
+  is_task: boolean // When true, appears in Global Tasks view
   requires_document: boolean
   requires_review: boolean
   review_status: ReviewStatus
   reviewer_id?: string
   reviewed_at?: string
-  due_date?: string
   expected_start_date?: string
-  expected_end_date?: string
+  expected_due_date?: string
   actual_start_date?: string
-  actual_end_date?: string
+  actual_due_date?: string
+  completed_date?: string
   estimated_hours?: number
   actual_hours?: number
   assigned_to_id?: string
@@ -434,6 +461,7 @@ export interface CreateClientWithContactInput {
     location?: string
     overview?: string
     portal_enabled?: boolean
+    referral_source?: ReferralSource
   }
   contact: {
     first_name: string
@@ -451,7 +479,7 @@ export interface CreateClientWithContactResult {
 }
 
 export interface CreateContactInput {
-  client_id: string
+  client_id?: string // Optional - contacts can be created independently
   first_name: string
   last_name: string
   email?: string
@@ -459,6 +487,20 @@ export interface CreateContactInput {
   role?: ContactRole
   relationship?: string
   is_primary?: boolean
+}
+
+// For linking existing contacts to clients
+export interface LinkContactToClientInput {
+  client_id: string
+  contact_id: string
+  is_primary?: boolean
+  role?: ContactRole
+}
+
+// For updating client-contact relationship (role, is_primary)
+export interface UpdateClientContactInput {
+  is_primary?: boolean
+  role?: ContactRole
 }
 
 export interface UpdateContactInput extends Partial<Omit<CreateContactInput, 'client_id'>> {
@@ -504,20 +546,21 @@ export interface UpdatePhaseInput extends Partial<CreatePhaseInput> {
 }
 
 export interface CreateSetInput {
-  project_id: string
+  client_id: string // Required - sets always belong to a client
+  project_id?: string // Optional - sets can exist without a project
   phase_id?: string
   name: string
   description?: string
   set_order?: number
   urgency?: UrgencyLevel
   importance?: ImportanceLevel
-  due_date?: string
   expected_start_date?: string
   expected_end_date?: string
-  owner_id?: string
   lead_id?: string
   secondary_lead_id?: string
   pm_id?: string
+  budget_days?: number
+  budget_hours?: number
   show_in_client_portal?: boolean
 }
 
@@ -529,19 +572,22 @@ export interface UpdateSetInput extends Partial<CreateSetInput> {
 }
 
 export interface CreateRequirementInput {
-  set_id: string
+  client_id: string
+  set_id?: string
   title: string
   description?: string
   requirement_order?: number
   requirement_type?: RequirementType
+  is_task?: boolean // When true, appears in Global Tasks view
   urgency?: UrgencyLevel
   importance?: ImportanceLevel
   requires_document?: boolean
   requires_review?: boolean
   reviewer_id?: string
-  due_date?: string
   expected_start_date?: string
-  expected_end_date?: string
+  expected_due_date?: string
+  actual_due_date?: string
+  completed_date?: string
   estimated_hours?: number
   assigned_to_id?: string
   lead_id?: string
@@ -554,7 +600,6 @@ export interface UpdateRequirementInput extends Partial<CreateRequirementInput> 
   status?: RequirementStatus
   review_status?: ReviewStatus
   actual_start_date?: string
-  actual_end_date?: string
   actual_hours?: number
   reviewed_at?: string
 }

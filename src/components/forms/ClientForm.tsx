@@ -1,21 +1,16 @@
+import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useCreateClientWithContact } from '@/hooks/useClients'
+import { useCreateClientWithContact, useCreateClient } from '@/hooks/useClients'
+import { useAllContacts, useLinkContactToClient } from '@/hooks/useContacts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
-import type { IndustryType, ClientStatus, ContactRole } from '@/types/database'
+import { INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS, CLIENT_STATUS_OPTIONS } from '@/lib/utils'
+import type { IndustryType, ClientStatus, ContactRole, ReferralSource } from '@/types/database'
 import {
   Form,
   FormControl,
@@ -25,24 +20,45 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, User } from 'lucide-react'
 
 const clientSchema = z.object({
   // Client fields
   name: z.string().min(1, 'Client name is required'),
-  status: z.enum(['active', 'inactive', 'onboarding']),
+  status: z.enum(['active', 'inactive', 'onboarding', 'prospective']),
   industry: z.string().min(1, 'Industry is required'),
   industry_other: z.string().optional(),
   location: z.string().optional(),
   overview: z.string().optional(),
   portal_enabled: z.boolean(),
+  referral_source: z.string().optional(),
 
-  // Primary contact fields
-  contact_first_name: z.string().min(1, 'First name is required'),
-  contact_last_name: z.string().min(1, 'Last name is required'),
+  // Contact mode: 'existing' or 'new'
+  contact_mode: z.enum(['existing', 'new']),
+
+  // Existing contact selection
+  existing_contact_id: z.string().optional(),
+
+  // New contact fields (only required when contact_mode is 'new')
+  contact_first_name: z.string().optional(),
+  contact_last_name: z.string().optional(),
   contact_email: z.string().email('Invalid email').optional().or(z.literal('')),
   contact_phone: z.string().optional(),
   contact_role: z.string().optional(),
+}).refine((data) => {
+  // If creating new contact, first and last name are required
+  if (data.contact_mode === 'new') {
+    return data.contact_first_name && data.contact_first_name.length > 0 &&
+           data.contact_last_name && data.contact_last_name.length > 0
+  }
+  // If selecting existing, contact ID is required
+  if (data.contact_mode === 'existing') {
+    return data.existing_contact_id && data.existing_contact_id.length > 0
+  }
+  return true
+}, {
+  message: 'Please select an existing contact or fill in the new contact details',
+  path: ['contact_mode'],
 })
 
 type ClientFormData = z.infer<typeof clientSchema>
@@ -53,17 +69,23 @@ interface ClientFormProps {
 
 export function ClientForm({ onSuccess }: ClientFormProps) {
   const createClientWithContact = useCreateClientWithContact()
+  const createClient = useCreateClient()
+  const linkContactToClient = useLinkContactToClient()
+  const { data: contacts } = useAllContacts()
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
     defaultValues: {
       name: '',
-      status: 'active',
+      status: 'onboarding',
       industry: '',
       industry_other: '',
       location: '',
       overview: '',
       portal_enabled: true,
+      referral_source: '',
+      contact_mode: 'new',
+      existing_contact_id: '',
       contact_first_name: '',
       contact_last_name: '',
       contact_email: '',
@@ -73,6 +95,17 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
   })
 
   const watchIndustry = form.watch('industry')
+  const watchContactMode = form.watch('contact_mode')
+
+  // Build contact options for dropdown
+  const contactOptions = useMemo(() =>
+    contacts?.map((c) => ({
+      value: c.id,
+      label: `${c.first_name} ${c.last_name}`,
+      description: c.email || undefined,
+    })) || [],
+    [contacts]
+  )
 
   const onSubmit = async (data: ClientFormData) => {
     // Determine final industry value
@@ -80,9 +113,30 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
       ? data.industry_other
       : data.industry
 
-    // Create the client with primary contact
-    await createClientWithContact.mutateAsync({
-      client: {
+    if (data.contact_mode === 'new') {
+      // Create the client with new primary contact
+      await createClientWithContact.mutateAsync({
+        client: {
+          name: data.name,
+          company_name: data.name,
+          status: data.status as ClientStatus,
+          industry: finalIndustry as IndustryType,
+          location: data.location,
+          overview: data.overview,
+          portal_enabled: data.portal_enabled,
+          referral_source: data.referral_source as ReferralSource || undefined,
+        },
+        contact: {
+          first_name: data.contact_first_name!,
+          last_name: data.contact_last_name!,
+          email: data.contact_email || undefined,
+          phone: data.contact_phone || undefined,
+          role: data.contact_role as ContactRole || undefined,
+        },
+      })
+    } else {
+      // Create client first, then link existing contact
+      const client = await createClient.mutateAsync({
         name: data.name,
         company_name: data.name,
         status: data.status as ClientStatus,
@@ -90,15 +144,16 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
         location: data.location,
         overview: data.overview,
         portal_enabled: data.portal_enabled,
-      },
-      contact: {
-        first_name: data.contact_first_name,
-        last_name: data.contact_last_name,
-        email: data.contact_email || undefined,
-        phone: data.contact_phone || undefined,
-        role: data.contact_role as ContactRole || undefined,
-      },
-    })
+        referral_source: data.referral_source as ReferralSource || undefined,
+      })
+
+      // Link the existing contact as primary
+      await linkContactToClient.mutateAsync({
+        client_id: client.id,
+        contact_id: data.existing_contact_id!,
+        is_primary: true,
+      })
+    }
 
     form.reset()
     onSuccess?.()
@@ -109,7 +164,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
     label: opt.label,
   }))
 
-  const isSubmitting = createClientWithContact.isPending
+  const isSubmitting = createClientWithContact.isPending || createClient.isPending || linkContactToClient.isPending
 
   return (
     <Form {...form}>
@@ -138,18 +193,18 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="onboarding">Onboarding</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <SearchableSelect
+                      options={CLIENT_STATUS_OPTIONS.map((o) => ({
+                        value: o.value,
+                        label: o.label,
+                        description: o.description,
+                      }))}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value || 'onboarding')}
+                      placeholder="Select status..."
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -182,18 +237,44 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
 
             <FormField
               control={form.control}
-              name="location"
+              name="referral_source"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
+                  <FormLabel>Referral Source</FormLabel>
                   <FormControl>
-                    <Input placeholder="City, Country" {...field} />
+                    <SearchableSelect
+                      options={REFERRAL_SOURCE_OPTIONS.map((o) => ({
+                        value: o.value,
+                        label: o.label,
+                      }))}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value || '')}
+                      placeholder="How did they find us?"
+                      searchPlaceholder="Search sources..."
+                      emptyMessage="No source found."
+                      clearable
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
+
+          {/* Location Row */}
+          <FormField
+            control={form.control}
+            name="location"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Location</FormLabel>
+                <FormControl>
+                  <Input placeholder="City, Country" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           {/* Conditional: Other Industry */}
           {watchIndustry === 'other' && (
@@ -256,90 +337,146 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
         <div className="space-y-4 pt-4 border-t">
           <h3 className="text-sm font-medium">Primary Contact</h3>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="contact_first_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>First Name *</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="John" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="contact_last_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Last Name *</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Doe" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          {/* Contact Mode Toggle */}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={watchContactMode === 'existing' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => form.setValue('contact_mode', 'existing')}
+              className="flex-1"
+            >
+              <User className="mr-2 h-4 w-4" />
+              Select Existing
+            </Button>
+            <Button
+              type="button"
+              variant={watchContactMode === 'new' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => form.setValue('contact_mode', 'new')}
+              className="flex-1"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create New
+            </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Existing Contact Selection */}
+          {watchContactMode === 'existing' && (
             <FormField
               control={form.control}
-              name="contact_email"
+              name="existing_contact_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>Select Contact *</FormLabel>
                   <FormControl>
-                    <Input {...field} type="email" placeholder="john@example.com" />
+                    <SearchableSelect
+                      options={contactOptions}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value || '')}
+                      placeholder="Search contacts..."
+                      searchPlaceholder="Search by name or email..."
+                      emptyMessage="No contacts found."
+                    />
                   </FormControl>
+                  <FormDescription>
+                    Choose from your existing contacts
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+          )}
 
-            <FormField
-              control={form.control}
-              name="contact_phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="+1 (555) 123-4567" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          {/* New Contact Fields */}
+          {watchContactMode === 'new' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="contact_first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="John" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-          <FormField
-            control={form.control}
-            name="contact_role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Role</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role..." />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {CONTACT_ROLE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                <FormField
+                  control={form.control}
+                  name="contact_last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Doe" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="contact_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="email" placeholder="john@example.com" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contact_phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="+1 (555) 123-4567" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="contact_role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <FormControl>
+                      <SearchableSelect
+                        options={CONTACT_ROLE_OPTIONS.map((o) => ({
+                          value: o.value,
+                          label: o.label,
+                        }))}
+                        value={field.value}
+                        onValueChange={(value) => field.onChange(value || '')}
+                        placeholder="Select role..."
+                        searchPlaceholder="Search roles..."
+                        emptyMessage="No role found."
+                        clearable
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          )}
         </div>
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>

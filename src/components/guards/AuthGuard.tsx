@@ -81,24 +81,23 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     )
   }
 
-  // Not authenticated - redirect in progress
-  if (!isAuthenticated) {
-    return null
-  }
+  // Show spinner during redirect transitions (prevents blank screen)
+  // Note: Don't show redirect spinner if we're already at the destination
+  const isOnOnboarding = location.pathname === '/onboarding'
+  const needsOnboarding = !role && tenants.length === 0
 
-  // sys_admin accessing tenant routes - redirect in progress
-  if (role === 'sys_admin') {
-    return null
-  }
+  const isRedirecting =
+    !isAuthenticated ||
+    role === 'sys_admin' ||
+    (needsOnboarding && !isOnOnboarding) || // Only redirect if NOT already on onboarding
+    (requiredRole && role !== requiredRole)
 
-  // No role and no tenant - redirect to onboarding in progress
-  if (!role && tenants.length === 0) {
-    return null
-  }
-
-  // Required role check
-  if (requiredRole && role !== requiredRole) {
-    return null
+  if (isRedirecting) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   // User is authenticated and authorized - render protected content

@@ -11,6 +11,7 @@ import {
 import {
   LayoutDashboard,
   Users,
+  Contact,
   FolderKanban,
   Layers,
   CheckSquare,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils'
 const mainNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clients', label: 'Clients', icon: Users },
+  { href: '/contacts', label: 'Contacts', icon: Contact },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/sets', label: 'All Sets', icon: Layers },
   { href: '/requirements', label: 'Requirements', icon: CheckSquare },

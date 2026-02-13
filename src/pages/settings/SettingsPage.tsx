@@ -159,7 +159,7 @@ export function SettingsPage() {
               <p className="font-medium capitalize">{role?.replace('_', ' ')}</p>
               <p className="text-sm text-muted-foreground">
                 {role === 'org_admin' && 'Full access to manage organization'}
-                {role === 'org_user' && 'Can manage projects and tasks'}
+                {role === 'org_user' && 'Can manage projects and requirements'}
                 {role === 'client_user' && 'Read-only access to client portal'}
                 {role === 'sys_admin' && 'System administrator access'}
               </p>

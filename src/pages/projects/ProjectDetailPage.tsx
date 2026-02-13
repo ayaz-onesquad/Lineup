@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useProjectWithHierarchy, useProjectMutations } from '@/hooks/useProjects'
 import { useSetsByProject } from '@/hooks/useSets'
+import { useRequirementsByProject } from '@/hooks/useRequirements'
+import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,11 +44,14 @@ import {
   Loader2,
   MoreVertical,
   ExternalLink,
+  Calendar,
+  Users,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { ProjectStatus, ProjectHealth } from '@/types/database'
 
 // Project form schema
@@ -59,6 +64,9 @@ const projectFormSchema = z.object({
   expected_end_date: z.string().optional(),
   actual_start_date: z.string().optional(),
   actual_end_date: z.string().optional(),
+  lead_id: z.string().optional(),
+  secondary_lead_id: z.string().optional(),
+  pm_id: z.string().optional(),
 })
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>
@@ -69,8 +77,19 @@ export function ProjectDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
   const { data: projectSets, isLoading: setsLoading } = useSetsByProject(projectId!)
+  const { data: projectRequirements, isLoading: requirementsLoading } = useRequirementsByProject(projectId!)
   const { updateProject } = useProjectMutations()
+  const { data: users } = useTenantUsers()
   const { openDetailPanel, openCreateModal } = useUIStore()
+
+  // User options for team member dropdowns - use user_profiles.id (not user_id)
+  const userOptions = useMemo(() =>
+    users?.filter((u) => u.user_profiles?.id).map((u) => ({
+      value: u.user_profiles!.id,
+      label: u.user_profiles?.full_name || 'Unknown',
+    })) || [],
+    [users]
+  )
 
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
@@ -92,6 +111,9 @@ export function ProjectDetailPage() {
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
       actual_start_date: project?.actual_start_date?.split('T')[0] || '',
       actual_end_date: project?.actual_end_date?.split('T')[0] || '',
+      lead_id: project?.lead_id || '',
+      secondary_lead_id: project?.secondary_lead_id || '',
+      pm_id: project?.pm_id || '',
     },
   })
 
@@ -107,6 +129,9 @@ export function ProjectDetailPage() {
         expected_end_date: project.expected_end_date?.split('T')[0] || '',
         actual_start_date: project.actual_start_date?.split('T')[0] || '',
         actual_end_date: project.actual_end_date?.split('T')[0] || '',
+        lead_id: project.lead_id || '',
+        secondary_lead_id: project.secondary_lead_id || '',
+        pm_id: project.pm_id || '',
       })
     }
   }, [project?.id, isEditing])
@@ -154,6 +179,9 @@ export function ProjectDetailPage() {
         expected_end_date: data.expected_end_date || undefined,
         actual_start_date: data.actual_start_date || undefined,
         actual_end_date: data.actual_end_date || undefined,
+        lead_id: data.lead_id || undefined,
+        secondary_lead_id: data.secondary_lead_id || undefined,
+        pm_id: data.pm_id || undefined,
       })
       setIsEditing(false)
     } finally {
@@ -171,6 +199,9 @@ export function ProjectDetailPage() {
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
       actual_start_date: project?.actual_start_date?.split('T')[0] || '',
       actual_end_date: project?.actual_end_date?.split('T')[0] || '',
+      lead_id: project?.lead_id || '',
+      secondary_lead_id: project?.secondary_lead_id || '',
+      pm_id: project?.pm_id || '',
     })
     setIsEditing(false)
   }
@@ -198,20 +229,18 @@ export function ProjectDetailPage() {
 
   return (
     <div className="page-carbon p-6 space-y-6">
-      {/* Breadcrumbs with parent hierarchy */}
+      {/* Breadcrumbs: Client > Project */}
       <Breadcrumbs
         items={[
-          { label: 'Clients', href: '/clients' },
           {
             label: project.clients?.name || 'Client',
-            href: project.clients?.id ? `/clients/${project.clients.id}` : undefined,
+            href: project.clients?.id ? `/clients/${project.clients.id}` : '/clients',
           },
-          { label: 'Projects', href: '/projects' },
           { label: project.name, displayId: project.display_id },
         ]}
       />
 
-      {/* Header - Title is non-editable, shows Name | ID format */}
+      {/* Header - Client Name first, then Project Name, Status, Health */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
@@ -227,14 +256,11 @@ export function ProjectDetailPage() {
               {project.health.replace('_', ' ')}
             </Badge>
           </div>
-          <p className="text-muted-foreground">
-            {project.project_code} • {project.clients?.name}
-          </p>
         </div>
         {/* Edit button moved to within the card for consistent UX */}
       </div>
 
-      {/* Project Info Card - Mendix-style consistent layout */}
+      {/* Project Info Card - Key fields: Client (1st), Project Name, Status, Health */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
@@ -271,130 +297,51 @@ export function ProjectDetailPage() {
             )}
           </div>
 
-          {/* Progress section - always visible */}
-          <div className="space-y-3 mb-6 p-4 rounded-lg bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Overall Progress</p>
-                <p className="text-2xl font-bold">{project.completion_percentage}%</p>
-              </div>
-              {project.expected_end_date && (
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Due Date</p>
-                  <p className="font-medium">{formatDate(project.expected_end_date)}</p>
-                </div>
-              )}
+          {/* Header fields: Client (1st), Project Name, Status, Health */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Client</p>
+              <Link
+                to={`/clients/${project.clients?.id}`}
+                className="font-medium hover:underline"
+              >
+                {project.clients?.name || '—'}
+              </Link>
             </div>
-            <Progress value={project.completion_percentage} className="h-3" />
-          </div>
-
-          {/* Fields with consistent layout - same grid in view/edit */}
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-              <ViewEditField
-                type="text"
-                label="Project Name"
-                required
-                isEditing={isEditing}
-                value={form.watch('name')}
-                onChange={(v) => form.setValue('name', v)}
-                error={form.formState.errors.name?.message}
-              />
-              <ViewEditField
-                type="badge"
-                label="Status"
-                isEditing={isEditing}
-                value={form.watch('status')}
-                onChange={(v) => form.setValue('status', v as ProjectStatus)}
-                options={[
-                  { value: 'planning', label: 'Planning', variant: 'secondary' },
-                  { value: 'active', label: 'Active', variant: 'default' },
-                  { value: 'on_hold', label: 'On Hold', variant: 'outline' },
-                  { value: 'completed', label: 'Completed', variant: 'default' },
-                  { value: 'cancelled', label: 'Cancelled', variant: 'secondary' },
-                ]}
-              />
-              <ViewEditField
-                type="badge"
-                label="Health"
-                isEditing={isEditing}
-                value={form.watch('health')}
-                onChange={(v) => form.setValue('health', v as ProjectHealth)}
-                options={[
-                  { value: 'on_track', label: 'On Track', variant: 'default' },
-                  { value: 'at_risk', label: 'At Risk', variant: 'outline' },
-                  { value: 'delayed', label: 'Delayed', variant: 'secondary' },
-                ]}
-              />
-            </div>
-
-            {/* Client & Team info (read-only) */}
-            {!isEditing && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Client</p>
-                  <p className="font-medium">{project.clients?.name || '—'}</p>
-                </div>
-                {project.lead && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>
-                    <p className="font-medium">{project.lead.full_name}</p>
-                  </div>
-                )}
-                {project.pm && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Project Manager</p>
-                    <p className="font-medium">{project.pm.full_name}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Project Code</p>
-                  <p className="font-mono">{project.project_code}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Dates Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <ViewEditField
-                type="date"
-                label="Expected Start"
-                isEditing={isEditing}
-                value={form.watch('expected_start_date') || ''}
-                onChange={(v) => form.setValue('expected_start_date', v)}
-              />
-              <ViewEditField
-                type="date"
-                label="Expected End"
-                isEditing={isEditing}
-                value={form.watch('expected_end_date') || ''}
-                onChange={(v) => form.setValue('expected_end_date', v)}
-              />
-              <ViewEditField
-                type="date"
-                label="Actual Start"
-                isEditing={isEditing}
-                value={form.watch('actual_start_date') || ''}
-                onChange={(v) => form.setValue('actual_start_date', v)}
-              />
-              <ViewEditField
-                type="date"
-                label="Actual End"
-                isEditing={isEditing}
-                value={form.watch('actual_end_date') || ''}
-                onChange={(v) => form.setValue('actual_end_date', v)}
-              />
-            </div>
-
-            {/* Description */}
             <ViewEditField
-              type="textarea"
-              label="Description"
+              type="text"
+              label="Project Name"
+              required
               isEditing={isEditing}
-              value={form.watch('description') || ''}
-              onChange={(v) => form.setValue('description', v)}
-              placeholder="Project description..."
-              rows={3}
+              value={form.watch('name')}
+              onChange={(v) => form.setValue('name', v)}
+              error={form.formState.errors.name?.message}
+            />
+            <ViewEditField
+              type="badge"
+              label="Status"
+              isEditing={isEditing}
+              value={form.watch('status')}
+              onChange={(v) => form.setValue('status', v as ProjectStatus)}
+              options={[
+                { value: 'planning', label: 'Planning', variant: 'secondary' },
+                { value: 'active', label: 'Active', variant: 'default' },
+                { value: 'on_hold', label: 'On Hold', variant: 'outline' },
+                { value: 'completed', label: 'Completed', variant: 'default' },
+                { value: 'cancelled', label: 'Cancelled', variant: 'secondary' },
+              ]}
+            />
+            <ViewEditField
+              type="badge"
+              label="Health"
+              isEditing={isEditing}
+              value={form.watch('health')}
+              onChange={(v) => form.setValue('health', v as ProjectHealth)}
+              options={[
+                { value: 'on_track', label: 'On Track', variant: 'default' },
+                { value: 'at_risk', label: 'At Risk', variant: 'outline' },
+                { value: 'delayed', label: 'Delayed', variant: 'secondary' },
+              ]}
             />
           </div>
         </CardContent>
@@ -422,6 +369,15 @@ export function ProjectDetailPage() {
             {projectSets && projectSets.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5">
                 {projectSets.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="requirements" className="gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Requirements
+            {projectRequirements && projectRequirements.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {projectRequirements.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -666,6 +622,7 @@ export function ProjectDetailPage() {
                         key={set.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => openDetailPanel('set', set.id)}
+                        onDoubleClick={() => navigate(`/sets/${set.id}`)}
                       >
                         <TableCell className="font-medium">{set.name}</TableCell>
                         <TableCell>{set.project_phases?.name || '—'}</TableCell>
@@ -717,110 +674,317 @@ export function ProjectDetailPage() {
           )}
         </TabsContent>
 
-        {/* Details Tab */}
-        <TabsContent value="details" className="mt-6">
-          <Card>
+        {/* Details Tab - Organized sections */}
+        <TabsContent value="details" className="mt-6 space-y-6">
+          {/* Progress Section - moved from header */}
+          <Card className="card-carbon">
             <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+                Progress
+              </h3>
+              <div className="space-y-3 p-4 rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Project Code</p>
-                    <p className="font-mono">{project.project_code}</p>
+                    <p className="text-sm text-muted-foreground">Overall Completion</p>
+                    <p className="text-2xl font-bold">{project.completion_percentage}%</p>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
-                    <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Health</p>
-                    <Badge variant="outline" className={getHealthColor(project.health)}>
-                      {project.health.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Completion</p>
-                    <p>{project.completion_percentage}%</p>
-                  </div>
+                  {project.expected_end_date && (
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Due Date</p>
+                      <p className="font-medium">{formatDate(project.expected_end_date)}</p>
+                    </div>
+                  )}
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Expected Start</p>
-                    <p>{formatDate(project.expected_start_date) || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Expected End</p>
-                    <p>{formatDate(project.expected_end_date) || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Actual Start</p>
-                    <p>{formatDate(project.actual_start_date) || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Actual End</p>
-                    <p>{formatDate(project.actual_end_date) || '-'}</p>
-                  </div>
-                </div>
-
-                {/* Team */}
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Team</p>
-                  <div className="flex flex-wrap gap-4">
-                    {project.lead && (
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                          <span className="text-xs font-medium">
-                            {project.lead.full_name?.split(' ').map(n => n[0]).join('')}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{project.lead.full_name}</p>
-                          <p className="text-xs text-muted-foreground">Lead</p>
-                        </div>
-                      </div>
-                    )}
-                    {project.secondary_lead && (
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                          <span className="text-xs font-medium">
-                            {project.secondary_lead.full_name?.split(' ').map(n => n[0]).join('')}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{project.secondary_lead.full_name}</p>
-                          <p className="text-xs text-muted-foreground">Secondary Lead</p>
-                        </div>
-                      </div>
-                    )}
-                    {project.pm && (
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                          <span className="text-xs font-medium">
-                            {project.pm.full_name?.split(' ').map(n => n[0]).join('')}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{project.pm.full_name}</p>
-                          <p className="text-xs text-muted-foreground">Project Manager</p>
-                        </div>
-                      </div>
-                    )}
-                    {!project.lead && !project.secondary_lead && !project.pm && (
-                      <p className="text-sm text-muted-foreground">No team members assigned</p>
-                    )}
-                  </div>
-                </div>
+                <Progress value={project.completion_percentage} className="h-3" />
               </div>
-              <AuditTrail
-                created_at={project.created_at}
-                created_by={project.created_by}
-                updated_at={project.updated_at}
-                updated_by={project.updated_by}
-                creator={project.creator}
-                updater={project.updater}
+            </CardContent>
+          </Card>
+
+          {/* Project Info Section - Simplified (no Code, no Client) */}
+          <Card className="card-carbon">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+                Project Information
+              </h3>
+              <ViewEditField
+                type="textarea"
+                label="Description"
+                isEditing={isEditing}
+                value={form.watch('description') || ''}
+                onChange={(v) => form.setValue('description', v)}
+                placeholder="Project description..."
+                rows={3}
               />
             </CardContent>
           </Card>
+
+          {/* Schedule Section */}
+          <Card className="card-carbon">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+                Schedule
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <ViewEditField
+                  type="date"
+                  label="Expected Start"
+                  isEditing={isEditing}
+                  value={form.watch('expected_start_date') || ''}
+                  onChange={(v) => form.setValue('expected_start_date', v)}
+                />
+                <ViewEditField
+                  type="date"
+                  label="Expected End"
+                  isEditing={isEditing}
+                  value={form.watch('expected_end_date') || ''}
+                  onChange={(v) => form.setValue('expected_end_date', v)}
+                />
+                <ViewEditField
+                  type="date"
+                  label="Actual Start"
+                  isEditing={isEditing}
+                  value={form.watch('actual_start_date') || ''}
+                  onChange={(v) => form.setValue('actual_start_date', v)}
+                />
+                <ViewEditField
+                  type="date"
+                  label="Actual End"
+                  isEditing={isEditing}
+                  value={form.watch('actual_end_date') || ''}
+                  onChange={(v) => form.setValue('actual_end_date', v)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Team Section - Editable dropdowns in Edit Mode */}
+          <Card className="card-carbon">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                Team
+              </h3>
+              <div className="grid grid-cols-3 gap-6">
+                {/* Lead */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={userOptions}
+                      value={form.watch('lead_id') || ''}
+                      onValueChange={(value) => form.setValue('lead_id', value || '')}
+                      placeholder="Select lead..."
+                      searchPlaceholder="Search team..."
+                      emptyMessage="No team members found."
+                      clearable
+                    />
+                  ) : project.lead ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                        <span className="text-xs font-medium">
+                          {project.lead.full_name?.split(' ').map(n => n[0]).join('')}
+                        </span>
+                      </div>
+                      <span className="font-medium">{project.lead.full_name}</span>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
+                </div>
+
+                {/* Secondary Lead */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Secondary Lead</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={userOptions}
+                      value={form.watch('secondary_lead_id') || ''}
+                      onValueChange={(value) => form.setValue('secondary_lead_id', value || '')}
+                      placeholder="Select secondary lead..."
+                      searchPlaceholder="Search team..."
+                      emptyMessage="No team members found."
+                      clearable
+                    />
+                  ) : project.secondary_lead ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                        <span className="text-xs font-medium">
+                          {project.secondary_lead.full_name?.split(' ').map(n => n[0]).join('')}
+                        </span>
+                      </div>
+                      <span className="font-medium">{project.secondary_lead.full_name}</span>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
+                </div>
+
+                {/* Project Manager */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Project Manager</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={userOptions}
+                      value={form.watch('pm_id') || ''}
+                      onValueChange={(value) => form.setValue('pm_id', value || '')}
+                      placeholder="Select PM..."
+                      searchPlaceholder="Search team..."
+                      emptyMessage="No team members found."
+                      clearable
+                    />
+                  ) : project.pm ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                        <span className="text-xs font-medium">
+                          {project.pm.full_name?.split(' ').map(n => n[0]).join('')}
+                        </span>
+                      </div>
+                      <span className="font-medium">{project.pm.full_name}</span>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t">
+                <AuditTrail
+                  created_at={project.created_at}
+                  created_by={project.created_by}
+                  updated_at={project.updated_at}
+                  updated_by={project.updated_by}
+                  creator={project.creator}
+                  updater={project.updater}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Requirements Tab */}
+        <TabsContent value="requirements" className="mt-6">
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              onClick={() => openCreateModal('requirement', {
+                client_id: project.clients?.id,
+                project_id: project.id,
+              })}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Requirement
+            </Button>
+          </div>
+          {requirementsLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : !projectRequirements || projectRequirements.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No requirements yet</p>
+                <Button
+                  className="mt-4"
+                  onClick={() => openCreateModal('requirement', {
+                    client_id: project.clients?.id,
+                    project_id: project.id,
+                  })}
+                >
+                  Add First Requirement
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Set</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Assigned To</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projectRequirements.map((req) => (
+                      <TableRow
+                        key={req.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onDoubleClick={() => navigate(`/requirements/${req.id}`)}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {req.title}
+                            {req.display_id && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                #{req.display_id}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/sets/${req.set_id}`}
+                            className="hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {req.sets?.name || '—'}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{req.requirement_type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(req.status)} variant="outline">
+                            {req.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={
+                              req.urgency === 'high' && req.importance === 'high'
+                                ? 'border-red-500 text-red-700'
+                                : ''
+                            }
+                          >
+                            U:{req.urgency[0].toUpperCase()} I:{req.importance[0].toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {req.assigned_to?.full_name || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}`)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">

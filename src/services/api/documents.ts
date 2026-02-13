@@ -8,10 +8,7 @@ export const documentsApi = {
   ): Promise<DocumentWithUploader[]> => {
     const { data, error } = await supabase
       .from('documents')
-      .select(`
-        *,
-        uploader:user_profiles!documents_uploaded_by_fkey (*)
-      `)
+      .select('*')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .is('deleted_at', null)

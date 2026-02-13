@@ -35,8 +35,8 @@ const requirementSchema = z.object({
   // Filter fields (not persisted)
   client_id: z.string().optional(),
   project_id: z.string().optional(),
-  // Actual fields
-  set_id: z.string().min(1, 'Set is required'),
+  // Actual fields - Set is optional (can be assigned later), Client is required contextually
+  set_id: z.string().optional(),
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   requirement_type: z.enum([
@@ -49,7 +49,10 @@ const requirementSchema = z.object({
   ]),
   urgency: z.enum(['low', 'medium', 'high', 'critical']),
   importance: z.enum(['low', 'medium', 'high']),
-  due_date: z.string().optional(),
+  // Date fields: expected_due_date, actual_due_date, completed_date (due_date removed)
+  expected_due_date: z.string().optional(),
+  actual_due_date: z.string().optional(),
+  completed_date: z.string().optional(),
   estimated_hours: z.coerce.number().optional(),
   assigned_to_id: z.string().optional(),
   requires_document: z.boolean(),
@@ -82,7 +85,9 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       requirement_type: 'task',
       urgency: 'medium',
       importance: 'medium',
-      due_date: '',
+      expected_due_date: '',
+      actual_due_date: '',
+      completed_date: '',
       estimated_hours: undefined,
       assigned_to_id: '',
       requires_document: false,
@@ -116,7 +121,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     }
     if (selectedClientId) {
       const projectIds = filteredProjects.map((p) => p.id)
-      return allSets.filter((s) => projectIds.includes(s.project_id))
+      return allSets.filter((s) => s.project_id && projectIds.includes(s.project_id))
     }
     return allSets
   }, [allSets, projectSets, selectedProjectId, selectedClientId, filteredProjects])
@@ -157,6 +162,14 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     }
   }, [selectedProjectId, filteredSets, form])
 
+  // Initialize from defaultValues - client_id auto-population
+  useEffect(() => {
+    // If client_id is passed from context (e.g., from ClientDetailPage), pre-select it
+    if (defaultValues?.client_id && !form.getValues('client_id')) {
+      form.setValue('client_id', defaultValues.client_id)
+    }
+  }, [defaultValues?.client_id, form])
+
   // Initialize from defaultValues - find client and project from set
   useEffect(() => {
     if (defaultValues?.set_id && allSets && allProjects) {
@@ -172,8 +185,19 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   }, [defaultValues?.set_id, allSets, allProjects, form])
 
   const onSubmit = async (data: RequirementFormData) => {
-    // Extract only the fields we need (exclude filter fields)
-    const { client_id, project_id, ...requirementData } = data
+    // Validate client_id is required (even though it's just a filter field)
+    if (!data.client_id) {
+      form.setError('client_id', { message: 'Client is required' })
+      return
+    }
+    // Extract only the fields we need (exclude filter fields, but include client_id for context)
+    const { project_id, client_id, ...rest } = data
+    // Ensure client_id is passed as string (already validated above)
+    const requirementData = {
+      ...rest,
+      client_id: client_id as string,
+      set_id: rest.set_id || undefined, // Convert empty string to undefined
+    }
     await createRequirement.mutateAsync(requirementData)
     form.reset()
     onSuccess?.()
@@ -203,9 +227,10 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     [filteredSets]
   )
 
+  // IMPORTANT: Use user_profiles.id (not user_id) because FK references user_profiles table
   const userOptions = useMemo(() =>
-    users?.map((u) => ({
-      value: u.user_id,
+    users?.filter((u) => u.user_profiles?.id).map((u) => ({
+      value: u.user_profiles!.id,
       label: u.user_profiles?.full_name || 'Unknown',
     })) || [],
     [users]
@@ -214,25 +239,25 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* Cascading Filters */}
+        {/* Cascading Filters - Client is required, Set/Project are optional */}
         <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
             name="client_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Client</FormLabel>
+                <FormLabel>Client *</FormLabel>
                 <FormControl>
                   <SearchableSelect
                     options={clientOptions}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
-                    placeholder="All clients"
+                    placeholder="Select client..."
                     searchPlaceholder="Search clients..."
                     emptyMessage="No clients found."
-                    clearable
                   />
                 </FormControl>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -264,15 +289,16 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
             name="set_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Set *</FormLabel>
+                <FormLabel>Set</FormLabel>
                 <FormControl>
                   <SearchableSelect
                     options={setOptions}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
-                    placeholder="Select set..."
+                    placeholder="Select set (optional)"
                     searchPlaceholder="Search sets..."
                     emptyMessage="No sets found."
+                    clearable
                     disabled={setOptions.length === 0}
                   />
                 </FormControl>
@@ -412,13 +438,44 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
           />
         </div>
 
+        {/* Schedule Section - due_date removed, using expected/actual due dates */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="due_date"
+            name="expected_due_date"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Due Date</FormLabel>
+                <FormLabel>Expected Due Date</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="actual_due_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Actual Due Date</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="completed_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Completed Date</FormLabel>
                 <FormControl>
                   <Input type="date" {...field} />
                 </FormControl>

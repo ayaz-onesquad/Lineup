@@ -36,24 +36,24 @@ Requirements for MVP completion demo. Each maps to roadmap phases.
 
 ### Project Management
 
-- [ ] **PROJ-01**: Projects appear correctly in UI (fix listing/filtering issues)
-- [ ] **PROJ-02**: Projects have Expected Start/End and Actual Start/End date pickers
-- [ ] **PROJ-03**: Projects have Lead, Secondary Lead, and PM dropdowns (mapping to users table)
-- [ ] **PROJ-04**: Project Detail page implements View/Edit toggle pattern with IBM Carbon styling
+- [x] **PROJ-01**: Projects appear correctly in UI (fix listing/filtering issues)
+- [x] **PROJ-02**: Projects have Expected Start/End and Actual Start/End date pickers
+- [x] **PROJ-03**: Projects have Lead, Secondary Lead, and PM dropdowns (mapping to users table)
+- [x] **PROJ-04**: Project Detail page implements View/Edit toggle pattern with IBM Carbon styling
 
 ### Set Management
 
-- [ ] **SET-01**: Sets have Expected Start/End and Actual Start/End date fields
-- [ ] **SET-02**: Sets have Budget Days and Budget Hours fields
-- [ ] **SET-03**: Set Detail page implements View/Edit toggle pattern with IBM Carbon styling
+- [x] **SET-01**: Sets have Expected Start/End and Actual Start/End date fields
+- [x] **SET-02**: Sets have Budget Days and Budget Hours fields
+- [x] **SET-03**: Set Detail page implements View/Edit toggle pattern with IBM Carbon styling
 
 ### Full-Page UI
 
-- [ ] **UI-01**: Projects use full-page view instead of modal/popup
-- [ ] **UI-02**: Sets use full-page view instead of modal/popup
-- [ ] **UI-03**: Requirements use full-page view instead of modal/popup
-- [ ] **UI-04**: All detail pages implement View/Edit toggle pattern (IBM Carbon style)
-- [ ] **UI-05**: Parent relationships editable via searchable dropdowns in Edit Mode
+- [x] **UI-01**: Projects use full-page view instead of modal/popup
+- [x] **UI-02**: Sets use full-page view instead of modal/popup
+- [x] **UI-03**: Requirements use full-page view instead of modal/popup
+- [x] **UI-04**: All detail pages implement View/Edit toggle pattern (IBM Carbon style)
+- [x] **UI-05**: Parent relationships editable via searchable dropdowns in Edit Mode
 
 ### CORE Methodology
 
@@ -119,18 +119,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-03 | Phase 2 | Complete |
 | CLI-04 | Phase 2 | Complete |
 | CLI-05 | Phase 2 | Complete |
-| PROJ-01 | Phase 3 | Pending |
-| PROJ-02 | Phase 3 | Pending |
-| PROJ-03 | Phase 3 | Pending |
-| PROJ-04 | Phase 3 | Pending |
-| SET-01 | Phase 3 | Pending |
-| SET-02 | Phase 3 | Pending |
-| SET-03 | Phase 3 | Pending |
-| UI-01 | Phase 3 | Pending |
-| UI-02 | Phase 3 | Pending |
-| UI-03 | Phase 3 | Pending |
-| UI-04 | Phase 3 | Pending |
-| UI-05 | Phase 3 | Pending |
+| PROJ-01 | Phase 3 | Complete |
+| PROJ-02 | Phase 3 | Complete |
+| PROJ-03 | Phase 3 | Complete |
+| PROJ-04 | Phase 3 | Complete |
+| SET-01 | Phase 3 | Complete |
+| SET-02 | Phase 3 | Complete |
+| SET-03 | Phase 3 | Complete |
+| UI-01 | Phase 3 | Complete |
+| UI-02 | Phase 3 | Complete |
+| UI-03 | Phase 3 | Complete |
+| UI-04 | Phase 3 | Complete |
+| UI-05 | Phase 3 | Complete |
 | CORE-01 | Phase 4 | Pending |
 | CORE-02 | Phase 4 | Pending |
 | NAV-01 | Phase 4 | Pending |

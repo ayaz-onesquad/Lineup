@@ -11,7 +11,7 @@ import type {
 
 export const clientsApi = {
   getAll: async (tenantId: string): Promise<ClientWithRelations[]> => {
-    // First try with full relations (contacts table might not exist yet)
+    // Get all clients for tenant
     const { data, error } = await supabase
       .from('clients')
       .select('*')
@@ -21,34 +21,42 @@ export const clientsApi = {
 
     if (error) throw error
 
-    // Try to fetch contacts separately if contacts table exists
-    let contactsMap: Record<string, unknown[]> = {}
+    // Fetch contacts via client_contacts join table (is_primary is here, NOT on contacts)
+    let contactsMap: Record<string, Array<{ contact: unknown; is_primary: boolean }>> = {}
     try {
-      const { data: contacts } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .is('deleted_at', null)
+      const { data: clientContacts } = await supabase
+        .from('client_contacts')
+        .select(`
+          client_id,
+          is_primary,
+          contacts (*)
+        `)
 
-      if (contacts) {
-        contactsMap = contacts.reduce((acc, contact) => {
-          const clientId = contact.client_id as string
+      if (clientContacts) {
+        contactsMap = clientContacts.reduce((acc, cc) => {
+          const clientId = cc.client_id as string
           if (!acc[clientId]) acc[clientId] = []
-          acc[clientId].push(contact)
+          if (cc.contacts) {
+            acc[clientId].push({ contact: cc.contacts, is_primary: cc.is_primary ?? false })
+          }
           return acc
-        }, {} as Record<string, unknown[]>)
+        }, {} as Record<string, Array<{ contact: unknown; is_primary: boolean }>>)
       }
     } catch {
-      // contacts table might not exist yet - that's ok
+      // client_contacts table might not exist yet - that's ok
     }
 
     // Add contacts and primary_contact to each client
     return (data || []).map((client) => {
-      const clientContacts = contactsMap[client.id] || []
+      const clientContactData = contactsMap[client.id] || []
+      const contactsWithPrimary = clientContactData.map(cc => ({
+        ...cc.contact as object,
+        is_primary: cc.is_primary,
+      }))
       return {
         ...client,
-        contacts: clientContacts,
-        primary_contact: clientContacts.find((c: any) => c.is_primary) || null,
+        contacts: contactsWithPrimary,
+        primary_contact: contactsWithPrimary.find((c) => c.is_primary) || null,
       }
     }) as ClientWithRelations[]
   },
@@ -64,25 +72,39 @@ export const clientsApi = {
     if (error && error.code !== 'PGRST116') throw error
     if (!data) return null
 
-    // Try to fetch contacts separately
-    let contacts: unknown[] = []
+    // Fetch contacts via client_contacts join table (is_primary is here, NOT on contacts)
+    let contactsWithPrimary: unknown[] = []
     try {
-      const { data: contactsData } = await supabase
-        .from('contacts')
-        .select('*')
+      const { data: clientContacts } = await supabase
+        .from('client_contacts')
+        .select(`
+          is_primary,
+          contacts (*)
+        `)
         .eq('client_id', id)
-        .is('deleted_at', null)
-        .order('is_primary', { ascending: false })
 
-      contacts = contactsData || []
+      if (clientContacts) {
+        contactsWithPrimary = clientContacts
+          .filter(cc => cc.contacts)
+          .map(cc => ({
+            ...cc.contacts as object,
+            is_primary: cc.is_primary ?? false,
+          }))
+          .sort((a: any, b: any) => {
+            // Primary contacts first
+            if (a.is_primary && !b.is_primary) return -1
+            if (!a.is_primary && b.is_primary) return 1
+            return 0
+          })
+      }
     } catch {
-      // contacts table might not exist yet
+      // client_contacts table might not exist yet
     }
 
     return {
       ...data,
-      contacts,
-      primary_contact: contacts.find((c: any) => c.is_primary) || null,
+      contacts: contactsWithPrimary,
+      primary_contact: (contactsWithPrimary as any[]).find((c) => c.is_primary) || null,
     } as ClientWithRelations
   },
 

@@ -14,10 +14,7 @@ export const statusUpdatesApi = {
   ): Promise<StatusUpdateWithAuthor[]> => {
     let query = supabase
       .from('status_updates')
-      .select(`
-        *,
-        author:user_profiles!status_updates_author_id_fkey (*)
-      `)
+      .select('*')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
@@ -38,10 +35,7 @@ export const statusUpdatesApi = {
   ): Promise<StatusUpdateWithAuthor[]> => {
     const { data, error } = await supabase
       .from('status_updates')
-      .select(`
-        *,
-        author:user_profiles!status_updates_author_id_fkey (*)
-      `)
+      .select('*')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
       .limit(limit)

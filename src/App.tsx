@@ -6,7 +6,6 @@ import { AuthProvider } from '@/components/providers/AuthProvider'
 
 // Auth pages
 import { LoginPage } from '@/pages/auth/LoginPage'
-import { SignUpPage } from '@/pages/auth/SignUpPage'
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { OnboardingPage } from '@/pages/auth/OnboardingPage'
 
@@ -19,7 +18,9 @@ import { ContactDetailPage } from '@/pages/contacts/ContactDetailPage'
 import { ProjectsPage } from '@/pages/projects/ProjectsPage'
 import { ProjectDetailPage } from '@/pages/projects/ProjectDetailPage'
 import { SetsPage } from '@/pages/sets/SetsPage'
+import { SetDetailPage } from '@/pages/sets/SetDetailPage'
 import { RequirementsPage } from '@/pages/requirements/RequirementsPage'
+import { RequirementDetailPage } from '@/pages/requirements/RequirementDetailPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { TeamPage } from '@/pages/settings/TeamPage'
 
@@ -63,7 +64,8 @@ function App() {
             {/* Public Auth Routes */}
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignUpPage />} />
+              {/* Signup is deprecated - redirect to login (closed-loop user model) */}
+              <Route path="/signup" element={<Navigate to="/login" replace />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             </Route>
 
@@ -95,7 +97,9 @@ function App() {
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="/sets" element={<SetsPage />} />
+              <Route path="/sets/:setId" element={<SetDetailPage />} />
               <Route path="/requirements" element={<RequirementsPage />} />
+              <Route path="/requirements/:requirementId" element={<RequirementDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/team" element={<TeamPage />} />
             </Route>

@@ -66,10 +66,10 @@ export function RequirementDetail({ id }: RequirementDetailProps) {
                 <span>{requirement.assigned_to.full_name}</span>
               </div>
             )}
-            {requirement.due_date && (
+            {requirement.expected_due_date && (
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>Due {formatDate(requirement.due_date)}</span>
+                <span>Due {formatDate(requirement.expected_due_date)}</span>
               </div>
             )}
             {requirement.estimated_hours && (
