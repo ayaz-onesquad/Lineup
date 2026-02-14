@@ -98,10 +98,12 @@ Plans:
   4. "Create New" buttons in child tabs auto-populate parent record ID (e.g., creating Requirement from Set detail page pre-fills set_id)
   5. All record views display display_id (auto-number) prominently
   6. All major record pages show AuditTrail component in footer with Created By, Created At, Updated By, Updated At (with user names, not just IDs)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] TBD
+- [ ] 04-01-PLAN.md — Add Priority column to Sets and Requirements grids
+- [ ] 04-02-PLAN.md — Audit display_id and AuditTrail on all detail pages
+- [ ] 04-03-PLAN.md — Verify cascading filters and parent ID pre-population
 
 ## Progress
 
@@ -113,4 +115,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Foundation Fixes | 3/3 | Complete | 2026-02-05 |
 | 2. Client & Contact System | 4/4 | Complete | 2026-02-06 |
 | 3. Projects & Sets Enhancement | 3/3 | Complete | 2026-02-10 |
-| 4. CORE Workflow & Audit | 0/TBD | Not started | - |
+| 4. CORE Workflow & Audit | 0/3 | Not started | - |
