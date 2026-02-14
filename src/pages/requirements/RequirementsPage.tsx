@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Plus, Search, CheckSquare, Kanban, List, GripVertical, MoreVertical, ExternalLink, Edit, Info } from 'lucide-react'
-import { formatDate, getInitials } from '@/lib/utils'
+import { formatDate, getInitials, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import type { RequirementWithRelations, RequirementStatus } from '@/types/database'
 
 const statusColumns: { status: RequirementStatus; label: string; color: string }[] = [
@@ -238,6 +238,7 @@ export function RequirementsPage() {
                         <TableHead>Project</TableHead>
                         <TableHead>Set</TableHead>
                         <TableHead>Title</TableHead>
+                        <TableHead>Priority</TableHead>
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
@@ -269,6 +270,16 @@ export function RequirementsPage() {
                             </Badge>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const priority = (req.priority || calculateEisenhowerPriority(req.importance, req.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
+                          return (
+                            <Badge className={getPriorityColor(priority)} variant="outline">
+                              P{priority}
+                            </Badge>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>
                         {req.assigned_to ? (

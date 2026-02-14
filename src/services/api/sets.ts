@@ -150,7 +150,7 @@ export const setsApi = {
   },
 
   getById: async (id: string): Promise<SetWithRelations | null> => {
-    const { data, error } = await supabase
+    const { data: set, error } = await supabase
       .from('sets')
       .select(`
         *,
@@ -167,7 +167,31 @@ export const setsApi = {
       .single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    if (!set) return null
+
+    // Collect user IDs for creator/updater
+    const userIds = new Set<string>()
+    if (set.created_by) userIds.add(set.created_by)
+    if (set.updated_by) userIds.add(set.updated_by)
+
+    // Fetch user profiles
+    let profileMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', Array.from(userIds))
+
+      if (profiles) {
+        profileMap = new Map(profiles.map(p => [p.user_id, { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }]))
+      }
+    }
+
+    return {
+      ...set,
+      creator: set.created_by ? profileMap.get(set.created_by) || null : null,
+      updater: set.updated_by ? profileMap.get(set.updated_by) || null : null,
+    }
   },
 
   create: async (
