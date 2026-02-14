@@ -1,6 +1,8 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement' | 'contact'
+export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement' | 'contact' | 'lead' | 'pitch'
+export type LeadsViewMode = 'pipeline' | 'list' | 'table'
 
 interface DetailPanelState {
   isOpen: boolean
@@ -17,6 +19,9 @@ interface UIState {
   createModalType: EntityType | null
   createModalContext: Record<string, unknown>
 
+  // View mode preferences
+  leadsViewMode: LeadsViewMode
+
   // Sidebar actions
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
@@ -30,20 +35,28 @@ interface UIState {
   // Create modal actions
   openCreateModal: (type: EntityType, context?: Record<string, unknown>) => void
   closeCreateModal: () => void
+
+  // View mode actions
+  setLeadsViewMode: (mode: LeadsViewMode) => void
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  sidebarOpen: true,
-  sidebarCollapsed: false,
-  detailPanel: {
-    isOpen: false,
-    entityType: null,
-    entityId: null,
-    entityData: null,
-  },
-  createModalOpen: false,
-  createModalType: null,
-  createModalContext: {},
+export const useUIStore = create<UIState>()(
+  persist(
+    (set) => ({
+      sidebarOpen: true,
+      sidebarCollapsed: false,
+      detailPanel: {
+        isOpen: false,
+        entityType: null,
+        entityId: null,
+        entityData: null,
+      },
+      createModalOpen: false,
+      createModalType: null,
+      createModalContext: {},
+
+      // View mode preferences
+      leadsViewMode: 'pipeline' as LeadsViewMode,
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
@@ -92,4 +105,12 @@ export const useUIStore = create<UIState>((set) => ({
       createModalType: null,
       createModalContext: {},
     }),
-}))
+
+      setLeadsViewMode: (mode) => set({ leadsViewMode: mode }),
+    }),
+    {
+      name: 'lineup-ui-preferences',
+      partialize: (state) => ({ leadsViewMode: state.leadsViewMode }),
+    }
+  )
+)

@@ -1,8 +1,10 @@
-# Requirements: LineUp MVP
+# Requirements: LineUp Full Product
 
-**Defined:** 2026-02-05
-**Updated:** 2026-02-05 (Pivot to IBM Carbon aesthetic)
-**Core Value:** Hierarchical flow (Client → Project → Phase → Set → Requirement) with automatic Eisenhower prioritization and built-in client portal
+**Defined:** 2026-02-05  
+**Updated:** 2026-02-05 (Added Project Phases, Pitches, Document Catalog, Templates, Leads - 169 new requirements)  
+**Core Value:** Hierarchical flow (Lead → Client → Project → **Phase** → Set → **Pitch** → Requirement) with automatic Eisenhower prioritization, built-in client portal, **template reuse**, and **document organization**
+
+---
 
 ## Design Direction
 
@@ -11,12 +13,58 @@
 - **Colors**: `#f4f4f4` (Gray 10) for page backgrounds, white (`#ffffff`) for card/container backgrounds
 - **Consistent spacing** — 16px base unit, 8px for tight spacing
 - **Typography** — IBM Plex Sans (or system fallback with similar weights)
+- **No rounded corners** — Use `rounded-none` for all containers
+- **Subtle borders** — 1px solid borders (#e0e0e0)
 
 **ViewEditToggle Component** — All detail pages implement a `ViewEditToggle` component to switch between:
 - **View Mode**: Read-only display with "Edit" action
 - **Edit Mode**: Inline form with "Save" and "Cancel" actions
 
-## v1 Requirements
+---
+
+## Product Architecture (Updated)
+
+### Complete Entity Hierarchy
+
+```
+Tenant
+├─ Document Catalog ★ NEW (tenant-wide standards)
+│
+├─ Leads ★ NEW (sales pipeline - prospects)
+│  └─ LeadContacts → Contacts (many-to-many)
+│     └─ One is_primary
+│
+└─ Clients (active customers)
+   ├─ ClientContacts → Contacts (many-to-many)
+   │  └─ One is_primary
+   │
+   └─ Projects
+      ├─ Project Phases ★ NEW
+      │  ├─ Sets
+      │  │  ├─ Pitches ★ NEW
+      │  │  │  └─ Requirements
+      │  │  └─ Requirements (can skip pitch)
+      │  └─ Requirements (can skip set/pitch)
+      │
+      └─ Sets (can skip phase)
+         ├─ Pitches
+         │  └─ Requirements
+         └─ Requirements
+
+Polymorphic Entities:
+├─ Documents → ★ ENHANCED (now links to phases/pitches, requires catalog)
+├─ Notes → Links to any entity
+└─ Discussions → Links to any entity
+
+Cross-Cutting:
+└─ Templates ★ NEW → Any entity can be marked is_template=true
+```
+
+**★ = New/Enhanced in this release**
+
+---
+
+## v1 Requirements (MVP)
 
 Requirements for MVP completion demo. Each maps to roadmap phases.
 
@@ -59,90 +107,590 @@ Requirements for MVP completion demo. Each maps to roadmap phases.
 
 - [ ] **CORE-01**: Eisenhower Priority (1-6) displayed on Sets and Requirements using calculate_priority_score
 - [ ] **CORE-02**: When requires_review=true, review_assigned_to is exposed and status transitions are handled
+- [ ] **CORE-03**: ★ NEW - All Sets view with Eisenhower Matrix (4 quadrants by urgency/importance)
+- [ ] **CORE-04**: ★ NEW - All Requirements view with Kanban board (by status)
 
 ### Smart Navigation
 
 - [ ] **NAV-01**: Cascading filters in forms: Client selection filters Projects; Project selection filters Sets
 - [ ] **NAV-02**: "Create New" buttons in child tabs auto-populate parent record ID
+- [ ] **NAV-03**: ★ NEW - Breadcrumb navigation working on all pages with proper back navigation
 
 ### Audit Trail
 
 - [ ] **AUDIT-01**: display_id (auto-number) visible on all record views
 - [ ] **AUDIT-02**: AuditTrail component shows Created/Updated timestamps and user names on all major record pages
+- [ ] **AUDIT-03**: ★ NEW - All major entities have created_at, created_by, updated_at, updated_by fields
 
-## v2 Requirements
+**v1 Total: 29 requirements (20 complete, 9 pending)**
+
+---
+
+## v2 Requirements (New Features - 6 Week Implementation)
+
+### Sprint 1: Foundation (Week 1-2)
+
+#### Document Catalog ★ NEW
+
+- [ ] **DOC-CAT-01**: Create document_catalog table with tenant_id, name, description, category, is_client_deliverable, is_active
+- [ ] **DOC-CAT-02**: Seed 15+ system default catalog types (Logo, Brand Guide, Contract, NDA, Invoice, Technical Spec, Meeting Notes, etc.) on tenant creation
+- [ ] **DOC-CAT-03**: Settings page at `/settings/document-catalog` for catalog management (org_admin only)
+- [ ] **DOC-CAT-04**: Document Catalog list with search, filter (active/inactive), usage count display
+- [ ] **DOC-CAT-05**: Create/Edit catalog form with category dropdown (Deliverable, Legal, Internal, Reference), deliverable checkbox, file type hint
+- [ ] **DOC-CAT-06**: Cannot delete catalog if usage_count > 0 (only deactivate)
+- [ ] **DOC-CAT-07**: RLS policies enforce tenant isolation on document_catalog
+
+#### Enhanced Documents ★ NEW
+
+- [ ] **DOC-ENH-01**: Add document_catalog_id to documents table (required field, FK to document_catalog)
+- [ ] **DOC-ENH-02**: Add has_file calculated column (GENERATED ALWAYS AS file_url IS NOT NULL)
+- [ ] **DOC-ENH-03**: Add phase_id column to documents table (nullable, FK to project_phases)
+- [ ] **DOC-ENH-04**: Add pitch_id column to documents table (nullable, FK to pitches)
+- [ ] **DOC-ENH-05**: Document upload form requires Document Catalog selection (searchable dropdown)
+- [ ] **DOC-ENH-06**: Document upload form auto-fills name from selected catalog type
+- [ ] **DOC-ENH-07**: Documents list page has Document Catalog filter dropdown (filter across entire tenant)
+- [ ] **DOC-ENH-08**: Document detail shows catalog badge with link to filter all docs of that type
+- [ ] **DOC-ENH-09**: When requirement has requires_document=true, document_catalog dropdown appears for selection
+- [ ] **DOC-ENH-10**: Document catalog flows from requirement to document on upload
+
+#### Project Phases (Database) ★ NEW
+
+- [ ] **PHASE-DB-01**: Create project_phases table with all fields (id, tenant_id, project_id, phase_id_display, name, description, lead_id, secondary_lead_id, order_key, order_manual, predecessor_phase_id, successor_phase_id, expected_start_date, expected_end_date, actual_start_date, actual_end_date, urgency, importance, priority, status, completion_percentage, show_in_client_portal, is_template, notes, created_at, created_by, updated_at, updated_by, deleted_at)
+- [ ] **PHASE-DB-02**: Add phase_id to sets table (nullable, FK to project_phases)
+- [ ] **PHASE-DB-03**: Add phase_id to requirements table (nullable, FK to project_phases)
+- [ ] **PHASE-DB-04**: Create calculate_phase_order_key() trigger function (manual > predecessor+1 > successor-1 > 0)
+- [ ] **PHASE-DB-05**: Create calculate_phase_status() function (from child sets/requirements)
+- [ ] **PHASE-DB-06**: Add priority calculated column using Eisenhower matrix (Critical/High/Medium/Low + High/Medium/Low → P1-P6)
+- [ ] **PHASE-DB-07**: Add completion_percentage calculated column (from child sets)
+- [ ] **PHASE-DB-08**: RLS policies enforce tenant isolation on project_phases
+- [ ] **PHASE-DB-09**: Constraint: phase MUST have project_id (NOT NULL)
+- [ ] **PHASE-DB-10**: Prevent circular predecessor/successor dependencies (trigger or check constraint)
+- [ ] **PHASE-DB-11**: Indexes on tenant_id, project_id, order_key, status, lead_id, is_template
+
+#### Pitches (Database) ★ NEW
+
+- [ ] **PITCH-DB-01**: Create pitches table with all fields (id, tenant_id, set_id, pitch_id_display, name, description, lead_id, secondary_lead_id, order_key, order_manual, predecessor_pitch_id, successor_pitch_id, expected_start_date, expected_end_date, actual_start_date, actual_end_date, urgency, importance, priority, status, completion_percentage, is_approved, approved_by_id, approved_at, show_in_client_portal, is_template, notes, created_at, created_by, updated_at, updated_by, deleted_at)
+- [ ] **PITCH-DB-02**: Add pitch_id to requirements table (nullable, FK to pitches)
+- [ ] **PITCH-DB-03**: Create calculate_pitch_order_key() trigger function (same logic as phases)
+- [ ] **PITCH-DB-04**: Create calculate_pitch_status() function (from child requirements)
+- [ ] **PITCH-DB-05**: Add priority calculated column using Eisenhower matrix
+- [ ] **PITCH-DB-06**: Add completion_percentage calculated column (from child requirements)
+- [ ] **PITCH-DB-07**: RLS policies enforce tenant isolation on pitches
+- [ ] **PITCH-DB-08**: Constraint: pitch MUST have set_id (NOT NULL)
+- [ ] **PITCH-DB-09**: Constraint: If is_approved=true, must have approved_by_id AND approved_at (check constraint)
+- [ ] **PITCH-DB-10**: Indexes on tenant_id, set_id, order_key, status, is_approved, is_template
+
+#### Templates (Database) ★ NEW
+
+- [ ] **TMPL-DB-01**: Add is_template column to projects table (BOOLEAN DEFAULT false)
+- [ ] **TMPL-DB-02**: Add is_template column to project_phases table (BOOLEAN DEFAULT false)
+- [ ] **TMPL-DB-03**: Add is_template column to sets table (BOOLEAN DEFAULT false)
+- [ ] **TMPL-DB-04**: Add is_template column to pitches table (BOOLEAN DEFAULT false)
+- [ ] **TMPL-DB-05**: Add is_template column to requirements table (BOOLEAN DEFAULT false)
+- [ ] **TMPL-DB-06**: Update all list queries to filter WHERE is_template = false by default
+- [ ] **TMPL-DB-07**: Create duplicate_project(project_id, new_client_id, options) stored procedure
+- [ ] **TMPL-DB-08**: Create create_template_from_project(project_id, template_name, options) stored procedure
+- [ ] **TMPL-DB-09**: Create create_from_template(template_id, client_id, options) stored procedure
+- [ ] **TMPL-DB-10**: Template functions handle deep copy (all child entities), preserve relationships, generate new IDs
+- [ ] **TMPL-DB-11**: Template functions support options (include_children, clear_dates, clear_assignments, clear_documents)
+
+#### API Endpoints (Sprint 1)
+
+- [ ] **API-S1-01**: GET /api/document-catalog (list all for tenant)
+- [ ] **API-S1-02**: POST /api/document-catalog (create new catalog type)
+- [ ] **API-S1-03**: PATCH /api/document-catalog/:id (update catalog type)
+- [ ] **API-S1-04**: DELETE /api/document-catalog/:id (soft delete)
+- [ ] **API-S1-05**: GET /api/document-catalog/:id/usage (get documents using this catalog)
+- [ ] **API-S1-06**: GET /api/projects/:projectId/phases (list phases for project)
+- [ ] **API-S1-07**: POST /api/projects/:projectId/phases (create phase)
+- [ ] **API-S1-08**: GET /api/phases/:id (get one phase)
+- [ ] **API-S1-09**: PATCH /api/phases/:id (update phase)
+- [ ] **API-S1-10**: DELETE /api/phases/:id (soft delete phase)
+- [ ] **API-S1-11**: POST /api/phases/:id/reorder (update order_manual)
+- [ ] **API-S1-12**: GET /api/sets/:setId/pitches (list pitches for set)
+- [ ] **API-S1-13**: POST /api/sets/:setId/pitches (create pitch)
+- [ ] **API-S1-14**: GET /api/pitches/:id (get one pitch)
+- [ ] **API-S1-15**: PATCH /api/pitches/:id (update pitch)
+- [ ] **API-S1-16**: DELETE /api/pitches/:id (soft delete pitch)
+- [ ] **API-S1-17**: POST /api/pitches/:id/reorder (update order_manual)
+- [ ] **API-S1-18**: POST /api/pitches/:id/approve (mark pitch as approved)
+- [ ] **API-S1-19**: POST /api/projects/:id/duplicate (duplicate project with all children)
+- [ ] **API-S1-20**: POST /api/projects/:id/save-as-template (create template from project)
+- [ ] **API-S1-21**: POST /api/templates/:type/create-from-template (create entity from template)
+- [ ] **API-S1-22**: GET /api/templates (list all templates by type)
+
+**Sprint 1 Total: 73 requirements**
+
+---
+
+### Sprint 2: Hierarchy UI (Week 3-4)
+
+#### Project Phases UI ★ NEW
+
+- [ ] **PHASE-UI-01**: Phases overview page at `/projects/:id/phases` with breadcrumb
+- [ ] **PHASE-UI-02**: Card view showing: phase_id_display, name, status badge, priority badge, progress bar, lead avatar/name, expected/actual dates
+- [ ] **PHASE-UI-03**: Table view toggle (card view default)
+- [ ] **PHASE-UI-04**: Drag-and-drop reordering using @dnd-kit or react-beautiful-dnd (updates order_manual, optimistic UI)
+- [ ] **PHASE-UI-05**: Status badge with color coding (Not_Started=gray, In_Progress=blue, Completed=green, Blocked=red, On_Hold=yellow)
+- [ ] **PHASE-UI-06**: Progress bar showing completion_percentage with label
+- [ ] **PHASE-UI-07**: Filters: Status (dropdown), Lead (user dropdown), Priority (P1-P6), Date range picker
+- [ ] **PHASE-UI-08**: [+ New Phase] button opens create form
+- [ ] **PHASE-UI-09**: Create Phase form modal/slide-in with all fields (name, description, lead, secondary_lead, expected dates, urgency, importance, order_manual, predecessor, successor, show_in_client_portal)
+- [ ] **PHASE-UI-10**: Form validation: name required, end date >= start date, no circular dependencies
+- [ ] **PHASE-UI-11**: Priority calculation shown in real-time as urgency/importance change (read-only calculated field)
+- [ ] **PHASE-UI-12**: Phase detail page at `/phases/:id` with breadcrumb (Projects > Project Name > Phases > Phase Name)
+- [ ] **PHASE-UI-13**: Phase detail: Header shows phase_id_display, name, status badge, priority badge, completion %
+- [ ] **PHASE-UI-14**: Phase detail: View/Edit toggle button in header
+- [ ] **PHASE-UI-15**: Phase detail: View mode shows all info in read-only formatted display
+- [ ] **PHASE-UI-16**: Phase detail: Edit mode shows inline form with Save/Cancel buttons
+- [ ] **PHASE-UI-17**: Phase detail: Details tab with sections (Basic Info, Dates, Priority, Relationships, Progress, Client Portal)
+- [ ] **PHASE-UI-18**: Phase detail: Sets tab showing all sets in this phase with [+ New Set] button (auto-populates phase_id)
+- [ ] **PHASE-UI-19**: Phase detail: Requirements tab showing all requirements in this phase with [+ New Requirement] button
+- [ ] **PHASE-UI-20**: Phase detail: Documents tab showing all documents with [+ Upload] button (auto-populates entity_type=phase, entity_id=phase.id)
+- [ ] **PHASE-UI-21**: Phase detail: Activity tab with timeline of notes, status changes, discussions
+- [ ] **PHASE-UI-22**: Integrate "Phases" tab into Project detail page (after Overview tab)
+- [ ] **PHASE-UI-23**: Show phase count badge on project cards (e.g., "5 Phases")
+- [ ] **PHASE-UI-24**: Actions dropdown menu: Edit, Duplicate, Save as Template, Archive, Delete
+- [ ] **PHASE-UI-25**: Delete confirmation modal with warning about cascading deletes
+
+#### Pitches UI ★ NEW
+
+- [ ] **PITCH-UI-01**: Pitches overview page at `/sets/:id/pitches` with breadcrumb
+- [ ] **PITCH-UI-02**: Card view showing: pitch_id_display, name, status badge, approved badge (✓ if approved), progress bar, lead avatar/name
+- [ ] **PITCH-UI-03**: Approved badge displayed prominently (green checkmark with "Approved by [Name] on [Date]")
+- [ ] **PITCH-UI-04**: Drag-and-drop reordering (same as phases)
+- [ ] **PITCH-UI-05**: Filters: Status, Lead, Approval Status (All/Approved/Not Approved)
+- [ ] **PITCH-UI-06**: [+ New Pitch] button opens create form
+- [ ] **PITCH-UI-07**: Create Pitch form with all fields including approval section (is_approved, approved_by dropdown of client contacts, approved_at date)
+- [ ] **PITCH-UI-08**: Form validation: name required, end >= start, if approved must have approver and date
+- [ ] **PITCH-UI-09**: Pitch detail page at `/pitches/:id` with breadcrumb (Sets > Set Name > Pitches > Pitch Name)
+- [ ] **PITCH-UI-10**: Pitch detail: Header with ID, name, status, approved badge, progress
+- [ ] **PITCH-UI-11**: Pitch detail: View/Edit toggle
+- [ ] **PITCH-UI-12**: Pitch detail: Details tab with sections (Basic Info, Dates, Priority, Approval, Client Portal)
+- [ ] **PITCH-UI-13**: Pitch detail: Approval section (view mode) shows status, approver with avatar, approval date, [Mark as Not Approved] button (org_admin only)
+- [ ] **PITCH-UI-14**: Pitch detail: Approval section (edit mode) has is_approved checkbox, approved_by dropdown, approved_at date picker
+- [ ] **PITCH-UI-15**: Pitch detail: [Mark as Approved] button triggers approval modal
+- [ ] **PITCH-UI-16**: Approve pitch modal: Select approver (client contacts dropdown), approval notes (textarea), Approve button
+- [ ] **PITCH-UI-17**: Approval updates is_approved=true, sets approved_by_id, sets approved_at=now(), shows success toast
+- [ ] **PITCH-UI-18**: Pitch detail: Requirements tab with [+ New Requirement] button (auto-populates pitch_id)
+- [ ] **PITCH-UI-19**: Pitch detail: Documents tab with [+ Upload] button
+- [ ] **PITCH-UI-20**: Pitch detail: Activity tab
+- [ ] **PITCH-UI-21**: Integrate "Pitches" tab into Set detail page
+- [ ] **PITCH-UI-22**: Show pitch count badge on set cards
+- [ ] **PITCH-UI-23**: Actions dropdown: Edit, Duplicate, Approve/Reject, Archive, Delete
+
+#### Templates UI ★ NEW
+
+- [ ] **TMPL-UI-01**: Templates library page at `/templates` with tabs
+- [ ] **TMPL-UI-02**: Tabs: Projects, Phases, Sets, Pitches, Requirements
+- [ ] **TMPL-UI-03**: Each tab shows cards for templates of that type (filtered WHERE is_template=true)
+- [ ] **TMPL-UI-04**: Template cards show: "TEMPLATE" badge, name, description, structure preview (e.g., "5 Phases • 12 Sets • 45 Requirements")
+- [ ] **TMPL-UI-05**: Template card actions: [Use Template] [Edit] [Delete]
+- [ ] **TMPL-UI-06**: [+ Create Template] button on each tab (creates blank template)
+- [ ] **TMPL-UI-07**: Add "Save as Template" to actions dropdown on all major entity detail pages
+- [ ] **TMPL-UI-08**: Save as Template modal: Template name, description, options (Include all children, Clear actual dates, Clear assignments, Clear documents)
+- [ ] **TMPL-UI-09**: Save as Template creates deep copy with is_template=true, clears data based on options
+- [ ] **TMPL-UI-10**: Update create forms (Project, Phase, Set, Pitch) to include "Start from:" radio buttons [Blank] [Template]
+- [ ] **TMPL-UI-11**: When [Template] selected, show template selector dropdown (searchable)
+- [ ] **TMPL-UI-12**: Template selector shows structure preview on hover/selection
+- [ ] **TMPL-UI-13**: Create from template form: Customize name, set parent entity (client for project, project for phase, etc.), expected start date, assign team (lead, PM)
+- [ ] **TMPL-UI-14**: Create from template executes deep copy with is_template=false, generates new IDs, adjusts dates relative to start
+- [ ] **TMPL-UI-15**: Template indicators: "TEMPLATE" badge shown on all template entities in lists
+- [ ] **TMPL-UI-16**: Templates excluded from: Dashboard widgets, KPI calculations, Reports (unless "Show Templates" toggled on)
+- [ ] **TMPL-UI-17**: Add "Show templates" toggle to operational lists (projects list, sets list, etc.) - OFF by default
+- [ ] **TMPL-UI-18**: "Duplicate" action in dropdown menu (different from Save as Template - creates operational copy, not template)
+- [ ] **TMPL-UI-19**: Duplicate modal: New name, same parent or select different, Copy children checkbox, Duplicate button
+- [ ] **TMPL-UI-20**: Template edit: can edit template structure, changes don't affect instances created from template
+
+#### Polish & Integration (Sprint 2)
+
+- [ ] **POL-S2-01**: Loading states (spinners) for all async operations (API calls, page loads)
+- [ ] **POL-S2-02**: Empty states for all lists ("No phases yet. Create your first phase to organize this project." with [+ Create] button)
+- [ ] **POL-S2-03**: Error handling: API errors show toast notifications, form validation errors inline with field
+- [ ] **POL-S2-04**: Success toasts: "Phase created successfully", "Pitch approved", "Template saved"
+- [ ] **POL-S2-05**: Animations: Smooth view/edit toggle transition, fade in/out for modals, drag-and-drop visual feedback
+- [ ] **POL-S2-06**: Help text: Tooltips (info icons) on all form fields explaining what they're for
+- [ ] **POL-S2-07**: Placeholder text in all form fields (e.g., "Enter phase name...")
+- [ ] **POL-S2-08**: Update main navigation to include "Templates" link in sidebar
+- [ ] **POL-S2-09**: Breadcrumb navigation working on all new pages (clickable, back navigation)
+- [ ] **POL-S2-10**: No console errors or warnings in browser
+- [ ] **POL-S2-11**: All animations running at 60fps (smooth, no jank)
+- [ ] **POL-S2-12**: Mobile responsive layouts for all new pages (phases, pitches, templates)
+- [ ] **POL-S2-13**: Tablet responsive layouts
+- [ ] **POL-S2-14**: Touch-friendly UI elements (larger tap targets on mobile)
+- [ ] **POL-S2-15**: Keyboard navigation support (tab through forms, Enter to submit, Esc to cancel)
+
+**Sprint 2 Total: 80 requirements**
+
+---
+
+### Sprint 3: Advanced Features (Week 5-6)
+
+#### Leads CRM (Database) ★ NEW
+
+- [ ] **LEAD-DB-01**: Create leads table with all fields (id, tenant_id, lead_id_display, lead_name, description, status, industry_id, website, phone, email, company_size, estimated_value, estimated_close_date, source, lead_owner_id, converted_to_client_id, converted_at, lost_reason, notes, created_at, created_by, updated_at, updated_by, deleted_at)
+- [ ] **LEAD-DB-02**: Create lead_contacts junction table (id, tenant_id, lead_id, contact_id, is_primary, is_decision_maker, role_at_lead, notes, created_at, created_by, updated_at, updated_by, deleted_at)
+- [ ] **LEAD-DB-03**: RLS policies enforce tenant isolation on leads and lead_contacts
+- [ ] **LEAD-DB-04**: Status ENUM constraint (New, Contacted, Qualified, Proposal, Negotiation, Won, Lost)
+- [ ] **LEAD-DB-05**: Constraint: If status='Won', must have converted_to_client_id AND converted_at (check constraint)
+- [ ] **LEAD-DB-06**: Constraint: If status='Lost', must have lost_reason (check constraint)
+- [ ] **LEAD-DB-07**: Unique constraint on (lead_id, contact_id) in lead_contacts (prevent duplicate links)
+- [ ] **LEAD-DB-08**: Only one is_primary=true per lead (enforced by trigger or app logic)
+- [ ] **LEAD-DB-09**: Create convert_lead_to_client(lead_id, client_name, relationship_manager_id, options) stored procedure
+- [ ] **LEAD-DB-10**: convert_lead_to_client creates client, copies lead_contacts to client_contacts, copies documents, updates lead status to Won
+- [ ] **LEAD-DB-11**: Indexes on tenant_id, status, lead_owner_id, industry_id, converted_to_client_id
+
+#### Leads CRM UI ★ NEW
+
+- [ ] **LEAD-UI-01**: Leads overview page at `/leads` with navigation link in sidebar
+- [ ] **LEAD-UI-02**: Summary metrics at top: Total Pipeline Value ($), Won Value ($), Lost Value ($), Conversion Rate (%)
+- [ ] **LEAD-UI-03**: View mode toggle: [Pipeline] [List] [Table]
+- [ ] **LEAD-UI-04**: Pipeline view (Kanban): 7 columns (New, Contacted, Qualified, Proposal, Negotiation, Won, Lost)
+- [ ] **LEAD-UI-05**: Drag-and-drop leads between columns to change status (with confirmation for Won/Lost)
+- [ ] **LEAD-UI-06**: Lead cards in pipeline show: lead_name, estimated_value, lead_owner avatar/name, expected_close_date
+- [ ] **LEAD-UI-07**: Color-coded cards by status (New=gray, Contacted=blue, Qualified=purple, Proposal=yellow, Negotiation=orange, Won=green, Lost=red)
+- [ ] **LEAD-UI-08**: List view: Cards grouped by status, sorted by expected_close_date
+- [ ] **LEAD-UI-09**: Table view: All leads in table with columns (Lead Name, Status, Value, Owner, Industry, Close Date, Actions)
+- [ ] **LEAD-UI-10**: Filters: Status (multi-select), Owner (user dropdown), Industry (dropdown), Date range (created, close date), Search by name
+- [ ] **LEAD-UI-11**: [+ New Lead] button opens create form
+- [ ] **LEAD-UI-12**: Create Lead form: lead_name*, description, industry_id, website, phone, email, company_size (dropdown: 1-10, 11-50, 51-200, 201-500, 500+), estimated_value, estimated_close_date, source (dropdown), lead_owner_id
+- [ ] **LEAD-UI-13**: Form validation: lead_name required, email format, URL format
+- [ ] **LEAD-UI-14**: Quick create lead from header [+] dropdown (simplified form)
+- [ ] **LEAD-UI-15**: Lead detail page at `/leads/:id` with breadcrumb (Leads > Lead Name)
+- [ ] **LEAD-UI-16**: Lead detail: Header with lead_id_display, name, status badge, estimated value, View/Edit toggle
+- [ ] **LEAD-UI-17**: Lead detail: Details tab with sections (Basic Info, Deal Info, Description)
+- [ ] **LEAD-UI-18**: Lead detail: Deal Info section shows status, value, close date, owner, source
+- [ ] **LEAD-UI-19**: Lead detail: Action buttons [Mark as Won] [Mark as Lost] (visible when status != Won/Lost)
+- [ ] **LEAD-UI-20**: Lead detail: Contacts tab showing linked contacts with is_primary indicator (⭐) and is_decision_maker indicator (👤)
+- [ ] **LEAD-UI-21**: Lead detail: [+ Link Contact] button in Contacts tab
+- [ ] **LEAD-UI-22**: Link Contact modal: Search existing contacts OR Create new contact inline, Set as primary checkbox, Set as decision maker checkbox
+- [ ] **LEAD-UI-23**: Lead detail: [Make Primary] button per contact (only one primary allowed)
+- [ ] **LEAD-UI-24**: Lead detail: [Remove Contact] button per contact (with confirmation)
+- [ ] **LEAD-UI-25**: Lead detail: Activity tab with timeline
+- [ ] **LEAD-UI-26**: Lead detail: Documents tab with [+ Upload] button
+- [ ] **LEAD-UI-27**: [Mark as Won] triggers Convert to Client modal
+- [ ] **LEAD-UI-28**: Convert to Client modal: Client name (pre-filled from lead_name), Status dropdown (default: Onboarding), Relationship Manager dropdown, Transfer options (✓ Copy all details, ✓ Link all contacts, ✓ Transfer documents)
+- [ ] **LEAD-UI-29**: Convert to Client executes stored procedure, creates client, shows success with link to new client
+- [ ] **LEAD-UI-30**: Redirect to new client detail page after conversion
+- [ ] **LEAD-UI-31**: [Mark as Lost] triggers Mark as Lost modal
+- [ ] **LEAD-UI-32**: Mark as Lost modal: Lost reason dropdown (Price too high, Chose competitor, Not ready/timing, Budget constraints, No response, Other), Additional notes (textarea)
+- [ ] **LEAD-UI-33**: Mark as Lost updates status=Lost, sets lost_reason, optionally soft deletes lead
+- [ ] **LEAD-UI-34**: Show conversion indicator on lead detail when status=Won (with link to client)
+
+#### Dashboard Integration ★ NEW
+
+- [ ] **DASH-01**: Add "Leads Pipeline" widget to main dashboard
+- [ ] **DASH-02**: Leads Pipeline widget shows: Total pipeline value ($), Leads by status (horizontal bar chart), Conversion rate (%)
+- [ ] **DASH-03**: Leads Pipeline widget links to full leads page on click
+- [ ] **DASH-04**: Add "My Leads" widget to dashboard
+- [ ] **DASH-05**: My Leads widget shows: Leads assigned to current user, sorted by expected_close_date ascending (soonest first)
+- [ ] **DASH-06**: My Leads widget has quick status change buttons per lead
+- [ ] **DASH-07**: Add "Leads" to main navigation sidebar with icon
+- [ ] **DASH-08**: Update header quick create [+] dropdown to include "New Lead" option
+
+#### Reporting ★ NEW
+
+- [ ] **REP-01**: Create Leads Report page at `/reports/leads`
+- [ ] **REP-02**: Leads by status chart (bar chart showing count per status)
+- [ ] **REP-03**: Leads by owner chart (pie chart or bar chart)
+- [ ] **REP-04**: Leads by industry chart (bar chart)
+- [ ] **REP-05**: Conversion rate over time chart (line chart by month)
+- [ ] **REP-06**: Average deal size metric (total value / total leads)
+- [ ] **REP-07**: Average time to close metric (won leads: days from created to converted)
+- [ ] **REP-08**: Filter reports by date range, owner, industry
+- [ ] **REP-09**: Export report data to CSV
+
+#### Notifications ★ NEW
+
+- [ ] **NOTIF-LEAD-01**: Email notification when lead assigned to you (subject: "New lead assigned: [Lead Name]")
+- [ ] **NOTIF-LEAD-02**: In-app notification when lead assigned (bell icon in header)
+- [ ] **NOTIF-LEAD-03**: Email notification when lead status changes (to lead owner)
+- [ ] **NOTIF-LEAD-04**: In-app notification when lead status changes
+- [ ] **NOTIF-LEAD-05**: Email notification to team when lead marked as Won (celebrate!)
+- [ ] **NOTIF-LEAD-06**: Notification preferences page allows enabling/disabling lead notifications
+
+#### Final Polish & Launch
+
+- [ ] **FINAL-01**: Run full regression test suite (verify all existing v1 features still work correctly)
+- [ ] **FINAL-02**: Performance testing with large data sets (100+ phases, 500+ pitches, 1000+ leads)
+- [ ] **FINAL-03**: Page load time testing - all pages < 2 seconds (95th percentile)
+- [ ] **FINAL-04**: API response time testing - all endpoints < 500ms (95th percentile)
+- [ ] **FINAL-05**: Cross-browser testing (Chrome, Firefox, Safari, Edge - all latest versions)
+- [ ] **FINAL-06**: Mobile browser testing (iOS Safari, Chrome Android)
+- [ ] **FINAL-07**: Accessibility testing (keyboard navigation works, screen reader support, ARIA labels)
+- [ ] **FINAL-08**: Test tab order and focus management on all forms
+- [ ] **FINAL-09**: Color contrast testing (WCAG AA compliance)
+- [ ] **FINAL-10**: Update user guide documentation (add sections for Phases, Pitches, Document Catalog, Templates, Leads)
+- [ ] **FINAL-11**: Update API documentation (all new endpoints documented with examples)
+- [ ] **FINAL-12**: Update database schema documentation (all new tables and fields)
+- [ ] **FINAL-13**: Create video tutorials: "How to use Project Phases", "Creating and Using Templates", "Managing Your Sales Pipeline with Leads"
+- [ ] **FINAL-14**: Create migration plan for existing customers (how to upgrade)
+- [ ] **FINAL-15**: Write and test database migration scripts
+- [ ] **FINAL-16**: Deploy to staging environment
+- [ ] **FINAL-17**: Conduct stakeholder demo (show all features working)
+- [ ] **FINAL-18**: Beta testing with 3-5 select customers (collect feedback)
+- [ ] **FINAL-19**: Address critical feedback from beta testing
+- [ ] **FINAL-20**: Production deployment plan finalized (rollback strategy documented)
+- [ ] **FINAL-21**: Train support team (demo all features, Q&A session)
+- [ ] **FINAL-22**: Prepare launch announcement (blog post, email, in-app message)
+- [ ] **FINAL-23**: Execute production deployment (database migrations, backend deploy, frontend deploy)
+- [ ] **FINAL-24**: Run smoke tests on production
+- [ ] **FINAL-25**: Monitor error logs for 24 hours post-launch
+- [ ] **FINAL-26**: Send launch announcement to all users
+- [ ] **FINAL-27**: Post-launch retrospective (what went well, what to improve)
+
+**Sprint 3 Total: 86 requirements**
+
+---
+
+## v3 Requirements (Future - Deferred)
 
 Deferred to future release. Tracked but not in current roadmap.
 
-### Notifications
+### Notifications (Existing - Now v3)
 
 - **NOTF-01**: User receives in-app notifications for assignments
 - **NOTF-02**: User receives email for overdue requirements
 - **NOTF-03**: User can configure notification preferences
+- **NOTF-04**: ★ NEW - Daily digest email with past due items, upcoming work, completed items (8 AM user's timezone)
+- **NOTF-05**: ★ NEW - @mentions in discussions trigger notifications
 
-### Document Management
+### Document Management (Existing - Now v3)
 
-- **DOC-01**: User can upload documents to any entity
-- **DOC-02**: User can preview documents inline
-- **DOC-03**: Documents respect show_in_client_portal flag
+- **DOC-01**: User can upload documents to any entity *(partially covered in v2 DOC-ENH)*
+- **DOC-02**: User can preview documents inline (without download)
+- **DOC-03**: Documents respect show_in_client_portal flag *(partially covered in v2)*
+- **DOC-ADV-01**: ★ NEW - Document versioning (track previous versions)
+- **DOC-ADV-02**: ★ NEW - Document approval workflows
+- **DOC-ADV-03**: ★ NEW - Document expiration dates
+- **DOC-ADV-04**: ★ NEW - E-signature integration (DocuSign)
 
-### Advanced Views
+### Advanced Templates ★ NEW
+
+- **TMPL-ADV-01**: Template versioning (update templates without affecting instances)
+- **TMPL-ADV-02**: Template marketplace (share templates between tenants)
+- **TMPL-ADV-03**: Public template library (curated templates)
+- **TMPL-ADV-04**: Template ratings and reviews
+- **TMPL-ADV-05**: "Template has been updated" notification for instances
+
+### Advanced Views (Existing - Now v3)
 
 - **VIEW-01**: Gantt chart / timeline view for projects
 - **VIEW-02**: Advanced search across all entities
 - **VIEW-03**: Export to PDF
+- **VIEW-04**: ★ NEW - Pitch comparison view (side-by-side comparison)
+- **VIEW-05**: ★ NEW - Client voting on pitches
+
+### Lead Enhancements ★ NEW
+
+- **LEAD-ADV-01**: Automatic lead scoring (based on criteria like industry, size, engagement)
+- **LEAD-ADV-02**: Predictive close probability (ML-based)
+- **LEAD-ADV-03**: Lead routing/assignment automation (round-robin, territory-based)
+- **LEAD-ADV-04**: Lead source tracking and analytics (which sources convert best)
+- **LEAD-ADV-05**: Email integration (track emails with leads, log in timeline)
+
+### Phase Enhancements ★ NEW
+
+- **PHASE-ADV-01**: Phase gates (cannot start Phase 2 until Phase 1 marked complete)
+- **PHASE-ADV-02**: Automatic phase scheduling based on dependencies
+- **PHASE-ADV-03**: Critical path analysis (identify bottlenecks)
+- **PHASE-ADV-04**: Resource allocation across phases (team capacity planning)
+- **PHASE-ADV-05**: Phase budget tracking (budget vs actual)
+
+---
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Mobile app | Web-first, mobile later |
-| OAuth login (Google, GitHub) | Email/password sufficient for MVP demo |
+| Mobile native app | Web-first, mobile web responsive sufficient |
+| OAuth login (Google, GitHub) | Email/password sufficient for launch |
 | Real-time updates (Supabase Realtime) | Polling sufficient for demo, reduces complexity |
-| @mentions in comments | Nice-to-have, not core functionality |
-| Project templates | Not needed for demo |
-| Time tracking detail | Beyond MVP scope |
-| Custom forms | Beyond MVP scope |
-| Integrations (Slack, etc.) | Post-MVP |
+| @mentions in comments | Deferred to v3 |
+| Custom forms builder | Beyond current scope, deferred to v3 |
+| Time tracking detail (timesheets) | Beyond MVP scope |
+| Integrations (Slack, Zapier, etc.) | Post-launch, potential Phase 2 |
+| Custom fields (user-defined fields) | Deferred to v3 |
+| Workflow automation (triggers, actions) | Deferred to v3 |
+| Client billing/invoicing | Deferred to v3 |
+| Advanced permissions (field-level) | Role-based sufficient for now |
+
+---
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases/sprints cover which requirements. Updated during implementation.
+
+### v1 Requirements (MVP Foundation - Original 26)
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-01 | Phase 1 | Complete |
-| BUG-02 | Phase 1 | Complete |
-| CLI-01 | Phase 1 | Complete |
-| BUG-03 | Phase 2 | Complete |
-| CLI-02 | Phase 2 | Complete |
-| CLI-03 | Phase 2 | Complete |
-| CLI-04 | Phase 2 | Complete |
-| CLI-05 | Phase 2 | Complete |
-| PROJ-01 | Phase 3 | Complete |
-| PROJ-02 | Phase 3 | Complete |
-| PROJ-03 | Phase 3 | Complete |
-| PROJ-04 | Phase 3 | Complete |
-| SET-01 | Phase 3 | Complete |
-| SET-02 | Phase 3 | Complete |
-| SET-03 | Phase 3 | Complete |
-| UI-01 | Phase 3 | Complete |
-| UI-02 | Phase 3 | Complete |
-| UI-03 | Phase 3 | Complete |
-| UI-04 | Phase 3 | Complete |
-| UI-05 | Phase 3 | Complete |
-| CORE-01 | Phase 4 | Pending |
-| CORE-02 | Phase 4 | Pending |
-| NAV-01 | Phase 4 | Pending |
-| NAV-02 | Phase 4 | Pending |
-| AUDIT-01 | Phase 4 | Pending |
-| AUDIT-02 | Phase 4 | Pending |
+| BUG-01 | Phase 1 | Complete ✓ |
+| BUG-02 | Phase 1 | Complete ✓ |
+| CLI-01 | Phase 1 | Complete ✓ |
+| BUG-03 | Phase 2 | Complete ✓ |
+| CLI-02 | Phase 2 | Complete ✓ |
+| CLI-03 | Phase 2 | Complete ✓ |
+| CLI-04 | Phase 2 | Complete ✓ |
+| CLI-05 | Phase 2 | Complete ✓ |
+| PROJ-01 | Phase 3 | Complete ✓ |
+| PROJ-02 | Phase 3 | Complete ✓ |
+| PROJ-03 | Phase 3 | Complete ✓ |
+| PROJ-04 | Phase 3 | Complete ✓ |
+| SET-01 | Phase 3 | Complete ✓ |
+| SET-02 | Phase 3 | Complete ✓ |
+| SET-03 | Phase 3 | Complete ✓ |
+| UI-01 | Phase 3 | Complete ✓ |
+| UI-02 | Phase 3 | Complete ✓ |
+| UI-03 | Phase 3 | Complete ✓ |
+| UI-04 | Phase 3 | Complete ✓ |
+| UI-05 | Phase 3 | Complete ✓ |
+| CORE-01 | Phase 4 | Pending ⏳ |
+| CORE-02 | Phase 4 | Pending ⏳ |
+| NAV-01 | Phase 4 | Pending ⏳ |
+| NAV-02 | Phase 4 | Pending ⏳ |
+| AUDIT-01 | Phase 4 | Pending ⏳ |
+| AUDIT-02 | Phase 4 | Pending ⏳ |
+| **CORE-03** ★ | Phase 4 | Pending ⏳ |
+| **NAV-03** ★ | Phase 4 | Pending ⏳ |
+| **AUDIT-03** ★ | Phase 4 | Pending ⏳ |
 
-**Coverage:**
-- v1 requirements: 26 total
-- Mapped to phases: 26
-- Unmapped: 0 ✓
+**v1 Total: 29 requirements**
+- Complete: 20 (69%)
+- Pending: 9 (31%)
+
+### v2 Requirements (New Features - 6 Weeks)
+
+#### Sprint 1: Foundation (Week 1-2) - 73 requirements
+
+| Prefix | Category | Count | Status |
+|--------|----------|-------|--------|
+| DOC-CAT | Document Catalog | 7 | Pending ⏳ |
+| DOC-ENH | Enhanced Documents | 10 | Pending ⏳ |
+| PHASE-DB | Project Phases Database | 11 | Pending ⏳ |
+| PITCH-DB | Pitches Database | 10 | Pending ⏳ |
+| TMPL-DB | Templates Database | 11 | Pending ⏳ |
+| API-S1 | API Endpoints | 22 | Pending ⏳ |
+
+#### Sprint 2: Hierarchy UI (Week 3-4) - 80 requirements
+
+| Prefix | Category | Count | Status |
+|--------|----------|-------|--------|
+| PHASE-UI | Project Phases UI | 25 | Pending ⏳ |
+| PITCH-UI | Pitches UI | 23 | Pending ⏳ |
+| TMPL-UI | Templates UI | 20 | Pending ⏳ |
+| POL-S2 | Polish & Integration | 15 | Pending ⏳ |
+
+#### Sprint 3: Advanced Features (Week 5-6) - 86 requirements
+
+| Prefix | Category | Count | Status |
+|--------|----------|-------|--------|
+| LEAD-DB | Leads Database | 11 | Pending ⏳ |
+| LEAD-UI | Leads UI | 34 | Pending ⏳ |
+| DASH | Dashboard Integration | 8 | Pending ⏳ |
+| REP | Reporting | 9 | Pending ⏳ |
+| NOTIF-LEAD | Lead Notifications | 6 | Pending ⏳ |
+| FINAL | Final Polish & Launch | 27 | Pending ⏳ |
+
+**v2 Total: 239 requirements (Sprint 1: 73, Sprint 2: 80, Sprint 3: 86)**
+- All Pending ⏳ (0% complete)
+
+### Grand Total
+
+**All Requirements: 268**
+- v1 (MVP Foundation): 29 requirements (20 complete, 9 pending)
+- v2 (New Features): 239 requirements (0 complete, 239 pending)
+- v3 (Future): Tracked separately
+
+**Overall Progress: 7.5% (20/268)**
 
 ---
-*Requirements defined: 2026-02-05*
-*Last updated: 2026-02-05 — Pivot to IBM Carbon aesthetic, added PROJ-*, SET-*, BUG-03, CLI-05*
+
+## Success Metrics
+
+### Sprint 1 Success Criteria
+- ✅ Document catalog in use by >90% of uploads within 1 week
+- ✅ Zero RLS violations in testing
+- ✅ All API endpoints < 500ms response time
+- ✅ Users can filter documents by catalog type across entire tenant
+- ✅ All database tables created with proper indexes
+
+### Sprint 2 Success Criteria
+- ✅ >70% of new projects use phases within 2 weeks
+- ✅ >40% of sets use pitches within 2 weeks
+- ✅ >3 templates created per tenant within 1 month
+- ✅ Time to create project reduced by 50% (with templates)
+- ✅ All UI responsive on mobile/tablet/desktop
+
+### Sprint 3 Success Criteria
+- ✅ >50% of new clients came from leads within 3 months
+- ✅ Lead conversion rate tracked and improving
+- ✅ Zero critical bugs post-launch
+- ✅ All documentation complete
+- ✅ Support team trained
+
+### Overall Success Criteria
+- ✅ <5% churn rate (no increase from new features)
+- ✅ >80 NPS score
+- ✅ >90% feature adoption rate
+- ✅ <2 second page load times (95th percentile)
+- ✅ <500ms API response times (95th percentile)
+- ✅ Zero security incidents
+- ✅ >99.5% uptime
+
+---
+
+## Implementation Standards
+
+### Code Quality
+- **View/Edit toggle pattern** on all detail pages (consistent UX)
+- **IBM Carbon design** applied consistently (colors, spacing, typography)
+- **RLS policies** on all new tables (tested thoroughly - zero cross-tenant leaks)
+- **Soft deletes** (`deleted_at IS NOT NULL`) for all major entities
+- **Audit fields** on all tables (created_at, created_by, updated_at, updated_by)
+- **Auto-number IDs** (display_id) on all entities for user reference
+- **Mobile responsive** (all pages, all breakpoints)
+- **No console errors** (clean code, proper error handling)
+
+### Testing Standards
+- **Unit tests** for business logic functions (order calculation, status calculation, priority calculation)
+- **Integration tests** for all API endpoints
+- **RLS tests** for every new table (critical - test cross-tenant access blocked)
+- **E2E tests** for major user flows (create project from template, convert lead to client, etc.)
+- **Performance tests** for large data sets (100+ phases, 1000+ leads)
+- **Cross-browser tests** (Chrome, Firefox, Safari, Edge)
+- **Accessibility tests** (keyboard nav, screen reader, ARIA labels)
+
+### Definition of Done
+- ✅ Code complete and peer reviewed
+- ✅ Tests written and passing (unit + integration + E2E)
+- ✅ RLS policies tested (no cross-tenant access)
+- ✅ UI responsive (mobile/tablet/desktop tested)
+- ✅ Documentation updated (API docs, user guide, schema docs)
+- ✅ No console errors or warnings
+- ✅ Accessible (keyboard + screen reader support)
+- ✅ Performance acceptable (page load <2s, API <500ms)
+- ✅ Deployed to staging
+- ✅ Demo-ready (can show to stakeholders)
+
+---
+
+## Reference Documents
+
+**Core Implementation Docs:**
+- `CLAUDE.md` - Project memory, standards, and rules
+- `DOCUMENTATION-INDEX.md` - Guide to all documentation
+
+
+**Supporting Docs:**
+- `lineup-prd-complete.md` - Original LineUp PRD
+- `database-documentation.md` - Database schema (Modules 1-3)
+- `database-documentation-part2.md` - Database schema (Modules 4-5)
+- `eisenhower-matrix-logic.md` - Priority calculation system
+
+---
+
+**Requirements defined:** 2026-02-05  
+**Last updated:** 2026-02-05 — Added 239 new v2 requirements (Project Phases, Pitches, Document Catalog, Templates, Leads)  
+**Next review:** After Sprint 1 completion (Week 2)  
+**Version:** 2.0 (Major Update)

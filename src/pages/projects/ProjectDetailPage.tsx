@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { useProjectWithHierarchy, useProjectMutations } from '@/hooks/useProjects'
 import { useSetsByProject } from '@/hooks/useSets'
 import { useRequirementsByProject } from '@/hooks/useRequirements'
+import { usePitchesByProject } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,7 @@ import {
   ExternalLink,
   Calendar,
   Users,
+  Presentation,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
@@ -78,6 +80,7 @@ export function ProjectDetailPage() {
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
   const { data: projectSets, isLoading: setsLoading } = useSetsByProject(projectId!)
   const { data: projectRequirements, isLoading: requirementsLoading } = useRequirementsByProject(projectId!)
+  const { data: projectPitches, isLoading: pitchesLoading } = usePitchesByProject(projectId!)
   const { updateProject } = useProjectMutations()
   const { data: users } = useTenantUsers()
   const { openDetailPanel, openCreateModal } = useUIStore()
@@ -378,6 +381,15 @@ export function ProjectDetailPage() {
             {projectRequirements && projectRequirements.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5">
                 {projectRequirements.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="pitches" className="gap-2">
+            <Presentation className="h-4 w-4" />
+            Pitches
+            {projectPitches && projectPitches.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {projectPitches.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -974,6 +986,140 @@ export function ProjectDetailPage() {
                               <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Pitches Tab */}
+        <TabsContent value="pitches" className="mt-6">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => openCreateModal('pitch' as any, { project_id: projectId })}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Pitch
+            </Button>
+          </div>
+          {pitchesLoading ? (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Set</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Approval</TableHead>
+                      <TableHead>Progress</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : !projectPitches || projectPitches.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Presentation className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No pitches yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create sets to add pitches
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Set</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Approval</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projectPitches.map((pitch) => (
+                      <TableRow
+                        key={pitch.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onDoubleClick={() => navigate(`/pitches/${pitch.id}`)}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {pitch.name}
+                            {pitch.pitch_id_display && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {pitch.pitch_id_display}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/sets/${pitch.set_id}`}
+                            className="hover:underline flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Layers className="h-3 w-3 text-muted-foreground" />
+                            {pitch.sets?.name || '—'}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(pitch.status)} variant="outline">
+                            {pitch.status.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {pitch.is_approved ? (
+                            <Badge variant="default" className="bg-green-600">Approved</Badge>
+                          ) : (
+                            <Badge variant="secondary">Pending</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {pitch.lead?.full_name || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={pitch.completion_percentage} className="h-2 w-16" />
+                            <span className="text-xs text-muted-foreground">
+                              {pitch.completion_percentage}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Details
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

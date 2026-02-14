@@ -2,19 +2,38 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requirementsApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
+import { getUserFriendlyError } from '@/lib/utils'
 import type {
   CreateRequirementInput,
   UpdateRequirementInput,
   RequirementStatus,
 } from '@/types/database'
 
-export function useRequirements() {
+export function useRequirements(includeTemplates = false) {
   const { currentTenant } = useTenantStore()
 
   return useQuery({
-    queryKey: ['requirements', currentTenant?.id],
-    queryFn: () => requirementsApi.getAll(currentTenant!.id),
+    queryKey: ['requirements', currentTenant?.id, includeTemplates],
+    queryFn: () => requirementsApi.getAll(currentTenant!.id, includeTemplates),
     enabled: !!currentTenant?.id,
+  })
+}
+
+export function useRequirementTemplates() {
+  const { currentTenant } = useTenantStore()
+
+  return useQuery({
+    queryKey: ['requirements', 'templates', currentTenant?.id],
+    queryFn: () => requirementsApi.getTemplates(currentTenant!.id),
+    enabled: !!currentTenant?.id,
+  })
+}
+
+export function useRequirementsByPitch(pitchId: string) {
+  return useQuery({
+    queryKey: ['requirements', 'pitch', pitchId],
+    queryFn: () => requirementsApi.getByPitchId(pitchId),
+    enabled: !!pitchId,
   })
 }
 
@@ -67,21 +86,25 @@ export function useRequirementMutations() {
   const { currentTenant } = useTenantStore()
 
   const createRequirement = useMutation({
-    mutationFn: (input: CreateRequirementInput) =>
+    mutationFn: (input: CreateRequirementInput & { pitch_id?: string }) =>
       requirementsApi.create(currentTenant!.id, user!.id, input),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['requirements'] })
       queryClient.invalidateQueries({ queryKey: ['sets'] })
       queryClient.invalidateQueries({ queryKey: ['project'] })
+      if (variables.pitch_id) {
+        queryClient.invalidateQueries({ queryKey: ['pitches'] })
+        queryClient.invalidateQueries({ queryKey: ['pitch', variables.pitch_id] })
+      }
       toast({
         title: 'Requirement created',
         description: 'The requirement has been created successfully.',
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to create requirement',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },
@@ -101,10 +124,10 @@ export function useRequirementMutations() {
         description: 'The requirement has been updated successfully.',
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to update requirement',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },
@@ -132,10 +155,10 @@ export function useRequirementMutations() {
         description: 'The requirement has been archived.',
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to archive requirement',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },

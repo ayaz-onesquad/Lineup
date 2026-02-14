@@ -854,3 +854,138 @@ After running migrations 016-017:
 - [ ] Admin stays logged in after creating a new tenant user
 - [ ] Projects overview grid shows projects with correct team member names
 - [ ] No 400/500 errors in Network tab on Projects page
+
+## 📋 V2 Features (Migration 026)
+
+### New Hierarchy: 6-Level with Pitches
+
+The hierarchy now includes **Pitches** between Sets and Requirements:
+
+**Client -> Project -> Phase -> Set -> Pitch -> Requirement**
+
+- **Pitch:** A grouping of requirements within a set, with approval workflow
+- **Parent-child enforcement:** Pitches MUST have a `set_id`
+- **Requirements:** Can optionally link to a pitch via `pitch_id`
+
+### New Entities
+
+#### 1. Document Catalog (`document_catalog`)
+Tenant-wide document type standards:
+- Categories: `deliverable`, `legal`, `internal`, `reference`
+- Fields: `name`, `category`, `is_client_deliverable`, `file_type_hint`, `usage_count`
+- Usage tracking via trigger (auto-increments/decrements on document creation/deletion)
+- Default types seeded via `seed_document_catalog_for_tenant(tenant_id)` RPC
+
+**API:** `documentCatalogApi` | **Hooks:** `useDocumentCatalog`, `useDocumentCatalogMutations`
+
+#### 2. Pitches (`pitches`)
+Groups requirements within a set with approval workflow:
+- **Required:** `set_id` (parent-child enforced)
+- **Team:** `lead_id`, `secondary_lead_id`
+- **Ordering:** `order_key`, `order_manual`, `predecessor_pitch_id`, `successor_pitch_id`
+- **Approval:** `is_approved`, `approved_by_id`, `approved_at`
+- **Priority:** Eisenhower matrix via `urgency`, `importance` -> auto-calculated `priority`
+
+**API:** `pitchesApi` | **Hooks:** `usePitches`, `usePitchesBySet`, `usePitchMutations`
+
+#### 3. Leads (`leads`)
+Sales pipeline tracking:
+- **Status Pipeline:** `new` -> `contacted` -> `qualified` -> `proposal` -> `negotiation` -> `won`/`lost`
+- **Fields:** `lead_name`, `estimated_value`, `estimated_close_date`, `company_size`, `source`
+- **Owner:** `lead_owner_id` references `user_profiles(id)`
+- **Conversion:** `convert_lead_to_client(lead_id, options)` RPC creates client and copies contacts/documents
+
+**API:** `leadsApi` | **Hooks:** `useLeads`, `useLeadsByStatus`, `useLeadPipelineStats`, `useLeadMutations`
+
+#### 4. Lead Contacts (`lead_contacts`)
+Many-to-many linking leads to contacts:
+- `is_primary`, `is_decision_maker`, `role_at_lead`
+- Trigger ensures single primary per lead
+
+### Template System
+
+All major entities now support `is_template: boolean`:
+- **Projects, Phases, Sets, Pitches, Requirements**
+- Default queries filter `is_template = false` (operational view)
+- Use `includeTemplates = true` parameter to fetch all
+
+**Operational Views:**
+- `operational_projects`, `operational_phases`, `operational_sets`, `operational_pitches`, `operational_requirements`
+
+**Template Duplication:**
+```typescript
+// Duplicate project with all children
+projectsApi.duplicate(projectId, {
+  new_client_id: '...',      // Optional: assign to different client
+  new_name: 'Copy Name',     // Optional: rename
+  include_children: true,    // Copy phases, sets, pitches, requirements
+  clear_dates: true,         // Remove date assignments
+  clear_assignments: true,   // Remove team assignments
+  as_template: false,        // Create as operational project
+})
+
+// Save as template
+projectsApi.saveAsTemplate(projectId, 'Template Name')
+
+// Create from template
+projectsApi.createFromTemplate(templateId, clientId, 'New Project Name')
+```
+
+### Enhanced Documents
+
+Documents now link to more entities:
+- `document_catalog_id` - Links to document type catalog
+- `phase_id` - Direct link to phase
+- `pitch_id` - Direct link to pitch
+- `has_file` - GENERATED column (true if file_url is not null)
+- `entity_type` now includes `'lead'` and `'pitch'`
+
+### Enhanced Phases
+
+New fields on `project_phases`:
+- `phase_id_display` - Auto-generated "PH-XXXX"
+- `lead_id`, `secondary_lead_id` - Team assignments
+- `order_key`, `order_manual` - Ordering with predecessor/successor support
+- `urgency`, `importance`, `priority` - Eisenhower matrix
+- `is_template` - Template flag
+- `notes` - Free text notes
+
+**Circular Dependency Prevention:** Trigger checks predecessor/successor chains
+
+### Display ID Formats
+
+Auto-generated display IDs:
+- **Phases:** `PH-0001`, `PH-0002`, ...
+- **Pitches:** `PI-0001`, `PI-0002`, ...
+- **Leads:** `LD-0001`, `LD-0002`, ...
+
+### V2 API Usage Examples
+
+```typescript
+// Document Catalog
+const { data: catalogTypes } = useDocumentCatalog()
+const { createCatalogEntry, deactivateCatalogEntry } = useDocumentCatalogMutations()
+
+// Pitches
+const { data: pitches } = usePitchesBySet(setId)
+const { createPitch, approvePitch, rejectPitch } = usePitchMutations()
+
+// Leads
+const { data: leads } = useLeads()
+const { data: stats } = useLeadPipelineStats()
+const { createLead, updateLeadStatus, convertToClient } = useLeadMutations()
+
+// Templates
+const { data: templates } = useProjectTemplates()
+const { saveAsTemplate, createFromTemplate } = useProjectMutations()
+```
+
+### V2 Migration Checklist
+After running migration 026:
+- [ ] `document_catalog` table exists with RLS policies
+- [ ] `pitches` table exists with RLS policies
+- [ ] `leads` and `lead_contacts` tables exist with RLS policies
+- [ ] `is_template` column exists on projects, phases, sets, requirements
+- [ ] `duplicate_project` RPC function exists
+- [ ] `convert_lead_to_client` RPC function exists
+- [ ] Operational views filter templates correctly

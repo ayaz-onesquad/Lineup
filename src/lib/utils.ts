@@ -27,6 +27,15 @@ export function formatDateTime(date: Date | string | null | undefined): string {
   })
 }
 
+export function formatCurrency(amount: number, currency: string = 'USD'): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
 export function generateSlug(name: string): string {
   return name
     .toLowerCase()
@@ -262,3 +271,100 @@ export const IMPORTANCE_OPTIONS = [
   { value: 'medium', label: 'Medium', description: 'Important but not critical' },
   { value: 'low', label: 'Low', description: 'Nice to have' },
 ] as const
+
+/**
+ * Maps API error messages to user-friendly error messages
+ */
+export function getUserFriendlyError(error: unknown): string {
+  // Extract error message
+  const errorMessage = error instanceof Error
+    ? error.message
+    : typeof error === 'string'
+      ? error
+      : 'An error occurred'
+
+  const lowerMessage = errorMessage.toLowerCase()
+
+  // Network errors
+  if (lowerMessage.includes('network') || lowerMessage.includes('fetch') || lowerMessage.includes('connection')) {
+    return 'Unable to connect to the server. Please check your internet connection and try again.'
+  }
+
+  // Timeout errors
+  if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
+    return 'The request took too long. Please try again.'
+  }
+
+  // Authentication errors
+  if (lowerMessage.includes('unauthorized') || lowerMessage.includes('401') || lowerMessage.includes('not authenticated')) {
+    return 'Your session has expired. Please sign in again.'
+  }
+
+  // Permission errors
+  if (lowerMessage.includes('forbidden') || lowerMessage.includes('403') || lowerMessage.includes('permission')) {
+    return "You don't have permission to perform this action."
+  }
+
+  // Not found errors
+  if (lowerMessage.includes('not found') || lowerMessage.includes('404')) {
+    return 'The requested item was not found. It may have been deleted.'
+  }
+
+  // Duplicate/conflict errors
+  if (lowerMessage.includes('duplicate') || lowerMessage.includes('already exists') || lowerMessage.includes('unique constraint') || lowerMessage.includes('conflict')) {
+    return 'This item already exists. Please use a different name or value.'
+  }
+
+  // Foreign key errors
+  if (lowerMessage.includes('foreign key') || lowerMessage.includes('violates foreign key')) {
+    return 'This item is linked to other data and cannot be modified this way.'
+  }
+
+  // Validation errors
+  if (lowerMessage.includes('required') || lowerMessage.includes('invalid') || lowerMessage.includes('validation')) {
+    return 'Please check your input and try again. Some required fields may be missing.'
+  }
+
+  // Rate limiting
+  if (lowerMessage.includes('rate limit') || lowerMessage.includes('too many requests') || lowerMessage.includes('429')) {
+    return 'Too many requests. Please wait a moment and try again.'
+  }
+
+  // Server errors
+  if (lowerMessage.includes('500') || lowerMessage.includes('internal server') || lowerMessage.includes('server error')) {
+    return 'Something went wrong on our end. Please try again later.'
+  }
+
+  // Supabase-specific errors
+  if (lowerMessage.includes('pgrst') || lowerMessage.includes('postgrest')) {
+    return 'A database error occurred. Please try again or contact support.'
+  }
+
+  // RLS policy errors
+  if (lowerMessage.includes('row level security') || lowerMessage.includes('rls')) {
+    return "You don't have access to this data."
+  }
+
+  // Default: return a sanitized version of the original message if it's not too technical
+  if (errorMessage.length < 100 && !lowerMessage.includes('error:') && !lowerMessage.includes('exception')) {
+    return errorMessage
+  }
+
+  return 'An unexpected error occurred. Please try again.'
+}
+
+/**
+ * Extracts error message from various error types
+ */
+export function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (typeof error === 'string') {
+    return error
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message)
+  }
+  return 'An unknown error occurred'
+}

@@ -9,12 +9,40 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 ## Current Position
 
-Phase: 3 of 4 (Projects & Sets Enhancement) - COMPLETE
-Plan: 3/3 in current phase
-Status: Phase verified
-Last activity: 2026-02-10 - Phase 3 verified (9/9 success criteria passed)
+Phase: V2 Features Sprint - IN PROGRESS
+Plan: Migration 026 applied, API services + hooks complete
+Status: Ready for UI components
+Last activity: 2026-02-14 - V2 backend infrastructure complete
 
-Progress: [███████░░░] 75% milestone (Phase 1: 3/3, Phase 2: 4/4, Phase 3: 3/3, Phase 4: 0/TBD)
+Progress: [████████░░] 80% milestone
+
+## V2 Features Sprint (48-Hour)
+
+**Migration 026 Applied:** YES (026_v2_features.sql)
+
+### Completed Backend Infrastructure:
+
+1. **Document Catalog** - `document_catalog` table + `documentCatalogApi` + `useDocumentCatalog` hooks
+2. **Enhanced Documents** - Added `document_catalog_id`, `phase_id`, `pitch_id`, `has_file` columns
+3. **Enhanced Phases** - Added `lead_id`, `secondary_lead_id`, `order_key`, `urgency`, `importance`, `priority`, `is_template`
+4. **Pitches** (NEW ENTITY) - `pitches` table + `pitchesApi` + `usePitches` hooks
+   - Parent-child: Set -> Pitch -> Requirement
+   - Approval workflow (is_approved, approved_by_id, approved_at)
+5. **Templates** - Added `is_template` to projects, phases, sets, pitches, requirements
+   - Operational views filter templates out by default
+   - Template duplication via `duplicate_project` RPC
+6. **Leads** (NEW ENTITY) - `leads` + `lead_contacts` tables + `leadsApi` + `useLeads` hooks
+   - Sales pipeline with status tracking
+   - Convert lead to client via `convert_lead_to_client` RPC
+7. **Display IDs** - Auto-generated PH-XXXX, PI-XXXX, LD-XXXX
+
+### Next Steps (UI Components):
+- [ ] LeadsPage - Pipeline view with Kanban board
+- [ ] LeadDetailPage - Full detail with contacts, documents
+- [ ] PitchesPage - List view
+- [ ] PitchDetailPage - Requirements tab, approval workflow
+- [ ] DocumentCatalogPage - Settings page for managing types
+- [ ] TemplatesPage - List/create project templates
 
 ## Performance Metrics
 

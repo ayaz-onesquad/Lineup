@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2, Edit } from 'lucide-react'
+import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2, Edit, Info } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -42,13 +42,13 @@ export function ClientsPage() {
   return (
     <div className="page-carbon p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
-          <p className="text-muted-foreground">Manage your client relationships</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Clients</h1>
+          <p className="text-sm text-muted-foreground">Manage your client relationships</p>
         </div>
         <Button onClick={() => openCreateModal('client')}>
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           Add Client
         </Button>
       </div>
@@ -69,7 +69,14 @@ export function ClientsPage() {
       {/* Client List */}
       <Card className="card-carbon">
         <CardContent className="p-0">
-          <Table>
+          {/* Table interaction hint */}
+          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-muted/30 border-b text-xs text-muted-foreground">
+            <Info className="h-3 w-3" aria-hidden="true" />
+            <span>Click a row to preview, double-click to open full details</span>
+          </div>
+          {/* Scrollable table container for mobile */}
+          <div className="overflow-x-auto">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Client</TableHead>
@@ -158,8 +165,8 @@ export function ClientsPage() {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" aria-label={`Actions for ${client.name}`}>
+                            <MoreVertical className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -193,6 +200,7 @@ export function ClientsPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

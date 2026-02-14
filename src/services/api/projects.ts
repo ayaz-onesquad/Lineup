@@ -4,6 +4,7 @@ import type {
   ProjectWithRelations,
   CreateProjectInput,
   UpdateProjectInput,
+  DuplicateProjectOptions,
 } from '@/types/database'
 
 // Helper to validate UUID format
@@ -27,11 +28,14 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
 }
 
 export const projectsApi = {
-  getAll: async (tenantId: string): Promise<ProjectWithRelations[]> => {
+  /**
+   * Get all projects for tenant (excludes templates by default)
+   */
+  getAll: async (tenantId: string, includeTemplates = false): Promise<ProjectWithRelations[]> => {
     console.log('[projectsApi.getAll] Fetching projects for tenant:', tenantId)
 
     // First, get the projects with client data
-    const { data: projects, error } = await supabase
+    let query = supabase
       .from('projects')
       .select(`
         *,
@@ -40,6 +44,12 @@ export const projectsApi = {
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
+
+    if (!includeTemplates) {
+      query = query.eq('is_template', false)
+    }
+
+    const { data: projects, error } = await query
 
     if (error) {
       console.error('[projectsApi.getAll] Error fetching projects:', error)
@@ -276,6 +286,7 @@ export const projectsApi = {
         status: 'planning',
         health: 'on_track',
         completion_percentage: 0,
+        is_template: (cleanedInput as unknown as { is_template?: boolean }).is_template || false,
         ...cleanedInput,
       })
       .select()
@@ -335,5 +346,81 @@ export const projectsApi = {
         .update({ completion_percentage: avgCompletion })
         .eq('id', id)
     }
+  },
+
+  /**
+   * Get all template projects
+   */
+  getTemplates: async (tenantId: string): Promise<ProjectWithRelations[]> => {
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select(`
+        *,
+        clients (*)
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('is_template', true)
+      .is('deleted_at', null)
+      .order('name', { ascending: true })
+
+    if (error) throw error
+
+    // No need for full profile mapping for template list
+    return projects || []
+  },
+
+  /**
+   * Duplicate a project with all children (calls stored procedure)
+   */
+  duplicate: async (
+    projectId: string,
+    options: DuplicateProjectOptions = {}
+  ): Promise<{ source_project_id: string; new_project_id: string; success: boolean }> => {
+    const { data, error } = await supabase.rpc('duplicate_project', {
+      p_project_id: projectId,
+      p_new_client_id: options.new_client_id || null,
+      p_new_name: options.new_name || null,
+      p_include_children: options.include_children ?? true,
+      p_clear_dates: options.clear_dates ?? false,
+      p_clear_assignments: options.clear_assignments ?? false,
+      p_as_template: options.as_template ?? false,
+    })
+
+    if (error) throw error
+    return data
+  },
+
+  /**
+   * Save project as a template
+   */
+  saveAsTemplate: async (
+    projectId: string,
+    templateName: string,
+    options: Omit<DuplicateProjectOptions, 'as_template'> = {}
+  ): Promise<{ source_project_id: string; new_project_id: string; success: boolean }> => {
+    return projectsApi.duplicate(projectId, {
+      ...options,
+      new_name: templateName,
+      as_template: true,
+      clear_dates: options.clear_dates ?? true,
+      clear_assignments: options.clear_assignments ?? true,
+    })
+  },
+
+  /**
+   * Create project from template
+   */
+  createFromTemplate: async (
+    templateId: string,
+    clientId: string,
+    projectName: string,
+    options: Omit<DuplicateProjectOptions, 'as_template' | 'new_client_id' | 'new_name'> = {}
+  ): Promise<{ source_project_id: string; new_project_id: string; success: boolean }> => {
+    return projectsApi.duplicate(templateId, {
+      ...options,
+      new_client_id: clientId,
+      new_name: projectName,
+      as_template: false,
+    })
   },
 }

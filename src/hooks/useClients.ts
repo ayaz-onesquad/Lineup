@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { clientsApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
+import { getUserFriendlyError } from '@/lib/utils'
 import type { CreateClientInput, CreateClientWithContactInput, UpdateClientInput } from '@/types/database'
 
 export function useClients() {
@@ -50,10 +51,10 @@ export function useClientMutations() {
         description: 'The client has been created successfully.',
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to create client',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },
@@ -75,10 +76,10 @@ export function useClientMutations() {
         description: 'The client has been updated successfully.',
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to update client',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },
@@ -93,10 +94,10 @@ export function useClientMutations() {
         description: 'The client has been archived.',
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to archive client',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },
@@ -134,10 +135,10 @@ export function useCreateClient() {
         description: 'The client has been created successfully.',
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to create client',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },
@@ -179,10 +180,10 @@ export function useCreateClientWithContact() {
         description: `${client.name} created with primary contact ${contact.first_name} ${contact.last_name}`,
       })
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Failed to create client',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       })
     },

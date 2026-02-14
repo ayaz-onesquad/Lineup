@@ -40,8 +40,11 @@ function cleanDateFields<T>(input: T, fields: string[]): T {
 }
 
 export const requirementsApi = {
-  getAll: async (tenantId: string): Promise<RequirementWithRelations[]> => {
-    const { data, error } = await supabase
+  /**
+   * Get all requirements for tenant (excludes templates by default)
+   */
+  getAll: async (tenantId: string, includeTemplates = false): Promise<RequirementWithRelations[]> => {
+    let query = supabase
       .from('requirements')
       .select(`
         *,
@@ -50,12 +53,64 @@ export const requirementsApi = {
           projects (*, clients (*)),
           project_phases (*)
         ),
+        pitches:pitch_id (id, name, status, is_approved),
         assigned_to:assigned_to_id (id, full_name, avatar_url)
       `)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false })
+
+    if (!includeTemplates) {
+      query = query.eq('is_template', false)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+    return data || []
+  },
+
+  /**
+   * Get all template requirements
+   */
+  getTemplates: async (tenantId: string): Promise<RequirementWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('requirements')
+      .select(`
+        *,
+        sets (id, name),
+        pitches:pitch_id (id, name)
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('is_template', true)
+      .is('deleted_at', null)
+      .order('title', { ascending: true })
+
+    if (error) throw error
+    return data || []
+  },
+
+  /**
+   * Get requirements by pitch ID (parent-child relationship)
+   */
+  getByPitchId: async (pitchId: string, includeTemplates = false): Promise<RequirementWithRelations[]> => {
+    let query = supabase
+      .from('requirements')
+      .select(`
+        *,
+        pitches:pitch_id (id, name, status, is_approved),
+        assigned_to:assigned_to_id (id, full_name, avatar_url)
+      `)
+      .eq('pitch_id', pitchId)
+      .is('deleted_at', null)
+      .order('requirement_order', { ascending: true })
+
+    if (!includeTemplates) {
+      query = query.eq('is_template', false)
+    }
+
+    const { data, error } = await query
 
     if (error) throw error
     return data || []
@@ -166,6 +221,10 @@ export const requirementsApi = {
           projects (*, clients (*)),
           project_phases (*)
         ),
+        pitches:pitch_id (
+          id, name, status, is_approved, approved_by_id, approved_at,
+          sets (id, name, client_id, project_id)
+        ),
         assigned_to:assigned_to_id (id, full_name, avatar_url),
         lead:lead_id (id, full_name, avatar_url),
         secondary_lead:secondary_lead_id (id, full_name, avatar_url),
@@ -183,11 +242,11 @@ export const requirementsApi = {
   create: async (
     tenantId: string,
     userId: string,
-    input: CreateRequirementInput
+    input: CreateRequirementInput & { pitch_id?: string; is_template?: boolean }
   ): Promise<Requirement> => {
-    // Clean UUID fields
+    // Clean UUID fields (including pitch_id for parent-child linking)
     let cleanedInput = cleanUUIDFields(input, [
-      'client_id', 'set_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
+      'client_id', 'set_id', 'pitch_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
     ])
 
     // Clean date fields - convert empty strings to null
@@ -230,6 +289,7 @@ export const requirementsApi = {
         urgency: cleanedInput.urgency || 'medium',
         importance: cleanedInput.importance || 'medium',
         review_status: cleanedInput.requires_review ? 'pending' : 'not_required',
+        is_template: (cleanedInput as unknown as { is_template?: boolean }).is_template || false,
         ...cleanedInput,
       })
       .select()

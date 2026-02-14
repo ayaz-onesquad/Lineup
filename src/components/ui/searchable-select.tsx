@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export interface SearchableSelectOption {
   value: string
@@ -24,6 +25,10 @@ interface SearchableSelectProps {
   clearable?: boolean
   className?: string
   triggerClassName?: string
+  error?: boolean
+  errorMessage?: string
+  'aria-label'?: string
+  isLoading?: boolean
 }
 
 export function SearchableSelect({
@@ -37,6 +42,10 @@ export function SearchableSelect({
   clearable = true,
   className,
   triggerClassName,
+  error = false,
+  errorMessage,
+  'aria-label': ariaLabel,
+  isLoading = false,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
@@ -64,34 +73,51 @@ export function SearchableSelect({
     onValueChange(undefined)
   }
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-1">
+        <Skeleton className="h-10 w-full" />
+        {errorMessage && (
+          <p className="text-sm text-destructive">{errorMessage}</p>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            'w-full justify-between font-normal',
-            !value && 'text-muted-foreground',
-            triggerClassName
-          )}
-        >
-          <span className="truncate">
-            {selectedOption?.label || placeholder}
-          </span>
-          <div className="flex items-center gap-1 ml-2 shrink-0">
-            {clearable && value && (
-              <X
-                className="h-4 w-4 opacity-50 hover:opacity-100"
-                onClick={handleClear}
-              />
+    <div className="space-y-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-invalid={error}
+            aria-label={ariaLabel}
+            disabled={disabled}
+            className={cn(
+              'w-full justify-between font-normal',
+              !value && 'text-muted-foreground',
+              error && 'border-destructive focus-visible:ring-destructive',
+              triggerClassName
             )}
-            <ChevronsUpDown className="h-4 w-4 opacity-50" />
-          </div>
-        </Button>
-      </PopoverTrigger>
+          >
+            <span className="truncate">
+              {selectedOption?.label || placeholder}
+            </span>
+            <div className="flex items-center gap-1 ml-2 shrink-0">
+              {clearable && value && (
+                <X
+                  className="h-4 w-4 opacity-50 hover:opacity-100"
+                  onClick={handleClear}
+                  aria-label="Clear selection"
+                />
+              )}
+              <ChevronsUpDown className="h-4 w-4 opacity-50" aria-hidden="true" />
+            </div>
+          </Button>
+        </PopoverTrigger>
       <PopoverContent className={cn('w-[--radix-popover-trigger-width] p-0', className)}>
         <div className="flex items-center border-b px-3">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
@@ -144,6 +170,12 @@ export function SearchableSelect({
         </ScrollArea>
       </PopoverContent>
     </Popover>
+    {error && errorMessage && (
+      <p className="text-sm text-destructive" role="alert">
+        {errorMessage}
+      </p>
+    )}
+    </div>
   )
 }
 
@@ -159,6 +191,9 @@ interface MultiSearchableSelectProps {
   maxSelected?: number
   className?: string
   triggerClassName?: string
+  error?: boolean
+  errorMessage?: string
+  'aria-label'?: string
 }
 
 export function MultiSearchableSelect({
@@ -172,6 +207,9 @@ export function MultiSearchableSelect({
   maxSelected,
   className,
   triggerClassName,
+  error = false,
+  errorMessage,
+  'aria-label': ariaLabel,
 }: MultiSearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
@@ -203,40 +241,45 @@ export function MultiSearchableSelect({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            'w-full min-h-10 h-auto justify-between font-normal',
-            !value.length && 'text-muted-foreground',
-            triggerClassName
-          )}
-        >
-          <div className="flex flex-wrap gap-1 flex-1">
-            {selectedOptions.length === 0 ? (
-              <span>{placeholder}</span>
-            ) : (
-              selectedOptions.map((opt) => (
-                <span
-                  key={opt.value}
-                  className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground rounded px-2 py-0.5 text-xs"
-                >
-                  {opt.label}
-                  <X
-                    className="h-3 w-3 cursor-pointer hover:text-destructive"
-                    onClick={(e) => handleRemove(opt.value, e)}
-                  />
-                </span>
-              ))
+    <div className="space-y-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-invalid={error}
+            aria-label={ariaLabel}
+            disabled={disabled}
+            className={cn(
+              'w-full min-h-10 h-auto justify-between font-normal',
+              !value.length && 'text-muted-foreground',
+              error && 'border-destructive focus-visible:ring-destructive',
+              triggerClassName
             )}
-          </div>
-          <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
-        </Button>
-      </PopoverTrigger>
+          >
+            <div className="flex flex-wrap gap-1 flex-1">
+              {selectedOptions.length === 0 ? (
+                <span>{placeholder}</span>
+              ) : (
+                selectedOptions.map((opt) => (
+                  <span
+                    key={opt.value}
+                    className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground rounded px-2 py-0.5 text-xs"
+                  >
+                    {opt.label}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={(e) => handleRemove(opt.value, e)}
+                      aria-label={`Remove ${opt.label}`}
+                    />
+                  </span>
+                ))
+              )}
+            </div>
+            <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0 ml-2" aria-hidden="true" />
+          </Button>
+        </PopoverTrigger>
       <PopoverContent className={cn('w-[--radix-popover-trigger-width] p-0', className)}>
         <div className="flex items-center border-b px-3">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
@@ -289,5 +332,11 @@ export function MultiSearchableSelect({
         </ScrollArea>
       </PopoverContent>
     </Popover>
+    {error && errorMessage && (
+      <p className="text-sm text-destructive" role="alert">
+        {errorMessage}
+      </p>
+    )}
+    </div>
   )
 }

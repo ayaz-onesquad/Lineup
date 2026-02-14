@@ -2,14 +2,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { projectsApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
-import type { CreateProjectInput, UpdateProjectInput } from '@/types/database'
+import type { CreateProjectInput, UpdateProjectInput, DuplicateProjectOptions } from '@/types/database'
 
-export function useProjects() {
+export function useProjects(includeTemplates = false) {
   const { currentTenant } = useTenantStore()
 
   return useQuery({
-    queryKey: ['projects', currentTenant?.id],
-    queryFn: () => projectsApi.getAll(currentTenant!.id),
+    queryKey: ['projects', currentTenant?.id, includeTemplates],
+    queryFn: () => projectsApi.getAll(currentTenant!.id, includeTemplates),
+    enabled: !!currentTenant?.id,
+  })
+}
+
+export function useProjectTemplates() {
+  const { currentTenant } = useTenantStore()
+
+  return useQuery({
+    queryKey: ['projects', 'templates', currentTenant?.id],
+    queryFn: () => projectsApi.getTemplates(currentTenant!.id),
     enabled: !!currentTenant?.id,
   })
 }
@@ -102,9 +112,86 @@ export function useProjectMutations() {
     },
   })
 
+  const duplicateProject = useMutation({
+    mutationFn: ({ projectId, options }: { projectId: string; options?: DuplicateProjectOptions }) =>
+      projectsApi.duplicate(projectId, options),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      toast({
+        title: 'Project duplicated',
+        description: 'The project has been duplicated successfully.',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to duplicate project',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const saveAsTemplate = useMutation({
+    mutationFn: ({
+      projectId,
+      templateName,
+      options,
+    }: {
+      projectId: string
+      templateName: string
+      options?: Omit<DuplicateProjectOptions, 'as_template'>
+    }) => projectsApi.saveAsTemplate(projectId, templateName, options),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] })
+      toast({
+        title: 'Template created',
+        description: 'The project has been saved as a template.',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to create template',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const createFromTemplate = useMutation({
+    mutationFn: ({
+      templateId,
+      clientId,
+      projectName,
+      options,
+    }: {
+      templateId: string
+      clientId: string
+      projectName: string
+      options?: Omit<DuplicateProjectOptions, 'as_template' | 'new_client_id' | 'new_name'>
+    }) => projectsApi.createFromTemplate(templateId, clientId, projectName, options),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      toast({
+        title: 'Project created from template',
+        description: 'The project has been created successfully.',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to create project',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
   return {
     createProject,
     updateProject,
     deleteProject,
+    duplicateProject,
+    saveAsTemplate,
+    createFromTemplate,
   }
 }

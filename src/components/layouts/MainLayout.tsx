@@ -20,26 +20,40 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Skip to main content link for keyboard users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        Skip to main content
+      </a>
+
       {/* Top Navigation */}
       <TopNav />
 
       <div className="flex">
-        {/* Sidebar */}
-        <Sidebar />
+        {/* Sidebar - hidden on mobile, shown on md+ */}
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
 
         {/* Main Content */}
         <main
-          className={`flex-1 transition-all duration-200 ${
-            sidebarCollapsed ? 'ml-16' : 'ml-64'
-          } ${detailPanel.isOpen ? 'mr-96' : ''} pt-16`}
+          id="main-content"
+          className={`flex-1 transition-all duration-200 pt-16 ${
+            sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
+          } ${detailPanel.isOpen ? 'lg:mr-96' : ''}`}
+          tabIndex={-1}
         >
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             <Outlet />
           </div>
         </main>
 
-        {/* Detail Panel */}
-        <DetailPanel />
+        {/* Detail Panel - hidden on mobile/tablet, shown on lg+ */}
+        <div className="hidden lg:block">
+          <DetailPanel />
+        </div>
       </div>
 
       {/* Create Modal */}

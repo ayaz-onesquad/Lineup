@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/components/providers/AuthProvider'
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 
 // Auth pages
 import { LoginPage } from '@/pages/auth/LoginPage'
@@ -23,6 +24,14 @@ import { RequirementsPage } from '@/pages/requirements/RequirementsPage'
 import { RequirementDetailPage } from '@/pages/requirements/RequirementDetailPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { TeamPage } from '@/pages/settings/TeamPage'
+
+// V2 Pages
+import { LeadsPage } from '@/pages/leads/LeadsPage'
+import { LeadDetailPage } from '@/pages/leads/LeadDetailPage'
+import { PitchesPage } from '@/pages/pitches/PitchesPage'
+import { PitchDetailPage } from '@/pages/pitches/PitchDetailPage'
+import { DocumentCatalogPage } from '@/pages/settings/DocumentCatalogPage'
+import { TemplatesPage } from '@/pages/templates/TemplatesPage'
 
 // Client Portal
 import { PortalLoginPage } from '@/pages/portal/PortalLoginPage'
@@ -59,8 +68,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <BrowserRouter>
-          <AuthProvider>
-          <Routes>
+          <ErrorBoundary>
+            <AuthProvider>
+              <Routes>
             {/* Public Auth Routes */}
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
@@ -100,8 +110,14 @@ function App() {
               <Route path="/sets/:setId" element={<SetDetailPage />} />
               <Route path="/requirements" element={<RequirementsPage />} />
               <Route path="/requirements/:requirementId" element={<RequirementDetailPage />} />
+              <Route path="/leads" element={<LeadsPage />} />
+              <Route path="/leads/:leadId" element={<LeadDetailPage />} />
+              <Route path="/pitches" element={<PitchesPage />} />
+              <Route path="/pitches/:pitchId" element={<PitchDetailPage />} />
+              <Route path="/templates" element={<TemplatesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/team" element={<TeamPage />} />
+              <Route path="/settings/document-catalog" element={<DocumentCatalogPage />} />
             </Route>
 
             {/* Client Portal Routes */}
@@ -130,11 +146,12 @@ function App() {
               <Route path="/admin/tenants/:tenantId" element={<AdminTenantDetailPage />} />
             </Route>
 
-            {/* Redirects */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-          </AuthProvider>
+              {/* Redirects */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+            </AuthProvider>
+          </ErrorBoundary>
         </BrowserRouter>
         <Toaster />
       </TooltipProvider>

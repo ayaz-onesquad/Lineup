@@ -644,3 +644,257 @@ export interface AuditInfo {
   creator?: UserProfile
   updater?: UserProfile
 }
+
+// ============================================================================
+// V2 FEATURES: Document Catalog, Pitches, Enhanced Phases, Templates, Leads
+// ============================================================================
+
+// Document Catalog types
+export type DocumentCatalogCategory = 'deliverable' | 'legal' | 'internal' | 'reference'
+
+export interface DocumentCatalog {
+  id: string
+  tenant_id: string
+  display_id: number
+  name: string
+  description?: string
+  category: DocumentCatalogCategory
+  is_client_deliverable: boolean
+  file_type_hint?: string
+  is_active: boolean
+  usage_count: number
+  created_at: string
+  created_by?: string
+  updated_at: string
+  updated_by?: string
+  deleted_at?: string
+}
+
+export interface CreateDocumentCatalogInput {
+  name: string
+  description?: string
+  category: DocumentCatalogCategory
+  is_client_deliverable?: boolean
+  file_type_hint?: string
+  is_active?: boolean
+}
+
+export interface UpdateDocumentCatalogInput extends Partial<CreateDocumentCatalogInput> {}
+
+// Enhanced Document types (updated)
+export interface EnhancedDocument extends Document {
+  document_catalog_id?: string
+  phase_id?: string
+  pitch_id?: string
+  has_file?: boolean
+  document_catalog?: DocumentCatalog
+}
+
+// Pitch types
+export type PitchStatus = 'not_started' | 'in_progress' | 'completed' | 'blocked' | 'on_hold'
+
+export interface Pitch {
+  id: string
+  tenant_id: string
+  set_id: string // Required - pitches MUST have a parent set
+  display_id: number
+  pitch_id_display?: string
+  name: string
+  description?: string
+  lead_id?: string
+  secondary_lead_id?: string
+  order_key: number
+  order_manual?: number
+  predecessor_pitch_id?: string
+  successor_pitch_id?: string
+  expected_start_date?: string
+  expected_end_date?: string
+  actual_start_date?: string
+  actual_end_date?: string
+  urgency: UrgencyLevel
+  importance: ImportanceLevel
+  priority: number
+  status: PitchStatus
+  completion_percentage: number
+  is_approved: boolean
+  approved_by_id?: string
+  approved_at?: string
+  show_in_client_portal: boolean
+  is_template: boolean
+  notes?: string
+  created_at: string
+  created_by?: string
+  updated_at: string
+  updated_by?: string
+  deleted_at?: string
+}
+
+export interface PitchWithRelations extends Pitch {
+  sets?: SetWithRelations
+  lead?: UserProfile
+  secondary_lead?: UserProfile
+  approved_by?: UserProfile
+  requirements?: RequirementWithRelations[]
+  creator?: UserProfile
+  updater?: UserProfile
+}
+
+export interface CreatePitchInput {
+  set_id: string // Required
+  name: string
+  description?: string
+  lead_id?: string
+  secondary_lead_id?: string
+  order_manual?: number
+  predecessor_pitch_id?: string
+  successor_pitch_id?: string
+  expected_start_date?: string
+  expected_end_date?: string
+  urgency?: UrgencyLevel
+  importance?: ImportanceLevel
+  show_in_client_portal?: boolean
+  is_template?: boolean
+  notes?: string
+}
+
+export interface UpdatePitchInput extends Partial<Omit<CreatePitchInput, 'set_id'>> {
+  status?: PitchStatus
+  actual_start_date?: string
+  actual_end_date?: string
+  is_approved?: boolean
+  approved_by_id?: string
+  approved_at?: string
+}
+
+// Enhanced Phase types (with new fields)
+export interface EnhancedProjectPhase extends ProjectPhase {
+  phase_id_display?: string
+  lead_id?: string
+  secondary_lead_id?: string
+  order_key?: number
+  order_manual?: number
+  predecessor_phase_id?: string
+  successor_phase_id?: string
+  urgency?: UrgencyLevel
+  importance?: ImportanceLevel
+  priority?: number
+  notes?: string
+  is_template?: boolean
+  lead?: UserProfile
+  secondary_lead?: UserProfile
+  pitches?: Pitch[]
+}
+
+// Lead types
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost'
+export type CompanySize = '1-10' | '11-50' | '51-200' | '201-500' | '500+'
+
+export interface Lead {
+  id: string
+  tenant_id: string
+  display_id: number
+  lead_id_display?: string
+  lead_name: string
+  description?: string
+  status: LeadStatus
+  industry?: string
+  website?: string
+  phone?: string
+  email?: string
+  company_size?: CompanySize
+  estimated_value?: number
+  estimated_close_date?: string
+  source?: ReferralSource
+  lead_owner_id?: string
+  converted_to_client_id?: string
+  converted_at?: string
+  lost_reason?: string
+  lost_reason_notes?: string
+  notes?: string
+  created_at: string
+  created_by?: string
+  updated_at: string
+  updated_by?: string
+  deleted_at?: string
+}
+
+export interface LeadWithRelations extends Lead {
+  lead_owner?: UserProfile
+  converted_to_client?: Client
+  lead_contacts?: LeadContactWithRelations[]
+  creator?: UserProfile
+  updater?: UserProfile
+}
+
+export interface CreateLeadInput {
+  lead_name: string
+  description?: string
+  status?: LeadStatus
+  industry?: string
+  website?: string
+  phone?: string
+  email?: string
+  company_size?: CompanySize
+  estimated_value?: number
+  estimated_close_date?: string
+  source?: ReferralSource
+  lead_owner_id?: string
+  notes?: string
+}
+
+export interface UpdateLeadInput extends Partial<CreateLeadInput> {
+  lost_reason?: string
+  lost_reason_notes?: string
+}
+
+// Lead Contact types
+export interface LeadContact {
+  id: string
+  tenant_id: string
+  lead_id: string
+  contact_id: string
+  is_primary: boolean
+  is_decision_maker: boolean
+  role_at_lead?: string
+  notes?: string
+  created_at: string
+  created_by?: string
+  updated_at: string
+  updated_by?: string
+  deleted_at?: string
+}
+
+export interface LeadContactWithRelations extends LeadContact {
+  leads?: Lead
+  contacts?: Contact
+}
+
+export interface LinkLeadContactInput {
+  lead_id: string
+  contact_id: string
+  is_primary?: boolean
+  is_decision_maker?: boolean
+  role_at_lead?: string
+  notes?: string
+}
+
+// Template-related types
+export interface TemplateEntity {
+  is_template: boolean
+}
+
+export interface DuplicateProjectOptions {
+  new_client_id?: string
+  new_name?: string
+  include_children?: boolean
+  clear_dates?: boolean
+  clear_assignments?: boolean
+  as_template?: boolean
+}
+
+export interface ConvertLeadOptions {
+  client_name?: string
+  relationship_manager_id?: string
+  copy_contacts?: boolean
+  copy_documents?: boolean
+}

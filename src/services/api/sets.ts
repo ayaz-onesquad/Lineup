@@ -22,8 +22,11 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
 }
 
 export const setsApi = {
-  getAll: async (tenantId: string): Promise<SetWithRelations[]> => {
-    const { data, error } = await supabase
+  /**
+   * Get all sets for tenant (excludes templates by default)
+   */
+  getAll: async (tenantId: string, includeTemplates = false): Promise<SetWithRelations[]> => {
+    let query = supabase
       .from('sets')
       .select(`
         *,
@@ -39,6 +42,33 @@ export const setsApi = {
       .is('deleted_at', null)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false })
+
+    if (!includeTemplates) {
+      query = query.eq('is_template', false)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+    return data || []
+  },
+
+  /**
+   * Get all template sets
+   */
+  getTemplates: async (tenantId: string): Promise<SetWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('sets')
+      .select(`
+        *,
+        clients:client_id (id, name),
+        projects (*, clients (*)),
+        project_phases (*)
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('is_template', true)
+      .is('deleted_at', null)
+      .order('name', { ascending: true })
 
     if (error) throw error
     return data || []
@@ -188,6 +218,7 @@ export const setsApi = {
         urgency: cleanedInput.urgency || 'medium',
         importance: cleanedInput.importance || 'medium',
         completion_percentage: 0,
+        is_template: (cleanedInput as unknown as { is_template?: boolean }).is_template || false,
         ...cleanedInput,
       })
       .select()

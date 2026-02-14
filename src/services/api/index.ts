@@ -9,3 +9,8 @@ export { requirementsApi } from './requirements'
 export { documentsApi } from './documents'
 export { discussionsApi } from './discussions'
 export { statusUpdatesApi } from './statusUpdates'
+
+// V2 Feature APIs
+export { documentCatalogApi } from './documentCatalog'
+export { pitchesApi } from './pitches'
+export { leadsApi } from './leads'

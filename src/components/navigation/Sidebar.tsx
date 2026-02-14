@@ -19,15 +19,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Target,
+  LayoutTemplate,
+  Presentation,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const mainNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/leads', label: 'Pipeline', icon: Target },
   { href: '/clients', label: 'Clients', icon: Users },
   { href: '/contacts', label: 'Contacts', icon: Contact },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
+  { href: '/templates', label: 'Templates', icon: LayoutTemplate },
   { href: '/sets', label: 'All Sets', icon: Layers },
+  { href: '/pitches', label: 'Pitches', icon: Presentation },
   { href: '/requirements', label: 'Requirements', icon: CheckSquare },
 ]
 
@@ -63,8 +69,9 @@ export function Sidebar() {
                   size="icon"
                   className="w-full"
                   onClick={() => openCreateModal('requirement')}
+                  aria-label="Quick Create"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">Quick Create</TooltipContent>
@@ -74,7 +81,7 @@ export function Sidebar() {
               className="w-full justify-start gap-2"
               onClick={() => openCreateModal('requirement')}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" aria-hidden="true" />
               Quick Create
             </Button>
           )}
@@ -92,6 +99,8 @@ export function Sidebar() {
                   <TooltipTrigger asChild>
                     <Link
                       to={item.href}
+                      aria-label={item.label}
+                      aria-current={active ? 'page' : undefined}
                       className={cn(
                         'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
                         active
@@ -99,7 +108,7 @@ export function Sidebar() {
                           : 'hover:bg-muted'
                       )}
                     >
-                      <item.icon className="h-5 w-5" />
+                      <item.icon className="h-5 w-5" aria-hidden="true" />
                     </Link>
                   </TooltipTrigger>
                   <TooltipContent side="right">{item.label}</TooltipContent>
@@ -108,6 +117,7 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   to={item.href}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     active
@@ -115,7 +125,7 @@ export function Sidebar() {
                       : 'hover:bg-muted'
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <item.icon className="h-5 w-5" aria-hidden="true" />
                   {item.label}
                 </Link>
               )
@@ -133,6 +143,8 @@ export function Sidebar() {
                   <TooltipTrigger asChild>
                     <Link
                       to={item.href}
+                      aria-label={item.label}
+                      aria-current={active ? 'page' : undefined}
                       className={cn(
                         'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
                         active
@@ -140,7 +152,7 @@ export function Sidebar() {
                           : 'hover:bg-muted'
                       )}
                     >
-                      <item.icon className="h-5 w-5" />
+                      <item.icon className="h-5 w-5" aria-hidden="true" />
                     </Link>
                   </TooltipTrigger>
                   <TooltipContent side="right">{item.label}</TooltipContent>
@@ -149,6 +161,7 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   to={item.href}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     active
@@ -156,7 +169,7 @@ export function Sidebar() {
                       : 'hover:bg-muted'
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <item.icon className="h-5 w-5" aria-hidden="true" />
                   {item.label}
                 </Link>
               )
@@ -172,12 +185,14 @@ export function Sidebar() {
               sidebarCollapsed ? 'justify-center px-0' : 'justify-start'
             )}
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!sidebarCollapsed}
           >
             {sidebarCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             ) : (
               <>
-                <ChevronLeft className="h-4 w-4 mr-2" />
+                <ChevronLeft className="h-4 w-4 mr-2" aria-hidden="true" />
                 Collapse
               </>
             )}

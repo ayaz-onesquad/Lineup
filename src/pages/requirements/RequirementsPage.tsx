@@ -29,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Search, CheckSquare, Kanban, List, GripVertical, MoreVertical, ExternalLink, Edit } from 'lucide-react'
+import { Plus, Search, CheckSquare, Kanban, List, GripVertical, MoreVertical, ExternalLink, Edit, Info } from 'lucide-react'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { RequirementWithRelations, RequirementStatus } from '@/types/database'
 
@@ -113,13 +113,13 @@ export function RequirementsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">All Requirements</h1>
-          <p className="text-muted-foreground">Manage project requirements</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">All Requirements</h1>
+          <p className="text-sm text-muted-foreground">Manage project requirements</p>
         </div>
         <Button onClick={() => openCreateModal('requirement')}>
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           New Requirement
         </Button>
       </div>
@@ -149,35 +149,39 @@ export function RequirementsPage() {
             <SelectItem value="client_deliverable">Client Deliverable</SelectItem>
           </SelectContent>
         </Select>
-        <div className="flex items-center border rounded-md">
+        <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
           <Button
             variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
             size="icon"
             className="rounded-r-none"
             onClick={() => setViewMode('kanban')}
+            aria-label="Kanban view"
+            aria-pressed={viewMode === 'kanban'}
           >
-            <Kanban className="h-4 w-4" />
+            <Kanban className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="icon"
             className="rounded-l-none"
             onClick={() => setViewMode('list')}
+            aria-label="List view"
+            aria-pressed={viewMode === 'list'}
           >
-            <List className="h-4 w-4" />
+            <List className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-96" />
           ))}
         </div>
       ) : viewMode === 'kanban' ? (
         /* Kanban Board */
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto">
           {statusColumns.map((column) => (
             <div key={column.status} className="flex flex-col">
               <Card className={`${column.color} border-t-4 ${
@@ -220,18 +224,25 @@ export function RequirementsPage() {
                 </Button>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Set</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Assigned To</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
+              <>
+                {/* Table interaction hint */}
+                <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-muted/30 border-b text-xs text-muted-foreground">
+                  <Info className="h-3 w-3" aria-hidden="true" />
+                  <span>Click a row to preview, double-click to open full details</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Project</TableHead>
+                        <TableHead>Set</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Assigned To</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
                 <TableBody>
                   {filteredRequirements?.map((req) => (
                     <TableRow
@@ -298,8 +309,8 @@ export function RequirementsPage() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${req.title}`}>
+                              <MoreVertical className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -324,6 +335,8 @@ export function RequirementsPage() {
                   ))}
                 </TableBody>
               </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
