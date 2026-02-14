@@ -17,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Plus, Search, Layers, Grid, LayoutGrid } from 'lucide-react'
-import { getStatusColor } from '@/lib/utils'
+import { getStatusColor, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import type { SetWithRelations } from '@/types/database'
 
 export function SetsPage() {
@@ -227,6 +227,7 @@ export function SetsPage() {
                     <TableHead>Client</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Set Name</TableHead>
+                    <TableHead>Priority</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Assigned To</TableHead>
                   </TableRow>
@@ -255,6 +256,16 @@ export function SetsPage() {
                             </Badge>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const priority = (set.priority || calculateEisenhowerPriority(set.importance, set.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
+                          return (
+                            <Badge className={getPriorityColor(priority)} variant="outline">
+                              P{priority}
+                            </Badge>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(set.status)} variant="outline">
