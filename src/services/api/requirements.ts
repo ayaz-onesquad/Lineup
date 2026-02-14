@@ -212,7 +212,7 @@ export const requirementsApi = {
   },
 
   getById: async (id: string): Promise<RequirementWithRelations | null> => {
-    const { data, error } = await supabase
+    const { data: requirement, error } = await supabase
       .from('requirements')
       .select(`
         *,
@@ -236,7 +236,31 @@ export const requirementsApi = {
       .single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    if (!requirement) return null
+
+    // Collect user IDs for creator/updater
+    const userIds = new Set<string>()
+    if (requirement.created_by) userIds.add(requirement.created_by)
+    if (requirement.updated_by) userIds.add(requirement.updated_by)
+
+    // Fetch user profiles
+    let profileMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', Array.from(userIds))
+
+      if (profiles) {
+        profileMap = new Map(profiles.map(p => [p.user_id, { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }]))
+      }
+    }
+
+    return {
+      ...requirement,
+      creator: requirement.created_by ? profileMap.get(requirement.created_by) || null : null,
+      updater: requirement.updated_by ? profileMap.get(requirement.updated_by) || null : null,
+    }
   },
 
   create: async (
