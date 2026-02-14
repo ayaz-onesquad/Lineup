@@ -109,10 +109,30 @@ export const contactsApi = {
       `)
       .eq('contact_id', id)
 
+    // Collect user IDs for creator/updater
+    const userIds = new Set<string>()
+    if (data.created_by) userIds.add(data.created_by)
+    if (data.updated_by) userIds.add(data.updated_by)
+
+    // Fetch user profiles
+    let profileMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', Array.from(userIds))
+
+      if (profiles) {
+        profileMap = new Map(profiles.map(p => [p.user_id, { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }]))
+      }
+    }
+
     return {
       ...data,
       clients: clientContacts?.[0]?.clients as { id: string; name: string } | undefined,
       client_contacts: clientContacts || [],
+      creator: data.created_by ? profileMap.get(data.created_by) || null : null,
+      updater: data.updated_by ? profileMap.get(data.updated_by) || null : null,
     }
   },
 
