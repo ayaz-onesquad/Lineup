@@ -2,156 +2,95 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-05)
+See: .planning/PROJECT.md (updated 2026-02-15)
 
 **Core value:** Hierarchical flow (Client -> Project -> Phase -> Set -> Requirement) with automatic Eisenhower prioritization and built-in client portal
-**Current focus:** Phase 4 - CORE Workflow & Audit (Next)
+**Current focus:** Planning next milestone (v2.0 Features)
 
 ## Current Position
 
-Phase: 04-core-workflow-audit - IN PROGRESS
-Plan: 04-02-PLAN.md complete (Display ID & AuditTrail Audit)
-Status: All detail pages verified for display_id and AuditTrail with user names
-Last activity: 2026-02-14 - Phase 04 Plan 02 complete (audit verification)
+Milestone: v1.0 MVP — COMPLETE (shipped 2026-02-15)
+Status: Ready for v2.0 milestone planning
+Last activity: 2026-02-15 - Milestone v1.0 archived
 
-Progress: [████████░░] 2/3 plans complete in Phase 04
+Progress: v1.0 complete (13/13 plans across 4 phases)
 
-## V2 Features Sprint (48-Hour)
+## v1.0 Summary
+
+**Shipped:** 2026-02-15
+
+**Stats:**
+- 4 phases, 13 plans
+- 62 commits, 187 files changed
+- ~31,000 lines TypeScript
+- 10 days execution (2026-02-04 → 2026-02-14)
+
+**Key accomplishments:**
+1. Fixed PostgREST schema cache and tenant_id validation
+2. Atomic Client + Contact creation via PostgreSQL function
+3. ViewEditToggle component with IBM Carbon Design aesthetic
+4. Projects & Sets with date pickers, team dropdowns, budget fields
+5. Eisenhower Priority (1-6) display on Sets and Requirements
+6. Cascading filters and AuditTrail on all detail pages
+
+**Archive:**
+- `.planning/milestones/v1.0-ROADMAP.md`
+- `.planning/milestones/v1.0-REQUIREMENTS.md`
+
+## V2 Backend Infrastructure (Pre-built)
 
 **Migration 026 Applied:** YES (026_v2_features.sql)
 
-### Completed Backend Infrastructure:
-
+Backend infrastructure ready for v2.0 UI:
 1. **Document Catalog** - `document_catalog` table + `documentCatalogApi` + `useDocumentCatalog` hooks
-2. **Enhanced Documents** - Added `document_catalog_id`, `phase_id`, `pitch_id`, `has_file` columns
-3. **Enhanced Phases** - Added `lead_id`, `secondary_lead_id`, `order_key`, `urgency`, `importance`, `priority`, `is_template`
-4. **Pitches** (NEW ENTITY) - `pitches` table + `pitchesApi` + `usePitches` hooks
-   - Parent-child: Set -> Pitch -> Requirement
-   - Approval workflow (is_approved, approved_by_id, approved_at)
-5. **Templates** - Added `is_template` to projects, phases, sets, pitches, requirements
-   - Operational views filter templates out by default
-   - Template duplication via `duplicate_project` RPC
-6. **Leads** (NEW ENTITY) - `leads` + `lead_contacts` tables + `leadsApi` + `useLeads` hooks
-   - Sales pipeline with status tracking
-   - Convert lead to client via `convert_lead_to_client` RPC
+2. **Enhanced Documents** - `document_catalog_id`, `phase_id`, `pitch_id`, `has_file` columns
+3. **Enhanced Phases** - `lead_id`, `secondary_lead_id`, `order_key`, priority fields, `is_template`
+4. **Pitches** (NEW ENTITY) - `pitches` table + `pitchesApi` + approval workflow
+5. **Templates** - `is_template` flag + operational views + `duplicate_project` RPC
+6. **Leads** (NEW ENTITY) - `leads` + `lead_contacts` + `convert_lead_to_client` RPC
 7. **Display IDs** - Auto-generated PH-XXXX, PI-XXXX, LD-XXXX
 
-### Next Steps (UI Components):
-- [ ] LeadsPage - Pipeline view with Kanban board
-- [ ] LeadDetailPage - Full detail with contacts, documents
-- [ ] PitchesPage - List view
-- [ ] PitchDetailPage - Requirements tab, approval workflow
-- [ ] DocumentCatalogPage - Settings page for managing types
-- [ ] TemplatesPage - List/create project templates
+## Next Steps
+
+**Start v2.0 milestone:** Run `/gsd:new-milestone` to:
+1. Update PROJECT.md scope
+2. Refine REQUIREMENTS.md for v2.0
+3. Create ROADMAP.md with v2.0 phases
+
+**Recommended:** `/clear` first for fresh context window
 
 ## Performance Metrics
 
-**Velocity:**
-- Total plans completed: 7
-- Average duration: ~1.4 minutes
-- Total execution time: ~11 minutes
+**v1.0 Velocity:**
+- Total plans completed: 13
+- Total phases: 4
+- Average duration: ~1.5 minutes per plan
+- Total execution time: ~20 minutes
 
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
+| Phase | Plans | Duration | Avg/Plan |
+|-------|-------|----------|----------|
 | 01-foundation-fixes | 3 | ~5 min | ~1.7 min |
 | 02-client-contact-system | 4 | ~6 min | ~1.5 min |
 | 03-projects-sets-enhancement | 3 | ~3 min | ~1 min |
-| 04-core-workflow-audit | 2 | ~5.5 min | ~2.75 min |
+| 04-core-workflow-audit | 3 | ~6 min | ~2 min |
 
-**Recent Executions:**
+## Key Patterns Established (v1.0)
 
-| Plan | Duration (s) | Tasks | Files |
-|------|-------------|-------|-------|
-| Phase 04 P01 | 132 | 2 | 2 |
-| Phase 04 P02 | 196 | 2 | 4 |
-| Phase 04 P03 | 128 | 3 | 8 |
+- **Atomic operations:** PostgreSQL functions via RPC for multi-table transactions
+- **ViewEditToggle:** Shared component for view/edit mode pattern
+- **IBM Carbon:** Design tokens in Tailwind theme + CSS custom properties
+- **Profile fetching:** Separate queries for creator/updater (auth.users → user_profiles)
+- **Cascading filters:** useWatch + useMemo + useEffect pattern
 
-**Recent Trend:**
-- Last 3 plans: 04-01 (~2.2 min), 04-02 (~3.3 min), 04-03 (~2.1 min)
-- Trend: Audit/verification plans taking ~2-3 minutes each
+## Technical Constraints
 
-*Updated after each plan completion*
-
-## Accumulated Context
-
-### Decisions
-
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- Fix schema cache before features: Can't demo if can't create clients
-- Contacts as separate table (not JSON): Need proper relationships, querying, RLS
-- Full-page views over modals: Better UX for complex forms, matches existing ClientDetailPage pattern
-- Use existing calculate_priority_score SQL: Already implemented, just need UI display
-- Skip real-time for MVP: Polling sufficient, reduces complexity
-
-**From Plan 01-01:**
-- SQL script over CLI command: Provide SQL script to run in Supabase SQL Editor (no local CLI setup required)
-- Include verification queries: Add SELECT queries after NOTIFY to confirm columns exist
-
-**From Plan 01-02:**
-- Validate tenantId and userId before API calls rather than rely on non-null assertion: Fail-fast with clear error messages
-- Document RLS requirements in code comments: Help future maintainers understand tenant isolation constraints
-- Apply validation pattern to all CRUD operations: Consistent error handling across all entity mutations
-
-**From Plan 01-03:**
-- Industry field required with searchable dropdown: Standardized classification
-- "Other" option with custom text: Flexibility for unlisted industries
-- Removed Primary Contact from ClientForm: Defer to Phase 2 Contacts subsystem
-
-**From Plan 02-02:**
-- PostgreSQL function via RPC over sequential JS inserts: Database-level atomicity cannot be interrupted
-- SECURITY DEFINER for RLS bypass during atomic operation: Single function handles both inserts with elevated permissions
-- Unique partial index for primary contact: Extra safety at database level prevents race conditions
-
-**From Plan 02-04:**
-- ViewEditToggle component accepts children object with view/edit slots: Maximum flexibility for different content types
-- IBM Carbon colors defined in both Tailwind theme AND CSS custom properties: Tailwind for utilities, CSS for semantic aliasing
-- Utility classes (page-carbon, card-carbon) for IBM Carbon aesthetic: Encapsulate design patterns for consistency
-
-**From Plan 02-03:**
-- Form-level atomic submission: Pass client + contact data together to hook
-- Required primary contact: New clients must have at least first/last name for primary contact
-- Optional contact details: Email, phone, and role are optional but recommended
-
-**From Plan 04-01:**
-- Use IIFE with type assertion for inline priority calculation to handle database vs calculated priority
-- Pattern: `(value || fallback) as Type` for handling nullable priority fields
-
-**From Plan 04-03:**
-- All cascading filter patterns already correctly implemented (verification-only plan)
-- useWatch + useMemo + useEffect pattern established for dependent field resets
-- Separate profile fetching pattern for creator/updater (avoid broken PostgREST FK joins)
-- [Phase 04-02]: Use separate profile fetch pattern for creator/updater (not PostgREST FK joins) because created_by/updated_by reference auth.users not user_profiles
-
-### Pending Todos
-
-**From Plan 01-01:**
-- User must run `supabase/refresh-schema-cache.sql` in Supabase SQL Editor to refresh PostgREST cache
-- After running script, verify client creation works with location/industry/overview fields
-
-**From Plan 02-02:**
-- User must run `supabase/migrations/003_create_client_with_contact.sql` in Supabase SQL Editor
-- Verify function exists with: `SELECT proname FROM pg_proc WHERE proname = 'create_client_with_contact';`
-
-### Blockers/Concerns
-
-**Known Issues from Codebase:**
-- No test coverage - all changes must be careful
-- Form complexity - large form components (400+ lines)
-- Type safety issues (34 instances of any/unknown)
-- Dashboard loads all data without pagination
-
-**Technical Constraints:**
-- Must maintain multi-tenant isolation (tenant_id on all new tables)
-- Must use soft delete pattern (deleted_at)
-- Must respect 5-level hierarchy (Client -> Project -> Phase -> Set -> Requirement)
+- Multi-tenant isolation (tenant_id on all tables)
+- Soft delete pattern (deleted_at)
+- 5-level hierarchy (Client → Project → Phase → Set → Requirement)
+- IBM Carbon Design aesthetic
 
 ## Session Continuity
 
-Last session: 2026-02-14
-Stopped at: Completed 04-02-PLAN.md (Display ID & AuditTrail Audit)
-Resume file: None
-Next: Phase 04 has 1 remaining plan (04-03 appears to be out of order in logs)
+Last session: 2026-02-15
+Completed: v1.0 MVP milestone
+Next: `/gsd:new-milestone` to start v2.0
