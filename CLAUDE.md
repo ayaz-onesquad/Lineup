@@ -4,8 +4,10 @@
 **LineUp** is a multi-tenant SaaS for agencies using the **CORE methodology** (Capture, Organize, Review, Execute).
 
 ## 🏗 Essential Hierarchy
-Always respect this 5-level data structure. Never skip a level:
-**Client ➔ Project ➔ Phase ➔ Set ➔ Requirement**.
+Always respect this 6-level data structure (Pitch is optional):
+**Client ➔ Project ➔ Phase ➔ Set ➔ Pitch (optional) ➔ Requirement**.
+
+Note: Since V2 (Migration 026), Pitches exist between Sets and Requirements as an optional grouping layer.
 
 ## 🔐 Multi-Tenant & Security Rules
 - **Isolation:** Every table (except `users`) MUST have a `tenant_id`. Every query MUST filter by `currentTenantId`.
@@ -989,3 +991,109 @@ After running migration 026:
 - [ ] `duplicate_project` RPC function exists
 - [ ] `convert_lead_to_client` RPC function exists
 - [ ] Operational views filter templates correctly
+
+## 📋 Intelligent Workflow Phase (Migration 027)
+
+### Lead Conversion Tracking
+
+Clients now track their source lead via `source_lead_id`:
+
+**Schema Change:**
+```sql
+ALTER TABLE clients ADD COLUMN source_lead_id UUID REFERENCES leads(id);
+```
+
+**Bidirectional Tracking:**
+- `leads.converted_to_client_id` → Points to converted client
+- `clients.source_lead_id` → Points back to source lead
+
+**Client Interface Update:**
+```typescript
+export interface Client {
+  // ... existing fields
+  source_lead_id?: string // Reference to lead that was converted to create this client
+}
+
+export interface ClientWithRelations extends Client {
+  source_lead?: Lead // Populated when fetched with relations
+}
+```
+
+### Kanban Drag-Drop Fix
+
+**Bug Fixed:** `LeadsPage.tsx` handleDragEnd assumed `over.id` was always a column status.
+
+**Fix:** Added check for valid pipeline status:
+```typescript
+const isValidStatus = PIPELINE_STAGES.some((s) => s.status === over.id)
+if (isValidStatus) {
+  targetStatus = over.id as LeadStatus
+} else {
+  // Dropped on a card - find the card's column status
+  const targetLead = leads?.find((l) => l.id === over.id)
+  targetStatus = targetLead.status
+}
+```
+
+### Lead Contact Creation
+
+**LeadDetailPage** now supports creating contacts directly from leads:
+- Dropdown menu: "Create New Contact" / "Link Existing Contact"
+- New contact dialog with fields: first_name, last_name, email, phone, role_at_lead, is_decision_maker
+- Auto-links to lead after creation
+- Sets `is_primary = true` if first contact
+
+### Pitch Detail Page Refinements
+
+**Removed:** Approval workflow UI (badges, buttons, banner, dialogs)
+
+**Added:**
+- Clickable parent links in header (Client > Project > Set)
+- Editable parent dropdowns in edit mode (cascading Client → Project → Set)
+- Inline requirement creation dialog (no navigation required)
+
+**Inline Requirement Creation:**
+```typescript
+// Opens dialog with fields: Title, Type, Description
+// Auto-populates: set_id, pitch_id, client_id
+<Button onClick={() => setCreateRequirementDialogOpen(true)}>
+  Add Requirement
+</Button>
+```
+
+### Dashboard 2.0 Widgets
+
+Three new widgets showing user-specific active work:
+
+**My Active Sets:**
+- Sets where user is `lead_id`, `secondary_lead_id`, or `pm_id`
+- Shows progress bar and status
+- API: `setsApi.getMyActive(tenantId, userProfileId)`
+
+**My Active Pitches:**
+- Pitches where user is `lead_id` or `secondary_lead_id`
+- Shows status badge
+- API: `pitchesApi.getMyActive(tenantId, userProfileId)`
+
+**My Active Tasks:**
+- Requirements where `is_task = true` and `assigned_to_id = userProfileId`
+- Checklist style with due dates
+- API: `requirementsApi.getMyTasks(tenantId, userProfileId)`
+
+**Hooks:**
+```typescript
+import { useMyActiveSets, useMyActivePitches, useMyActiveTasks } from '@/hooks'
+
+const { data: myActiveSets } = useMyActiveSets()
+const { data: myActivePitches } = useMyActivePitches()
+const { data: myActiveTasks } = useMyActiveTasks()
+```
+
+### Migration 027 Checklist
+After running migration 027:
+- [ ] `clients.source_lead_id` column exists
+- [ ] `convert_lead_to_client` RPC sets `source_lead_id`
+- [ ] Kanban drag-drop works when dropping on cards
+- [ ] Can create contacts from LeadDetailPage
+- [ ] Pitch parent links are clickable
+- [ ] Dashboard shows 3 new "My Active" widgets

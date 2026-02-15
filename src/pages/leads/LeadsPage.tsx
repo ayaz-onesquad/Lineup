@@ -168,8 +168,19 @@ export function LeadsPage() {
     const lead = leads?.find((l) => l.id === leadId)
     if (!lead) return
 
-    // Determine target status from droppable ID
-    const targetStatus = over.id as LeadStatus
+    // Check if over.id is a valid pipeline status (column drop)
+    const isValidStatus = PIPELINE_STAGES.some((s) => s.status === over.id)
+
+    let targetStatus: LeadStatus
+    if (isValidStatus) {
+      // Dropped on a column
+      targetStatus = over.id as LeadStatus
+    } else {
+      // Dropped on a card - find the card's column status
+      const targetLead = leads?.find((l) => l.id === over.id)
+      if (!targetLead) return
+      targetStatus = targetLead.status
+    }
 
     // Only update if status changed
     if (lead.status !== targetStatus) {
@@ -219,7 +230,7 @@ export function LeadsPage() {
             <p className="text-muted-foreground">Manage leads and track your sales funnel</p>
           </div>
           <Button
-            onClick={() => openCreateModal('lead' as any)}
+            onClick={() => openCreateModal('lead')}
             className="shadow-lg rounded-lg"
           >
             <Plus className="mr-2 h-4 w-4" />

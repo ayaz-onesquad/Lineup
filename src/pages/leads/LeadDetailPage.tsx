@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useLead, useLeadContacts, useLeadMutations } from '@/hooks/useLeads'
-import { useAllContacts } from '@/hooks/useContacts'
+import { useAllContacts, useCreateContact } from '@/hooks/useContacts'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -24,6 +24,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -57,12 +58,16 @@ import {
   UserCheck,
   Trash2,
   ArrowRightCircle,
+  ChevronDown,
+  Link as LinkIcon,
+  UserPlus,
 } from 'lucide-react'
 import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import type { LeadStatus, CompanySize } from '@/types/database'
+import type { LeadStatus, CompanySize, ContactRole } from '@/types/database'
+import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
 // Lead form schema
 const leadFormSchema = z.object({
@@ -111,13 +116,23 @@ export function LeadDetailPage() {
   const { data: users } = useTenantUsers()
   const { updateLead, linkContact, unlinkContact, setPrimaryContact, convertToClient } =
     useLeadMutations()
+  const createContact = useCreateContact()
 
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [linkContactDialogOpen, setLinkContactDialogOpen] = useState(false)
+  const [createContactDialogOpen, setCreateContactDialogOpen] = useState(false)
   const [convertDialogOpen, setConvertDialogOpen] = useState(false)
   const [selectedContactId, setSelectedContactId] = useState('')
+  const [newContact, setNewContact] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    role_at_lead: '',
+    is_decision_maker: false,
+  })
   const [convertOptions, setConvertOptions] = useState({
     client_name: '',
     relationship_manager_id: '',
@@ -260,18 +275,62 @@ export function LeadDetailPage() {
     setSelectedContactId('')
   }
 
+  const handleCreateAndLinkContact = async () => {
+    if (!newContact.first_name || !newContact.last_name || !leadId) return
+
+    try {
+      // Create the contact first
+      const createdContact = await createContact.mutateAsync({
+        first_name: newContact.first_name,
+        last_name: newContact.last_name,
+        email: newContact.email || undefined,
+        phone: newContact.phone || undefined,
+        role: newContact.role_at_lead as ContactRole || undefined,
+      })
+
+      // Link the contact to this lead
+      // Set as primary if this is the first contact
+      const isFirstContact = !contacts || contacts.length === 0
+      await linkContact.mutateAsync({
+        lead_id: leadId,
+        contact_id: createdContact.id,
+        is_primary: isFirstContact,
+        is_decision_maker: newContact.is_decision_maker,
+        role_at_lead: newContact.role_at_lead || undefined,
+      })
+
+      // Reset form and close dialog
+      setCreateContactDialogOpen(false)
+      setNewContact({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        role_at_lead: '',
+        is_decision_maker: false,
+      })
+    } catch {
+      // Error handling is done by the mutations
+    }
+  }
+
   const handleConvertToClient = async () => {
     if (!leadId) return
-    await convertToClient.mutateAsync({
-      leadId,
-      options: convertOptions,
-    })
-    setConvertDialogOpen(false)
-    // Navigate to the converted client
-    if (lead?.converted_to_client_id) {
-      navigate(`/clients/${lead.converted_to_client_id}`)
-    } else {
-      navigate('/clients')
+    try {
+      const result = await convertToClient.mutateAsync({
+        leadId,
+        options: convertOptions,
+      })
+      setConvertDialogOpen(false)
+      // Navigate to the converted client using the returned data
+      // result contains the new client_id from the mutation
+      if (result?.client_id) {
+        navigate(`/clients/${result.client_id}`)
+      } else {
+        navigate('/clients')
+      }
+    } catch {
+      // Error handled by mutation onError
     }
   }
 
@@ -697,10 +756,26 @@ export function LeadDetailPage() {
         {/* Contacts Tab */}
         <TabsContent value="contacts" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button variant="outline" onClick={() => setLinkContactDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Link Contact
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Contact
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setCreateContactDialogOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Create New Contact
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setLinkContactDialogOpen(true)}>
+                  <LinkIcon className="mr-2 h-4 w-4" />
+                  Link Existing Contact
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {contactsLoading ? (
             <Skeleton className="h-64 w-full" />
@@ -709,9 +784,16 @@ export function LeadDetailPage() {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Users className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No contacts linked yet</p>
-                <Button className="mt-4" onClick={() => setLinkContactDialogOpen(true)}>
-                  Link First Contact
-                </Button>
+                <div className="flex gap-2 mt-4">
+                  <Button onClick={() => setCreateContactDialogOpen(true)}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Create Contact
+                  </Button>
+                  <Button variant="outline" onClick={() => setLinkContactDialogOpen(true)}>
+                    <LinkIcon className="mr-2 h-4 w-4" />
+                    Link Existing
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ) : (
@@ -826,6 +908,110 @@ export function LeadDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Create Contact Dialog */}
+      <Dialog open={createContactDialogOpen} onOpenChange={setCreateContactDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Contact</DialogTitle>
+            <DialogDescription>
+              Create a new contact and link them to this lead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>First Name *</Label>
+                <Input
+                  value={newContact.first_name}
+                  onChange={(e) =>
+                    setNewContact((prev) => ({ ...prev, first_name: e.target.value }))
+                  }
+                  placeholder="First name..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name *</Label>
+                <Input
+                  value={newContact.last_name}
+                  onChange={(e) =>
+                    setNewContact((prev) => ({ ...prev, last_name: e.target.value }))
+                  }
+                  placeholder="Last name..."
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={newContact.email}
+                onChange={(e) =>
+                  setNewContact((prev) => ({ ...prev, email: e.target.value }))
+                }
+                placeholder="email@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input
+                value={newContact.phone}
+                onChange={(e) =>
+                  setNewContact((prev) => ({ ...prev, phone: e.target.value }))
+                }
+                placeholder="+1 (555) 000-0000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Role at Lead</Label>
+              <SearchableSelect
+                options={[...CONTACT_ROLE_OPTIONS]}
+                value={newContact.role_at_lead}
+                onValueChange={(v) =>
+                  setNewContact((prev) => ({ ...prev, role_at_lead: v || '' }))
+                }
+                placeholder="Select role..."
+                searchPlaceholder="Search roles..."
+                emptyMessage="No roles found."
+                clearable
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_decision_maker"
+                checked={newContact.is_decision_maker}
+                onChange={(e) =>
+                  setNewContact((prev) => ({ ...prev, is_decision_maker: e.target.checked }))
+                }
+                className="h-4 w-4"
+              />
+              <Label htmlFor="is_decision_maker" className="cursor-pointer">
+                Decision Maker
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateContactDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateAndLinkContact}
+              disabled={
+                !newContact.first_name ||
+                !newContact.last_name ||
+                createContact.isPending ||
+                linkContact.isPending
+              }
+            >
+              {(createContact.isPending || linkContact.isPending) ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Create & Link Contact
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Link Contact Dialog */}
       <Dialog open={linkContactDialogOpen} onOpenChange={setLinkContactDialogOpen}>

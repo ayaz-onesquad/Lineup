@@ -148,6 +148,7 @@ export interface Client {
   portal_enabled: boolean
   relationship_manager_id?: string
   referral_source?: ReferralSource
+  source_lead_id?: string // Reference to lead that was converted to create this client
   created_by: string
   updated_by?: string
   created_at: string
@@ -161,6 +162,7 @@ export interface ClientWithRelations extends Client {
   relationship_manager?: UserProfile
   creator?: UserProfile
   updater?: UserProfile
+  source_lead?: Lead // Populated when fetched with relations
 }
 
 // Urgency and Importance for Eisenhower Matrix
@@ -314,6 +316,7 @@ export interface Requirement {
   tenant_id: string
   client_id: string
   set_id?: string
+  pitch_id?: string // Links to parent pitch (optional - requirements can exist without pitches)
   display_id: number
   title: string
   description?: string
@@ -351,6 +354,7 @@ export interface Requirement {
 
 export interface RequirementWithRelations extends Requirement {
   sets?: SetWithRelations
+  pitches?: { id: string; name: string; status?: string; is_approved?: boolean } // Parent pitch relation
   assigned_to?: UserProfile
   lead?: UserProfile
   secondary_lead?: UserProfile
@@ -361,7 +365,7 @@ export interface RequirementWithRelations extends Requirement {
 }
 
 // Document types
-export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement'
+export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement' | 'lead' | 'pitch'
 
 export interface Document {
   id: string

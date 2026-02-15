@@ -13,14 +13,27 @@ export {
 export {
   useSets,
   useSetsByProject,
+  useSetsByClient,
   useSetsByPhase,
   useSet,
   useSetMutations,
+  useMyActiveSets,
 } from './useSets'
 export {
   useRequirements,
   useRequirementsBySet,
+  useRequirementsByPitch,
+  useRequirementsByProject,
+  useRequirementsByClient,
   useMyRequirements,
+  useMyActiveTasks,
   useRequirement,
   useRequirementMutations,
 } from './useRequirements'
+export {
+  usePitches,
+  usePitchesBySet,
+  usePitch,
+  usePitchMutations,
+  useMyActivePitches,
+} from './usePitches'

@@ -4,9 +4,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { usePitch, usePitchMutations } from '@/hooks/usePitches'
-import { useRequirementsBySet } from '@/hooks/useRequirements'
+import { useRequirementsBySet, useRequirementMutations } from '@/hooks/useRequirements'
 import { useTenantUsers } from '@/hooks/useTenant'
-import { useAuthStore } from '@/stores'
+import { useClients } from '@/hooks/useClients'
+import { useProjectsByClient } from '@/hooks/useProjects'
+import { useSetsByProject, useSetsByClient } from '@/hooks/useSets'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -50,10 +52,7 @@ import {
   Users,
   MoreVertical,
   ExternalLink,
-  Check,
-  XCircle,
-  ShieldCheck,
-  Clock,
+  Plus,
 } from 'lucide-react'
 import {
   formatDate,
@@ -68,7 +67,10 @@ import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import type { PitchStatus, UrgencyLevel, ImportanceLevel } from '@/types/database'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import type { PitchStatus, UrgencyLevel, ImportanceLevel, RequirementType } from '@/types/database'
 
 // Pitch form schema
 const pitchFormSchema = z.object({
@@ -97,29 +99,55 @@ const STATUS_OPTIONS = [
   { value: 'on_hold', label: 'On Hold', variant: 'secondary' as const },
 ]
 
+// Requirement type options for dropdown
+const REQUIREMENT_TYPE_OPTIONS = [
+  { value: 'task', label: 'Task' },
+  { value: 'open_item', label: 'Open Item' },
+  { value: 'technical', label: 'Technical' },
+  { value: 'support', label: 'Support' },
+  { value: 'internal_deliverable', label: 'Internal Deliverable' },
+  { value: 'client_deliverable', label: 'Client Deliverable' },
+]
+
 export function PitchDetailPage() {
   const { pitchId } = useParams<{ pitchId: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { user } = useAuthStore()
   const { data: pitch, isLoading } = usePitch(pitchId!)
   const { data: users } = useTenantUsers()
-  const { updatePitch, approvePitch, rejectPitch } = usePitchMutations()
+  const { updatePitch } = usePitchMutations()
+  const { createRequirement } = useRequirementMutations()
 
   // Get requirements for this pitch's set (filtering by pitch_id would need API update)
   const { data: setRequirements } = useRequirementsBySet(pitch?.set_id || '')
 
   // Filter requirements that belong to this pitch
+  // pitch_id is now included in the requirements select query
   const pitchRequirements = useMemo(
-    () => setRequirements?.filter((r) => (r as any).pitch_id === pitchId) || [],
+    () => setRequirements?.filter((r) => r.pitch_id === pitchId) || [],
     [setRequirements, pitchId]
   )
+
+  // Parent entity data for edit mode
+  const { data: clients } = useClients()
+  const [selectedClientId, setSelectedClientId] = useState<string>('')
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
+  const [selectedSetId, setSelectedSetId] = useState<string>('')
+
+  // Cascading data queries
+  const { data: projectsForClient } = useProjectsByClient(selectedClientId)
+  const { data: setsForProject } = useSetsByProject(selectedProjectId)
+  const { data: setsForClient } = useSetsByClient(selectedClientId)
 
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [approveDialogOpen, setApproveDialogOpen] = useState(false)
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [createRequirementDialogOpen, setCreateRequirementDialogOpen] = useState(false)
+  const [newRequirement, setNewRequirement] = useState({
+    title: '',
+    description: '',
+    requirement_type: 'task' as RequirementType,
+  })
 
   const form = useForm<PitchFormValues>({
     resolver: zodResolver(pitchFormSchema),
@@ -152,7 +180,7 @@ export function PitchDetailPage() {
     [users]
   )
 
-  // Reset form when pitch data loads
+  // Reset form and parent selections when pitch data loads
   useEffect(() => {
     if (pitch && !isEditing) {
       form.reset({
@@ -170,6 +198,13 @@ export function PitchDetailPage() {
         notes: pitch.notes || '',
         show_in_client_portal: pitch.show_in_client_portal,
       })
+      // Set parent selections for edit mode
+      const set = pitch.sets
+      const project = set?.projects
+      const client = project?.clients || set?.clients
+      setSelectedClientId(client?.id || '')
+      setSelectedProjectId(project?.id || '')
+      setSelectedSetId(pitch.set_id || '')
     }
   }, [pitch?.id, isEditing])
 
@@ -228,24 +263,49 @@ export function PitchDetailPage() {
     setIsEditing(false)
   }
 
-  const handleApprove = async () => {
-    if (!pitchId || !user) return
-    // Find the current user's profile ID
-    const currentUserProfile = users?.find((u) => u.user_id === user.id)?.user_profiles
-    if (!currentUserProfile) return
+  const handleCreateRequirement = async () => {
+    if (!newRequirement.title || !pitch?.set_id) return
 
-    await approvePitch.mutateAsync({
-      id: pitchId,
-      approvedById: currentUserProfile.id,
-    })
-    setApproveDialogOpen(false)
+    // Get client_id from the pitch's parent hierarchy
+    const clientId = pitch.sets?.client_id || pitch.sets?.projects?.client_id
+    if (!clientId) return
+
+    try {
+      await createRequirement.mutateAsync({
+        set_id: pitch.set_id,
+        pitch_id: pitchId,
+        client_id: clientId,
+        title: newRequirement.title,
+        description: newRequirement.description || undefined,
+        requirement_type: newRequirement.requirement_type,
+      })
+      setCreateRequirementDialogOpen(false)
+      setNewRequirement({
+        title: '',
+        description: '',
+        requirement_type: 'task',
+      })
+    } catch {
+      // Error handling done by mutation
+    }
   }
 
-  const handleReject = async () => {
-    if (!pitchId) return
-    await rejectPitch.mutateAsync(pitchId)
-    setRejectDialogOpen(false)
-  }
+  // Build options for parent dropdowns
+  const clientOptions = useMemo(
+    () => clients?.map((c) => ({ value: c.id, label: c.name })) || [],
+    [clients]
+  )
+
+  const projectOptions = useMemo(
+    () => projectsForClient?.map((p) => ({ value: p.id, label: p.name })) || [],
+    [projectsForClient]
+  )
+
+  // Sets can come from project or directly from client
+  const setOptions = useMemo(() => {
+    const sets = selectedProjectId ? setsForProject : setsForClient
+    return sets?.map((s) => ({ value: s.id, label: s.name })) || []
+  }, [selectedProjectId, setsForProject, setsForClient])
 
   if (isLoading) {
     return (
@@ -306,51 +366,79 @@ export function PitchDetailPage() {
               )}
             </h1>
             <Badge className={getStatusColor(pitch.status)}>{pitch.status.replace('_', ' ')}</Badge>
-            {pitch.is_approved ? (
-              <Badge variant="success" className="gap-1">
-                <ShieldCheck className="h-3 w-3" />
-                Approved
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="gap-1">
-                <Clock className="h-3 w-3" />
-                Pending Approval
-              </Badge>
-            )}
           </div>
-          <p className="text-muted-foreground mt-1">
-            {set?.name}
-            {project && ` • ${project.name}`}
-          </p>
-        </div>
-        {/* Approval Actions */}
-        {!pitch.is_approved && (
-          <Button variant="default" onClick={() => setApproveDialogOpen(true)}>
-            <Check className="mr-2 h-4 w-4" />
-            Approve
-          </Button>
-        )}
-        {pitch.is_approved && (
-          <Button variant="outline" onClick={() => setRejectDialogOpen(true)}>
-            <XCircle className="mr-2 h-4 w-4" />
-            Remove Approval
-          </Button>
-        )}
-      </div>
-
-      {/* Approval Banner */}
-      {pitch.is_approved && pitch.approved_by && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-          <ShieldCheck className="h-5 w-5 text-green-600" />
-          <div>
-            <p className="font-medium text-green-800">This pitch has been approved</p>
-            <p className="text-sm text-green-700">
-              Approved by {pitch.approved_by.full_name} on{' '}
-              {pitch.approved_at && formatDate(pitch.approved_at)}
+          {/* Parent links - clickable in view mode, dropdowns in edit mode */}
+          {!isEditing ? (
+            <p className="text-muted-foreground mt-1">
+              {client && (
+                <Link to={`/clients/${client.id}`} className="hover:underline">
+                  {client.name}
+                </Link>
+              )}
+              {project && (
+                <>
+                  {' > '}
+                  <Link to={`/projects/${project.id}`} className="hover:underline">
+                    {project.name}
+                  </Link>
+                </>
+              )}
+              {set && (
+                <>
+                  {' > '}
+                  <Link to={`/sets/${set.id}`} className="hover:underline">
+                    {set.name}
+                  </Link>
+                </>
+              )}
             </p>
-          </div>
+          ) : (
+            <div className="flex gap-4 mt-2">
+              <div className="w-48">
+                <Label className="text-xs text-muted-foreground">Client</Label>
+                <SearchableSelect
+                  options={clientOptions}
+                  value={selectedClientId}
+                  onValueChange={(v) => {
+                    setSelectedClientId(v || '')
+                    setSelectedProjectId('') // Reset cascading
+                    setSelectedSetId('')
+                  }}
+                  placeholder="Select client..."
+                  searchPlaceholder="Search clients..."
+                  emptyMessage="No clients found."
+                />
+              </div>
+              <div className="w-48">
+                <Label className="text-xs text-muted-foreground">Project (optional)</Label>
+                <SearchableSelect
+                  options={projectOptions}
+                  value={selectedProjectId}
+                  onValueChange={(v) => {
+                    setSelectedProjectId(v || '')
+                    setSelectedSetId('') // Reset cascading
+                  }}
+                  placeholder="Select project..."
+                  searchPlaceholder="Search projects..."
+                  emptyMessage="No projects found."
+                  clearable
+                />
+              </div>
+              <div className="w-48">
+                <Label className="text-xs text-muted-foreground">Set *</Label>
+                <SearchableSelect
+                  options={setOptions}
+                  value={selectedSetId}
+                  onValueChange={(v) => setSelectedSetId(v || '')}
+                  placeholder="Select set..."
+                  searchPlaceholder="Search sets..."
+                  emptyMessage="No sets found."
+                />
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Main Card */}
       <Card className="card-carbon">
@@ -636,13 +724,8 @@ export function PitchDetailPage() {
         {/* Requirements Tab */}
         <TabsContent value="requirements" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button
-              variant="outline"
-              onClick={() =>
-                navigate(`/requirements/new?setId=${pitch.set_id}&pitchId=${pitchId}`)
-              }
-            >
-              <CheckSquare className="mr-2 h-4 w-4" />
+            <Button onClick={() => setCreateRequirementDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
               Add Requirement
             </Button>
           </div>
@@ -651,12 +734,7 @@ export function PitchDetailPage() {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No requirements linked to this pitch</p>
-                <Button
-                  className="mt-4"
-                  onClick={() =>
-                    navigate(`/requirements/new?setId=${pitch.set_id}&pitchId=${pitchId}`)
-                  }
-                >
+                <Button className="mt-4" onClick={() => setCreateRequirementDialogOpen(true)}>
                   Create First Requirement
                 </Button>
               </CardContent>
@@ -746,45 +824,66 @@ export function PitchDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Approve Dialog */}
-      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+      {/* Create Requirement Dialog */}
+      <Dialog open={createRequirementDialogOpen} onOpenChange={setCreateRequirementDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Approve Pitch</DialogTitle>
+            <DialogTitle>Add Requirement</DialogTitle>
             <DialogDescription>
-              Are you sure you want to approve this pitch? This will mark it as reviewed and
-              approved.
+              Create a new requirement for this pitch.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Title *</Label>
+              <Input
+                value={newRequirement.title}
+                onChange={(e) =>
+                  setNewRequirement((prev) => ({ ...prev, title: e.target.value }))
+                }
+                placeholder="Requirement title..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <SearchableSelect
+                options={REQUIREMENT_TYPE_OPTIONS}
+                value={newRequirement.requirement_type}
+                onValueChange={(v) =>
+                  setNewRequirement((prev) => ({
+                    ...prev,
+                    requirement_type: (v as RequirementType) || 'task',
+                  }))
+                }
+                placeholder="Select type..."
+                searchPlaceholder="Search types..."
+                emptyMessage="No types found."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={newRequirement.description}
+                onChange={(e) =>
+                  setNewRequirement((prev) => ({ ...prev, description: e.target.value }))
+                }
+                placeholder="Description..."
+                rows={3}
+              />
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setCreateRequirementDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleApprove} disabled={approvePitch.isPending}>
-              {approvePitch.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Approve Pitch
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Dialog */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove Approval</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to remove the approval from this pitch? It will require
-              re-approval.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleReject} disabled={rejectPitch.isPending}>
-              {rejectPitch.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Remove Approval
+            <Button
+              onClick={handleCreateRequirement}
+              disabled={!newRequirement.title || createRequirement.isPending}
+            >
+              {createRequirement.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Create Requirement
             </Button>
           </DialogFooter>
         </DialogContent>

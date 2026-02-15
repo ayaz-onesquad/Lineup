@@ -121,6 +121,7 @@ export const requirementsApi = {
       .from('requirements')
       .select(`
         *,
+        pitch_id,
         assigned_to:assigned_to_id (id, full_name, avatar_url)
       `)
       .eq('set_id', setId)
@@ -433,5 +434,30 @@ export const requirementsApi = {
       review_status: approved ? 'approved' : 'rejected',
       reviewed_at: new Date().toISOString(),
     })
+  },
+
+  /**
+   * Get active tasks assigned to the user (is_task=true, not completed)
+   */
+  getMyTasks: async (tenantId: string, userProfileId: string): Promise<RequirementWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('requirements')
+      .select(`
+        *,
+        sets (id, name, client_id, project_id),
+        assigned_to:assigned_to_id (id, full_name, avatar_url)
+      `)
+      .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
+      .eq('is_template', false)
+      .eq('is_task', true)
+      .neq('status', 'completed')
+      .eq('assigned_to_id', userProfileId)
+      .order('priority', { ascending: true })
+      .order('expected_due_date', { ascending: true, nullsFirst: false })
+      .limit(15)
+
+    if (error) throw error
+    return data || []
   },
 }

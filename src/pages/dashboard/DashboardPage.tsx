@@ -1,10 +1,18 @@
-import { useProjects, useRequirements, useSets } from '@/hooks'
+import {
+  useProjects,
+  useRequirements,
+  useSets,
+  useMyActiveSets,
+  useMyActivePitches,
+  useMyActiveTasks,
+} from '@/hooks'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   FolderKanban,
   Layers,
@@ -12,8 +20,10 @@ import {
   Clock,
   AlertTriangle,
   TrendingUp,
+  Presentation,
+  Calendar,
 } from 'lucide-react'
-import { formatDateTime, getHealthColor } from '@/lib/utils'
+import { formatDateTime, formatDate, getHealthColor, getStatusColor } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 
 export function DashboardPage() {
@@ -23,9 +33,16 @@ export function DashboardPage() {
   const { data: sets, isLoading: setsLoading } = useSets()
   const { data: requirements, isLoading: requirementsLoading } = useRequirements()
 
+  // New dashboard widgets data
+  const { data: myActiveSets, isLoading: activeSetsLoading } = useMyActiveSets()
+  const { data: myActivePitches, isLoading: activePitchesLoading } = useMyActivePitches()
+  const { data: myActiveTasks, isLoading: activeTasksLoading } = useMyActiveTasks()
+
   const activeProjects = projects?.filter((p) => p.status === 'active') || []
   const openSets = sets?.filter((s) => s.status === 'open' || s.status === 'in_progress') || []
-  const myRequirements = requirements?.filter((r) => r.assigned_to_id === profile?.user_id) || []
+  // Note: assigned_to_id references user_profiles.id, not auth.users.id (user_id)
+  // We compare against the profile's own ID from the authStore
+  const myRequirements = requirements?.filter((r) => r.assigned_to_id === profile?.id) || []
   const overdueRequirements = requirements?.filter(
     (r) => r.expected_due_date && new Date(r.expected_due_date) < new Date() && r.status !== 'completed'
   ) || []
@@ -226,6 +243,173 @@ export function DashboardPage() {
                         )}
                       </div>
                     ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Dashboard 2.0 Widgets - My Active Work */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* My Active Sets */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-4 w-4" />
+              My Active Sets
+            </CardTitle>
+            <CardDescription>Sets where you're assigned</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[250px]">
+              {activeSetsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-14 w-full" />
+                  ))}
+                </div>
+              ) : !myActiveSets?.length ? (
+                <div className="text-center text-muted-foreground py-6">
+                  No active sets assigned
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myActiveSets.map((set) => (
+                    <Link
+                      key={set.id}
+                      to={`/sets/${set.id}`}
+                      className="block p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-sm truncate">{set.name}</span>
+                        <Badge variant="outline" className={getStatusColor(set.status)}>
+                          {set.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2 truncate">
+                        {set.clients?.name || set.projects?.clients?.name}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Progress value={set.completion_percentage} className="h-1.5 flex-1" />
+                        <span className="text-xs text-muted-foreground">
+                          {set.completion_percentage}%
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* My Active Pitches */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Presentation className="h-4 w-4" />
+              My Active Pitches
+            </CardTitle>
+            <CardDescription>Pitches where you're lead</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[250px]">
+              {activePitchesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : !myActivePitches?.length ? (
+                <div className="text-center text-muted-foreground py-6">
+                  No active pitches assigned
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {myActivePitches.map((pitch) => (
+                    <Link
+                      key={pitch.id}
+                      to={`/pitches/${pitch.id}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          pitch.status === 'in_progress'
+                            ? 'bg-blue-500'
+                            : pitch.status === 'blocked'
+                            ? 'bg-red-500'
+                            : 'bg-gray-400'
+                        }`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{pitch.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {pitch.sets?.name}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {pitch.status.replace('_', ' ')}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* My Active Tasks */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CheckSquare className="h-4 w-4" />
+              My Tasks
+            </CardTitle>
+            <CardDescription>Tasks assigned to you</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[250px]">
+              {activeTasksLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : !myActiveTasks?.length ? (
+                <div className="text-center text-muted-foreground py-6">
+                  No tasks assigned
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {myActiveTasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      to={`/requirements/${task.id}`}
+                      className="flex items-start gap-2 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        checked={task.status === 'completed'}
+                        className="mt-0.5"
+                        disabled
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{task.title}</p>
+                        {task.expected_due_date && (
+                          <p
+                            className={`text-xs flex items-center gap-1 ${
+                              new Date(task.expected_due_date) < new Date()
+                                ? 'text-red-600'
+                                : 'text-muted-foreground'
+                            }`}
+                          >
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(task.expected_due_date)}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
                 </div>
               )}
             </ScrollArea>
