@@ -48,4 +48,11 @@ test.describe('V2 Features - Unauthenticated Access', () => {
 
     expect(page.url()).toContain('/login')
   })
+
+  test('unauthenticated user redirects to login from /documents', async ({ page }) => {
+    await page.goto('/documents')
+    await page.waitForURL(/\/login/, { timeout: 10000 })
+
+    expect(page.url()).toContain('/login')
+  })
 })

@@ -134,17 +134,14 @@ test.describe('Pitches Page', () => {
 
   test('pitches page shows table with correct columns', async ({ page }) => {
     await page.goto('/pitches')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('domcontentloaded')
 
-    // Check for table headers or empty state
-    const tableHeaders = page.locator('th')
+    // Wait for either table headers or empty state to be visible
+    const tableHeaders = page.locator('th').first()
     const emptyState = page.getByText(/No pitches found/i)
 
-    // Either table or empty state should be visible
-    const hasTable = (await tableHeaders.count()) > 0
-    const hasEmptyState = await emptyState.isVisible()
-
-    expect(hasTable || hasEmptyState).toBe(true)
+    // Either table or empty state should be visible (with timeout for async loading)
+    await expect(tableHeaders.or(emptyState)).toBeVisible({ timeout: 10000 })
   })
 })
 
@@ -259,17 +256,14 @@ test.describe('Templates Page', () => {
 
   test('templates page shows empty state or template grid', async ({ page }) => {
     await page.goto('/templates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('domcontentloaded')
 
-    // Either empty state message or template cards should be visible
+    // Wait for either empty state message or template cards to be visible
     const emptyState = page.getByText(/No templates yet/i)
-    const templateCards = page.locator('[class*="CardHeader"]')
+    const templateCard = page.locator('[class*="CardHeader"]').first()
 
-    const hasEmptyState = await emptyState.isVisible()
-    const hasTemplates = (await templateCards.count()) > 0
-
-    // One of them must be true
-    expect(hasEmptyState || hasTemplates).toBe(true)
+    // Wait for any of these states (with timeout for async loading)
+    await expect(emptyState.or(templateCard)).toBeVisible({ timeout: 15000 })
   })
 })
 
