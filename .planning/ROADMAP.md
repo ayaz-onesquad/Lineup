@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-02-15)
-- 🚧 **v2.1 Stability & Features** — Phases 5-7 (in progress)
+- ✅ **v2.1 Stability & Features** — Phases 5-7 (shipped 2026-02-16)
 
 ## Phases
 
@@ -21,7 +21,7 @@
 
 </details>
 
-### 🚧 v2.1 Stability & Features (Phases 5-7)
+### ✅ v2.1 Stability & Features (Phases 5-7) — SHIPPED 2026-02-16
 
 #### Phase 5: User Management Fix (CRITICAL) ✅
 **Priority:** 🟢 Complete
@@ -53,16 +53,17 @@
 
 ---
 
-#### Phase 7: Medium Priority Enhancements
-**Priority:** 🟡 Medium
-**Status:** Not Started
+#### Phase 7: Medium Priority Enhancements ✅
+**Priority:** 🟢 Complete
+**Status:** Completed 2026-02-16
 
 | Plan | Description | Status |
 |------|-------------|--------|
-| 07-01 | Phase Management UI | ⬜ Pending |
-| 07-02 | Client Portal Enhancement | ⬜ Pending |
+| 07-01 | Phase Management UI | ✅ Done |
+| 07-02 | Client Portal Enhancement | ✅ Done |
 
 **Goal:** Complete phase management and expand client portal
+**Delivered:** PhasesPage + PhaseDetailPage + drag-drop ordering, Client portal RLS + components for sets/requirements/documents
 
 ---
 
@@ -71,7 +72,7 @@
 | Milestone | Phases | Plans | Status | Completed |
 |-----------|--------|-------|--------|-----------|
 | v1.0 MVP | 1-4 | 13/13 | Complete | 2026-02-15 |
-| v2.1 Stability | 5-7 | 6/8 | In Progress | - |
+| v2.1 Stability | 5-7 | 8/8 | Complete | 2026-02-16 |
 
 ## Deferred Features (v3.0)
 
