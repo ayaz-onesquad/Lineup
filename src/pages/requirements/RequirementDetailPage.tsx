@@ -623,13 +623,13 @@ export function RequirementDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No documents yet</p>
-              <Button className="mt-4">Upload Document</Button>
-            </CardContent>
-          </Card>
+          <DocumentUpload
+            entityType="requirement"
+            entityId={requirementId!}
+            title="Requirement Documents"
+            description="Upload files and attachments"
+            allowMultiple={true}
+          />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">

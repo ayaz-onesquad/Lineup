@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useProjectWithHierarchy } from '@/hooks/useProjects'
-import { useEntityStatusUpdates } from '@/hooks'
+// import { useEntityStatusUpdates } from '@/hooks' // TODO: Implement status updates
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,16 +16,18 @@ import {
   Calendar,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
-import { StatusUpdateCard } from '@/components/shared'
+// TODO: Implement status updates (Plan 06-03)
+// import { StatusUpdateCard } from '@/components/shared'
 
 export function PortalProjectPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
-  const { data: clientUpdates, isLoading: updatesLoading } = useEntityStatusUpdates(
-    'project',
-    projectId!,
-    false // Only fetch client-visible updates
-  )
+  // TODO: Implement status updates
+  // const { data: clientUpdates, isLoading: updatesLoading } = useEntityStatusUpdates(
+  //   'project',
+  //   projectId!,
+  //   false // Only fetch client-visible updates
+  // )
 
   if (isLoading) {
     return (
