@@ -58,6 +58,7 @@ import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DocumentUpload, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
+import { DraggablePhasesTable } from '@/components/phases/DraggablePhasesTable'
 import type { ProjectStatus, ProjectHealth } from '@/types/database'
 
 // Project form schema
@@ -462,209 +463,15 @@ export function ProjectDetailPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {project.phases
-                ?.sort((a, b) => a.phase_order - b.phase_order)
-                .map((phase, index) => (
-                  <Card key={phase.id}>
-                    <Collapsible
-                      open={expandedPhases.has(phase.id)}
-                      onOpenChange={() => togglePhase(phase.id)}
-                    >
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground font-mono w-8">
-                                #{index + 1}
-                              </span>
-                              <ChevronRight
-                                className={`h-4 w-4 transition-transform ${
-                                  expandedPhases.has(phase.id) ? 'rotate-90' : ''
-                                }`}
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <CardTitle className="text-lg">{phase.name}</CardTitle>
-                                <Badge className={getStatusColor(phase.status)}>
-                                  {phase.status.replace('_', ' ')}
-                                </Badge>
-                              </div>
-                              <CardDescription>
-                                {phase.sets?.length || 0} sets • {phase.completion_percentage}%
-                                complete
-                                {phase.expected_end_date && (
-                                  <> • Due {formatDate(phase.expected_end_date)}</>
-                                )}
-                              </CardDescription>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Progress value={phase.completion_percentage} className="w-24 h-2" />
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={(e) => {
-                                    e.stopPropagation()
-                                    navigate(`/phases/${phase.id}`)
-                                  }}>
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    Open Detail Page
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => {
-                                    e.stopPropagation()
-                                    navigate(`/phases/${phase.id}?edit=true`)
-                                  }}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Edit Phase
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (confirm(`Delete phase "${phase.name}"?`)) {
-                                        // TODO: implement deletePhase mutation
-                                        console.log('Delete phase:', phase.id)
-                                      }
-                                    }}
-                                  >
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </div>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 pl-12">
-                          {phase.sets?.length === 0 ? (
-                            <div className="text-center py-4">
-                              <p className="text-sm text-muted-foreground mb-2">No sets yet</p>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  openCreateModal('set', {
-                                    project_id: project.id,
-                                    phase_id: phase.id,
-                                  })
-                                }
-                              >
-                                <Plus className="mr-2 h-3 w-3" />
-                                Add Set
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {phase.sets
-                                ?.sort((a, b) => a.set_order - b.set_order)
-                                .map((set) => (
-                                  <Collapsible
-                                    key={set.id}
-                                    open={expandedSets.has(set.id)}
-                                    onOpenChange={() => toggleSet(set.id)}
-                                  >
-                                    <CollapsibleTrigger asChild>
-                                      <div className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer">
-                                        <ChevronRight
-                                          className={`h-4 w-4 transition-transform ${
-                                            expandedSets.has(set.id) ? 'rotate-90' : ''
-                                          }`}
-                                        />
-                                        <Layers className="h-4 w-4 text-muted-foreground" />
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-medium">{set.name}</span>
-                                            <Badge
-                                              variant="outline"
-                                              className={`text-xs ${
-                                                set.urgency === 'high' && set.importance === 'high'
-                                                  ? 'border-red-500 text-red-700'
-                                                  : ''
-                                              }`}
-                                            >
-                                              U:{set.urgency[0].toUpperCase()} I:
-                                              {set.importance[0].toUpperCase()}
-                                            </Badge>
-                                          </div>
-                                          <p className="text-xs text-muted-foreground">
-                                            {set.requirements?.length || 0} requirements
-                                          </p>
-                                        </div>
-                                        <Progress
-                                          value={set.completion_percentage}
-                                          className="w-16 h-1.5"
-                                        />
-                                      </div>
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent>
-                                      <div className="ml-8 mt-2 space-y-2">
-                                        {set.requirements?.map((req) => (
-                                          <div
-                                            key={req.id}
-                                            className="flex items-center gap-2 p-2 rounded border-l-2 hover:bg-muted/50 cursor-pointer"
-                                            style={{
-                                              borderLeftColor:
-                                                req.status === 'completed'
-                                                  ? '#10B981'
-                                                  : req.status === 'in_progress'
-                                                  ? '#3B82F6'
-                                                  : req.status === 'blocked'
-                                                  ? '#EF4444'
-                                                  : '#9CA3AF',
-                                            }}
-                                            onClick={() => openDetailPanel('requirement', req.id)}
-                                          >
-                                            <CheckSquare className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-sm flex-1">{req.title}</span>
-                                            <Badge variant="outline" className="text-xs">
-                                              {req.status.replace('_', ' ')}
-                                            </Badge>
-                                          </div>
-                                        ))}
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="w-full"
-                                          onClick={() =>
-                                            openCreateModal('requirement', { set_id: set.id })
-                                          }
-                                        >
-                                          <Plus className="mr-2 h-3 w-3" />
-                                          Add Requirement
-                                        </Button>
-                                      </div>
-                                    </CollapsibleContent>
-                                  </Collapsible>
-                                ))}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full"
-                                onClick={() =>
-                                  openCreateModal('set', {
-                                    project_id: project.id,
-                                    phase_id: phase.id,
-                                  })
-                                }
-                              >
-                                <Plus className="mr-2 h-3 w-3" />
-                                Add Set
-                              </Button>
-                            </div>
-                          )}
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
-                ))}
-            </div>
+            <DraggablePhasesTable
+              projectId={project.id}
+              phases={project.phases || []}
+              expandedPhases={expandedPhases}
+              togglePhase={togglePhase}
+              expandedSets={expandedSets}
+              toggleSet={toggleSet}
+              openCreateModal={openCreateModal}
+            />
           )}
         </TabsContent>
 
