@@ -170,8 +170,21 @@ export const tenantsApi = {
     tenantId: string,
     input: CreateTenantUserInput
   ): Promise<TenantUserWithProfile> => {
+    // Pre-flight validation
+    if (!tenantId) {
+      throw new Error('Tenant ID is required to create a user')
+    }
+
+    // Get admin's current user ID for verification
+    const { data: { session: preSession } } = await supabase.auth.getSession()
+    const adminUserId = preSession?.user?.id
+
+    if (!adminUserId) {
+      throw new Error('No active session. Please log in again.')
+    }
+
     // 1. Create the auth user and profile
-    const { userId, profile } = await authApi.adminCreateUser({
+    const { userId, profile, adminUserId: returnedAdminId } = await authApi.adminCreateUser({
       email: input.email,
       password: input.password,
       firstName: input.firstName,
@@ -180,7 +193,23 @@ export const tenantsApi = {
       timezone: input.timezone,
     })
 
-    // 2. Add user to tenant with specified role
+    // 2. VERIFY session is still the admin before tenant_users INSERT
+    const { data: { session: postSession } } = await supabase.auth.getSession()
+    if (postSession?.user.id !== adminUserId) {
+      // Session changed unexpectedly - this is a critical error
+      console.error('Session changed during user creation', {
+        expected: adminUserId,
+        actual: postSession?.user.id,
+        returnedAdminId,
+      })
+      throw new Error(
+        'Session changed during user creation. ' +
+        'The user was created but may not be added to the tenant. ' +
+        'Please refresh the page and check the user list.'
+      )
+    }
+
+    // 3. Add user to tenant with specified role
     const { data: tenantUser, error: tenantError } = await supabase
       .from('tenant_users')
       .insert({
@@ -194,9 +223,28 @@ export const tenantsApi = {
 
     if (tenantError) {
       // If we fail to add to tenant, the user is still created
-      // This is a partial failure state
-      console.error('Failed to add user to tenant:', tenantError)
-      throw new Error(`User created but failed to add to tenant: ${tenantError.message}`)
+      // This is a partial failure state - log details for debugging
+      console.error('Failed to add user to tenant:', {
+        error: tenantError,
+        tenantId,
+        userId,
+        role: input.role,
+        adminUserId,
+      })
+
+      // Check if it's an RLS error
+      if (tenantError.code === '42501' || tenantError.message.includes('permission denied')) {
+        throw new Error(
+          `User created but permission denied when adding to tenant. ` +
+          `You may not have admin rights for this tenant. ` +
+          `Please check your role or contact a system administrator.`
+        )
+      }
+
+      throw new Error(
+        `User created but failed to add to tenant: ${tenantError.message}. ` +
+        `The user exists but may not appear in this tenant's list.`
+      )
     }
 
     // TODO: If sendWelcomeEmail is true, trigger welcome email

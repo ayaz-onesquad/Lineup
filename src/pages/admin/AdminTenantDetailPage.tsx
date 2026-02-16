@@ -58,6 +58,7 @@ import {
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
+import { isValidEmail } from '@/lib/security'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -73,6 +74,29 @@ import {
 } from '@/components/ui/form'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import type { Tenant, Client, ProjectWithRelations, TenantUserWithProfile, UserRole } from '@/types/database'
+
+// Error message parser for user creation
+function parseUserCreationError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (message.includes('permission denied') || message.includes('42501')) {
+    return 'Permission denied. Check RLS policies or admin rights.'
+  }
+  if (message.includes('session') || message.includes('Session')) {
+    return 'Session error. Please refresh the page and try again.'
+  }
+  if (message.includes('already exists') || message.includes('duplicate') || message.includes('already registered')) {
+    return 'A user with this email already exists.'
+  }
+  if (message.includes('not added to tenant')) {
+    return 'User was created but not added to this tenant. Please refresh and check the user list.'
+  }
+  if (message.includes('profile creation failed')) {
+    return 'User was created but profile setup failed. Please refresh and check the user list.'
+  }
+
+  return message || 'An unexpected error occurred'
+}
 
 // User role options
 const ROLE_OPTIONS = [
@@ -212,8 +236,19 @@ export function AdminTenantDetailPage() {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: (data: CreateUserFormData) =>
-      tenantsApi.createUser(tenantId!, {
+    mutationFn: (data: CreateUserFormData) => {
+      // Pre-flight validation
+      if (!tenantId) {
+        throw new Error('No tenant selected. Please go back and select a tenant.')
+      }
+      if (!isValidEmail(data.email)) {
+        throw new Error('Please enter a valid email address.')
+      }
+      if (data.password.length < 8) {
+        throw new Error('Password must be at least 8 characters.')
+      }
+
+      return tenantsApi.createUser(tenantId, {
         email: data.email,
         password: data.password,
         firstName: data.firstName,
@@ -222,7 +257,8 @@ export function AdminTenantDetailPage() {
         timezone: data.timezone,
         role: data.role as UserRole,
         sendWelcomeEmail: data.sendWelcomeEmail,
-      }),
+      })
+    },
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'tenants', tenantId, 'users'] })
       toast({
@@ -241,15 +277,26 @@ export function AdminTenantDetailPage() {
       setShowPassword(true) // Reset to show for next user
     },
     onError: (error: Error) => {
+      const friendlyMessage = parseUserCreationError(error)
       toast({
         title: 'Failed to create user',
-        description: error.message,
+        description: friendlyMessage,
         variant: 'destructive',
       })
     },
   })
 
   const onCreateUser = (data: CreateUserFormData) => {
+    // Final validation before submitting
+    if (!tenantId) {
+      toast({
+        title: 'No tenant selected',
+        description: 'Please go back and select a tenant.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     createUserMutation.mutate(data)
   }
 

@@ -43,7 +43,31 @@ import {
 import { Plus, Users, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
+import { isValidEmail } from '@/lib/security'
 import type { UserRole } from '@/types/database'
+
+// Error message parser for user creation
+function parseUserCreationError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (message.includes('permission denied') || message.includes('42501')) {
+    return 'Permission denied. You may not have admin rights for this tenant.'
+  }
+  if (message.includes('session') || message.includes('Session')) {
+    return 'Session error. Please refresh the page and try again.'
+  }
+  if (message.includes('already exists') || message.includes('duplicate') || message.includes('already registered')) {
+    return 'A user with this email already exists.'
+  }
+  if (message.includes('not added to tenant')) {
+    return 'User was created but not added to this tenant. Please refresh and check the user list.'
+  }
+  if (message.includes('profile creation failed')) {
+    return 'User was created but profile setup failed. Please refresh and check the user list.'
+  }
+
+  return message || 'An unexpected error occurred'
+}
 
 // User role options (excludes sys_admin - only SysAdmin can create SysAdmins)
 const ROLE_OPTIONS = [
@@ -103,8 +127,22 @@ export function TeamPage() {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: (data: CreateUserFormData) =>
-      tenantsApi.createUser(currentTenantId!, {
+    mutationFn: (data: CreateUserFormData) => {
+      // Pre-flight validation
+      if (!currentTenantId) {
+        throw new Error('No tenant selected. Please refresh and try again.')
+      }
+      if (!isAdmin) {
+        throw new Error('You do not have permission to create users.')
+      }
+      if (!isValidEmail(data.email)) {
+        throw new Error('Please enter a valid email address.')
+      }
+      if (data.password.length < 8) {
+        throw new Error('Password must be at least 8 characters.')
+      }
+
+      return tenantsApi.createUser(currentTenantId, {
         email: data.email,
         password: data.password,
         firstName: data.firstName,
@@ -112,7 +150,8 @@ export function TeamPage() {
         phone: data.phone,
         role: data.role as UserRole,
         sendWelcomeEmail: data.sendWelcomeEmail,
-      }),
+      })
+    },
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tenantUsers'] })
       toast({
@@ -131,15 +170,35 @@ export function TeamPage() {
       setShowPassword(true)
     },
     onError: (error: Error) => {
+      const friendlyMessage = parseUserCreationError(error)
       toast({
         title: 'Failed to create user',
-        description: error.message,
+        description: friendlyMessage,
         variant: 'destructive',
       })
     },
   })
 
   const onCreateUser = (data: CreateUserFormData) => {
+    // Final validation before submitting
+    if (!currentTenantId) {
+      toast({
+        title: 'No tenant selected',
+        description: 'Please refresh the page and try again.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!isAdmin) {
+      toast({
+        title: 'Permission denied',
+        description: 'You do not have permission to create users.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     createUserMutation.mutate(data)
   }
 

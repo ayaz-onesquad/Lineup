@@ -245,17 +245,20 @@ export const authApi = {
 
   // Admin function to create a new user (requires admin privileges)
   // This preserves the admin's session by saving and restoring it
-  adminCreateUser: async (data: AdminCreateUserData): Promise<{ userId: string; profile: UserProfile }> => {
+  adminCreateUser: async (data: AdminCreateUserData): Promise<{ userId: string; profile: UserProfile; adminUserId: string }> => {
     const fullName = `${data.firstName} ${data.lastName}`
 
     // CRITICAL: Save the current admin session BEFORE creating the new user
     // signUp() may auto-login as the new user, which would kick out the admin
     const { data: currentSession } = await supabase.auth.getSession()
     const adminSession = currentSession?.session
+    const adminUserId = adminSession?.user?.id
 
-    if (!adminSession) {
+    if (!adminSession || !adminUserId) {
       throw new Error('Admin session not found. Please log in again.')
     }
+
+    let newUserId: string | null = null
 
     try {
       // Create the auth user
@@ -274,7 +277,7 @@ export const authApi = {
       if (authError) throw authError
       if (!authData.user) throw new Error('Failed to create user')
 
-      const newUserId = authData.user.id
+      newUserId = authData.user.id
 
       // CRITICAL: Restore the admin's session immediately
       // This prevents the admin from being logged out as the new user
@@ -285,7 +288,43 @@ export const authApi = {
 
       if (restoreError) {
         console.error('Failed to restore admin session:', restoreError)
-        // Don't throw - user was created, just need to re-login
+        // Try one more time
+        const { error: retryError } = await supabase.auth.setSession({
+          access_token: adminSession.access_token,
+          refresh_token: adminSession.refresh_token,
+        })
+        if (retryError) {
+          throw new Error(
+            'Failed to restore admin session after user creation. ' +
+            'Please refresh the page and try again. The user may have been created.'
+          )
+        }
+      }
+
+      // VERIFY session was actually restored
+      const { data: verifySession } = await supabase.auth.getSession()
+      if (verifySession.session?.user.id !== adminUserId) {
+        // Session restoration failed - try one more time
+        const { error: finalRetryError } = await supabase.auth.setSession({
+          access_token: adminSession.access_token,
+          refresh_token: adminSession.refresh_token,
+        })
+
+        if (finalRetryError) {
+          throw new Error(
+            'Session verification failed. Please refresh the page and try again. ' +
+            'The user may have been created.'
+          )
+        }
+
+        // Final verification
+        const { data: finalSession } = await supabase.auth.getSession()
+        if (finalSession.session?.user.id !== adminUserId) {
+          throw new Error(
+            'Session verification failed after retry. Please refresh the page. ' +
+            'The user may have been created.'
+          )
+        }
       }
 
       // Create user profile (the trigger may not fire for admin-created users)
@@ -298,11 +337,18 @@ export const authApi = {
         .select()
         .single()
 
-      if (profileError) throw profileError
+      if (profileError) {
+        console.error('Failed to create user profile:', profileError)
+        throw new Error(
+          `User was created in auth but profile creation failed: ${profileError.message}. ` +
+          'The user exists but may not appear in the list. Try refreshing.'
+        )
+      }
 
       return {
         userId: newUserId,
         profile,
+        adminUserId,
       }
     } catch (error) {
       // If anything fails, try to restore admin session

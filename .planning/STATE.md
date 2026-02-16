@@ -4,93 +4,121 @@
 
 See: .planning/PROJECT.md (updated 2026-02-15)
 
-**Core value:** Hierarchical flow (Client -> Project -> Phase -> Set -> Requirement) with automatic Eisenhower prioritization and built-in client portal
-**Current focus:** Planning next milestone (v2.0 Features)
+**Core value:** Hierarchical flow (Client -> Project -> Phase -> Set -> Pitch -> Requirement) with automatic Eisenhower prioritization and built-in client portal
+**Current focus:** v2.1 Stability & Features — Phase 6 (High Priority Features)
 
 ## Current Position
 
-Milestone: v1.0 MVP — COMPLETE (shipped 2026-02-15)
-Status: Ready for v2.0 milestone planning
-Last activity: 2026-02-15 - Milestone v1.0 archived
+Milestone: v2.1 Stability & Features — IN PROGRESS
+Status: Phase 5 complete, ready for Phase 6
+Last activity: 2026-02-16 - Completed Phase 5 (User Management Fix)
 
-Progress: v1.0 complete (13/13 plans across 4 phases)
+Progress: 3/8 plans (v2.1)
 
-## v1.0 Summary
+## Phase 5 Completion Summary
 
-**Shipped:** 2026-02-15
+**User Management Fix - COMPLETE**
 
-**Stats:**
-- 4 phases, 13 plans
-- 62 commits, 187 files changed
-- ~31,000 lines TypeScript
-- 10 days execution (2026-02-04 → 2026-02-14)
+| Plan | Description | Status | Deliverable |
+|------|-------------|--------|-------------|
+| 05-01 | Fix RLS Policies | ✅ Done | Migration 031 |
+| 05-02 | Fix Session Management | ✅ Done | auth.ts, tenants.ts |
+| 05-03 | UI Validation | ✅ Done | TeamPage, AdminTenantDetailPage |
 
-**Key accomplishments:**
-1. Fixed PostgREST schema cache and tenant_id validation
-2. Atomic Client + Contact creation via PostgreSQL function
-3. ViewEditToggle component with IBM Carbon Design aesthetic
-4. Projects & Sets with date pickers, team dropdowns, budget fields
-5. Eisenhower Priority (1-6) display on Sets and Requirements
-6. Cascading filters and AuditTrail on all detail pages
+**Changes Made:**
+1. Created `migration 031_fix_user_creation_rls.sql` with consolidated RLS policies
+2. Added `is_org_admin_of_tenant(uuid)` helper function
+3. Added session verification in `auth.ts` after user creation
+4. Added session check in `tenants.ts` before tenant_users INSERT
+5. Added pre-flight validation in both TeamPage and AdminTenantDetailPage
+6. Added `parseUserCreationError()` for user-friendly error messages
+7. Build verified successful
 
-**Archive:**
-- `.planning/milestones/v1.0-ROADMAP.md`
-- `.planning/milestones/v1.0-REQUIREMENTS.md`
+## Priority Stack
 
-## V2 Backend Infrastructure (Pre-built)
+### 🟢 COMPLETE — Phase 5: User Management Fix
+✅ Fixed RLS policy conflicts
+✅ Fixed session hijacking
+✅ Added validation and error handling
 
-**Migration 026 Applied:** YES (026_v2_features.sql)
+### 🟠 HIGH — Phase 6: High Priority Features
+**Features:**
+- Template creation (95% done, missing UI button)
+- Discussions/Comments (schema exists, no UI)
+- Status Updates (schema exists, no UI)
 
-Backend infrastructure ready for v2.0 UI:
-1. **Document Catalog** - `document_catalog` table + `documentCatalogApi` + `useDocumentCatalog` hooks
-2. **Enhanced Documents** - `document_catalog_id`, `phase_id`, `pitch_id`, `has_file` columns
-3. **Enhanced Phases** - `lead_id`, `secondary_lead_id`, `order_key`, priority fields, `is_template`
-4. **Pitches** (NEW ENTITY) - `pitches` table + `pitchesApi` + approval workflow
-5. **Templates** - `is_template` flag + operational views + `duplicate_project` RPC
-6. **Leads** (NEW ENTITY) - `leads` + `lead_contacts` + `convert_lead_to_client` RPC
-7. **Display IDs** - Auto-generated PH-XXXX, PI-XXXX, LD-XXXX
+**Plans:**
+- 06-01: Template Creation Finalization
+- 06-02: Discussions/Comments System
+- 06-03: Status Updates System
+
+### 🟡 MEDIUM — Phase 7: Enhancements
+**Features:**
+- Phase Management UI (no PhasesPage, no PhaseDetailPage)
+- Client Portal (only shows projects, needs sets/requirements/documents)
+
+**Plans:**
+- 07-01: Phase Management UI
+- 07-02: Client Portal Enhancement
+
+## v2.1 Backend Infrastructure (Already Built)
+
+Migration 026+ applied. Backend ready for UI work:
+1. **Document Catalog** — ✅ Table + API + Hooks + UI
+2. **Enhanced Documents** — ✅ Upload working
+3. **Pitches** — ✅ Full CRUD + Detail Page
+4. **Leads** — ✅ Full pipeline + conversion
+5. **Templates** — ⚠️ Backend done, missing "Save as Template" button
+6. **Notes** — ✅ Polymorphic notes working
+7. **Dashboard 2.0** — ✅ KPIs, My Work, Priority Tasks
+
+## Identified Issues (Remaining)
+
+### Templates (HIGH)
+| Component | Issue | File |
+|-----------|-------|------|
+| UI | Missing "Save as Template" button | ProjectDetailPage.tsx |
+| Dialog | No SaveAsTemplateDialog | Not created |
+
+### Discussions (HIGH)
+| Component | Issue | File |
+|-----------|-------|------|
+| Schema | ✅ Exists | discussions table |
+| API | ✅ Exists | discussionsApi |
+| Hooks | ❌ Missing | Need useDiscussions |
+| UI | ❌ Missing | Need DiscussionsPanel |
+
+### Status Updates (HIGH)
+| Component | Issue | File |
+|-----------|-------|------|
+| Schema | ✅ Exists | status_updates table |
+| API | ✅ Exists | statusUpdatesApi |
+| Hooks | ❌ Missing | Need useStatusUpdates |
+| UI | ❌ Missing | Need StatusTimeline |
 
 ## Next Steps
 
-**Start v2.0 milestone:** Run `/gsd:new-milestone` to:
-1. Update PROJECT.md scope
-2. Refine REQUIREMENTS.md for v2.0
-3. Create ROADMAP.md with v2.0 phases
+**Immediate:** Start Phase 6 execution
+```
+/gsd:execute-phase 6
+```
 
-**Recommended:** `/clear` first for fresh context window
-
-## Performance Metrics
-
-**v1.0 Velocity:**
-- Total plans completed: 13
-- Total phases: 4
-- Average duration: ~1.5 minutes per plan
-- Total execution time: ~20 minutes
-
-| Phase | Plans | Duration | Avg/Plan |
-|-------|-------|----------|----------|
-| 01-foundation-fixes | 3 | ~5 min | ~1.7 min |
-| 02-client-contact-system | 4 | ~6 min | ~1.5 min |
-| 03-projects-sets-enhancement | 3 | ~3 min | ~1 min |
-| 04-core-workflow-audit | 3 | ~6 min | ~2 min |
-
-## Key Patterns Established (v1.0)
-
-- **Atomic operations:** PostgreSQL functions via RPC for multi-table transactions
-- **ViewEditToggle:** Shared component for view/edit mode pattern
-- **IBM Carbon:** Design tokens in Tailwind theme + CSS custom properties
-- **Profile fetching:** Separate queries for creator/updater (auth.users → user_profiles)
-- **Cascading filters:** useWatch + useMemo + useEffect pattern
+Or run migration first:
+```sql
+-- Apply migration 031 in Supabase SQL Editor
+-- See: supabase/migrations/031_fix_user_creation_rls.sql
+```
 
 ## Technical Constraints
 
 - Multi-tenant isolation (tenant_id on all tables)
 - Soft delete pattern (deleted_at)
-- 5-level hierarchy (Client → Project → Phase → Set → Requirement)
+- 6-level hierarchy (Client → Project → Phase → Set → Pitch → Requirement)
 - IBM Carbon Design aesthetic
+- No new `any` types (TypeScript strict)
 
 ## Session Continuity
 
-Last session: 2026-02-15
-Completed: v1.0 MVP milestone
-Next: `/gsd:new-milestone` to start v2.0
+Last session: 2026-02-16
+Completed: Phase 5 (User Management Fix)
+Next: Execute Phase 6 (High Priority Features)

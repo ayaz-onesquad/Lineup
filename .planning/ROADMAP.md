@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-02-15)
-- 📋 **v2.0 Features** — (planned)
+- 🚧 **v2.1 Stability & Features** — Phases 5-7 (in progress)
 
 ## Phases
 
@@ -21,25 +21,65 @@
 
 </details>
 
-### 📋 v2.0 Features (Planned)
+### 🚧 v2.1 Stability & Features (Phases 5-7)
 
-Phases 5+ for v2.0 features:
-- Document Catalog & Enhanced Documents
-- Project Phases UI
-- Pitches UI
-- Templates System
-- Leads CRM
-- Dashboard Integration
+#### Phase 5: User Management Fix (CRITICAL) ✅
+**Priority:** 🟢 Complete
+**Status:** Completed 2026-02-16
 
-See `.planning/REQUIREMENTS.md` for full v2 requirements (239 items).
+| Plan | Description | Status |
+|------|-------------|--------|
+| 05-01 | Fix RLS Policies for User Creation | ✅ Done |
+| 05-02 | Fix Session Management in User Creation | ✅ Done |
+| 05-03 | Improve UI Validation and Error Handling | ✅ Done |
+
+**Goal:** OrgAdmin and SysAdmin can create users without errors
+**Delivered:** Migration 031, session verification, UI validation
+
+---
+
+#### Phase 6: High Priority Features
+**Priority:** 🟠 High
+**Status:** Not Started
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| 06-01 | Template Creation Finalization | ⬜ Pending |
+| 06-02 | Discussions/Comments System UI | ⬜ Pending |
+| 06-03 | Status Updates System UI | ⬜ Pending |
+
+**Goal:** Enable template creation, discussions, and status updates
+
+---
+
+#### Phase 7: Medium Priority Enhancements
+**Priority:** 🟡 Medium
+**Status:** Not Started
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| 07-01 | Phase Management UI | ⬜ Pending |
+| 07-02 | Client Portal Enhancement | ⬜ Pending |
+
+**Goal:** Complete phase management and expand client portal
+
+---
 
 ## Progress
 
 | Milestone | Phases | Plans | Status | Completed |
 |-----------|--------|-------|--------|-----------|
 | v1.0 MVP | 1-4 | 13/13 | Complete | 2026-02-15 |
-| v2.0 Features | TBD | 0 | Planned | - |
+| v2.1 Stability | 5-7 | 3/8 | In Progress | - |
+
+## Deferred Features (v3.0)
+
+- Email Notifications
+- Mobile Responsiveness
+- Auto Health Calculation
+- Bulk Operations
+- Gantt Chart / Timeline View
 
 ---
 
-*For v1.0 phase details, see `.planning/milestones/v1.0-ROADMAP.md`*
+*Last updated: 2026-02-16*
