@@ -88,12 +88,13 @@ import {
   ChevronDown,
   CheckSquare,
   Presentation,
+  MessageSquare,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -567,6 +568,10 @@ export function ClientDetailPage() {
           <TabsTrigger value="notes" className="gap-2">
             <FileText className="h-4 w-4" />
             Notes
+          </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
           </TabsTrigger>
         </TabsList>
 
@@ -1441,6 +1446,16 @@ export function ClientDetailPage() {
             title="Client Notes"
             description="Add meeting notes and updates"
             maxHeight="500px"
+          />
+        </TabsContent>
+
+        <TabsContent value="discussions" className="mt-6">
+          <DiscussionsPanel
+            entityType="client"
+            entityId={clientId!}
+            title="Client Discussions"
+            description="Collaborate and discuss client matters"
+            maxHeight="600px"
           />
         </TabsContent>
       </Tabs>

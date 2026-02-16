@@ -54,7 +54,7 @@ import { formatDate, getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calcul
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { SetStatus, UrgencyLevel, ImportanceLevel } from '@/types/database'
 
@@ -475,6 +475,10 @@ export function SetDetailPage() {
           <TabsTrigger value="activity" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Activity
+          </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
           </TabsTrigger>
         </TabsList>
 
@@ -1001,6 +1005,16 @@ export function SetDetailPage() {
             title="Set Notes"
             description="Add meeting notes and updates"
             maxHeight="500px"
+          />
+        </TabsContent>
+
+        <TabsContent value="discussions" className="mt-6">
+          <DiscussionsPanel
+            entityType="set"
+            entityId={setId!}
+            title="Set Discussions"
+            description="Collaborate on set details"
+            maxHeight="600px"
           />
         </TabsContent>
       </Tabs>

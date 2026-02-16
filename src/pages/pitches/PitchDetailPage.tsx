@@ -66,7 +66,7 @@ import {
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -568,6 +568,10 @@ export function PitchDetailPage() {
             <MessageSquare className="h-4 w-4" />
             Activity
           </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
+          </TabsTrigger>
         </TabsList>
 
         {/* Details Tab */}
@@ -823,6 +827,16 @@ export function PitchDetailPage() {
             title="Pitch Notes"
             description="Add meeting notes and updates"
             maxHeight="500px"
+          />
+        </TabsContent>
+
+        <TabsContent value="discussions" className="mt-6">
+          <DiscussionsPanel
+            entityType="pitch"
+            entityId={pitchId!}
+            title="Pitch Discussions"
+            description="Collaborate on pitch details"
+            maxHeight="600px"
           />
         </TabsContent>
       </Tabs>

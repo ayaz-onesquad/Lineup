@@ -30,6 +30,7 @@ import { formatDate, getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calcul
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import { DiscussionsPanel, DocumentUpload, NotesPanel } from '@/components/shared'
 import type {
   RequirementStatus,
   RequirementType,
@@ -371,6 +372,10 @@ export function RequirementDetailPage() {
             <MessageSquare className="h-4 w-4" />
             Activity
           </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
+          </TabsTrigger>
         </TabsList>
 
         {/* Details Tab - Organized sections */}
@@ -628,12 +633,23 @@ export function RequirementDetailPage() {
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No activity yet</p>
-            </CardContent>
-          </Card>
+          <NotesPanel
+            entityType="requirement"
+            entityId={requirementId!}
+            title="Requirement Notes"
+            description="Add notes and updates"
+            maxHeight="500px"
+          />
+        </TabsContent>
+
+        <TabsContent value="discussions" className="mt-6">
+          <DiscussionsPanel
+            entityType="requirement"
+            entityId={requirementId!}
+            title="Requirement Discussions"
+            description="Discuss requirement details"
+            maxHeight="600px"
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -66,7 +66,7 @@ import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS }
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
 import type { LeadStatus, CompanySize, ContactRole } from '@/types/database'
 import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
@@ -526,6 +526,10 @@ export function LeadDetailPage() {
             <MessageSquare className="h-4 w-4" />
             Activity
           </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
+          </TabsTrigger>
         </TabsList>
 
         {/* Details Tab */}
@@ -908,6 +912,16 @@ export function LeadDetailPage() {
             title="Lead Notes"
             description="Add meeting notes and updates"
             maxHeight="500px"
+          />
+        </TabsContent>
+
+        <TabsContent value="discussions" className="mt-6">
+          <DiscussionsPanel
+            entityType="lead"
+            entityId={leadId!}
+            title="Lead Discussions"
+            description="Collaborate on lead details"
+            maxHeight="600px"
           />
         </TabsContent>
       </Tabs>
