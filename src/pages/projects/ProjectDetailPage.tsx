@@ -55,7 +55,7 @@ import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
 import type { ProjectStatus, ProjectHealth } from '@/types/database'
@@ -426,6 +426,14 @@ export function ProjectDetailPage() {
           <TabsTrigger value="activity" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Activity
+          </TabsTrigger>
+          <TabsTrigger value="status-updates" className="gap-2">
+            <Calendar className="h-4 w-4" />
+            Status Updates
+          </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
           </TabsTrigger>
         </TabsList>
 
@@ -1169,6 +1177,24 @@ export function ProjectDetailPage() {
             title="Project Notes"
             description="Add meeting notes and updates"
             maxHeight="500px"
+          />
+        </TabsContent>
+
+        <TabsContent value="status-updates" className="mt-6">
+          <StatusUpdatesTimeline
+            entityType="project"
+            entityId={projectId!}
+            canPost={true}
+          />
+        </TabsContent>
+
+        <TabsContent value="discussions" className="mt-6">
+          <DiscussionsPanel
+            entityType="project"
+            entityId={projectId!}
+            title="Project Discussions"
+            description="Collaborate on project matters"
+            maxHeight="600px"
           />
         </TabsContent>
       </Tabs>

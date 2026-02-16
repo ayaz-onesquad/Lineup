@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { discussionsApi } from '@/services/api'
-import { useAuth } from './useAuth'
+import { useAuthStore, useTenantStore } from '@/stores'
 import type { CreateDiscussionInput, EntityType } from '@/types/database'
 
 export function useEntityDiscussions(
@@ -18,14 +18,15 @@ export function useEntityDiscussions(
 
 export function useDiscussionMutations() {
   const queryClient = useQueryClient()
-  const { user, currentTenantId } = useAuth()
+  const { user } = useAuthStore()
+  const { currentTenant } = useTenantStore()
 
   const createDiscussion = useMutation({
     mutationFn: async (input: CreateDiscussionInput) => {
-      if (!user?.id || !currentTenantId) {
+      if (!user?.id || !currentTenant?.id) {
         throw new Error('User not authenticated or tenant not selected')
       }
-      return discussionsApi.create(currentTenantId, user.id, input)
+      return discussionsApi.create(currentTenant.id, user.id, input)
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -44,11 +45,11 @@ export function useDiscussionMutations() {
       content: string
       isInternal?: boolean
     }) => {
-      if (!user?.id || !currentTenantId) {
+      if (!user?.id || !currentTenant?.id) {
         throw new Error('User not authenticated or tenant not selected')
       }
       return discussionsApi.reply(
-        currentTenantId,
+        currentTenant.id,
         user.id,
         parentId,
         content,

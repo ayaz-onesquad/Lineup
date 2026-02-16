@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
+import { toast } from '@/hooks/use-toast'
 import { useProjectMutations } from '@/hooks'
 import {
   Dialog,
@@ -27,13 +26,16 @@ export function SaveAsTemplateDialog({
   open,
   onOpenChange,
 }: SaveAsTemplateDialogProps) {
-  const navigate = useNavigate()
   const [templateName, setTemplateName] = useState(`${projectName} Template`)
   const { saveAsTemplate } = useProjectMutations()
 
   const handleSave = async () => {
     if (!templateName.trim()) {
-      toast.error('Template name is required')
+      toast({
+        title: 'Error',
+        description: 'Template name is required',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -48,19 +50,18 @@ export function SaveAsTemplateDialog({
         },
       })
 
-      toast.success('Template created successfully!', {
+      toast({
+        title: 'Template created successfully!',
         description: 'View it in the Templates page',
-        action: {
-          label: 'View Templates',
-          onClick: () => navigate('/templates'),
-        },
       })
 
       onOpenChange(false)
     } catch (error) {
       console.error('Failed to create template:', error)
-      toast.error('Failed to create template', {
+      toast({
+        title: 'Failed to create template',
         description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'destructive',
       })
     }
   }
