@@ -24,6 +24,7 @@ import {
   Presentation,
   FileText,
   StickyNote,
+  ListOrdered,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +35,7 @@ const mainNavItems = [
   { href: '/contacts', label: 'Contacts', icon: Contact },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
+  { href: '/phases', label: 'Phases', icon: ListOrdered },
   { href: '/sets', label: 'All Sets', icon: Layers },
   { href: '/pitches', label: 'Pitches', icon: Presentation },
   { href: '/requirements', label: 'Requirements', icon: CheckSquare },

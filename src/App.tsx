@@ -31,6 +31,8 @@ import { LeadsPage } from '@/pages/leads/LeadsPage'
 import { LeadDetailPage } from '@/pages/leads/LeadDetailPage'
 import { PitchesPage } from '@/pages/pitches/PitchesPage'
 import { PitchDetailPage } from '@/pages/pitches/PitchDetailPage'
+import { PhasesPage } from '@/pages/phases/PhasesPage'
+import { PhaseDetailPage } from '@/pages/phases/PhaseDetailPage'
 import { DocumentCatalogPage } from '@/pages/settings/DocumentCatalogPage'
 import { TemplatesPage } from '@/pages/templates/TemplatesPage'
 import { DocumentsPage } from '@/pages/documents/DocumentsPage'
@@ -109,6 +111,8 @@ function App() {
               <Route path="/contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+              <Route path="/phases" element={<PhasesPage />} />
+              <Route path="/phases/:phaseId" element={<PhaseDetailPage />} />
               <Route path="/sets" element={<SetsPage />} />
               <Route path="/sets/:setId" element={<SetDetailPage />} />
               <Route path="/requirements" element={<RequirementsPage />} />

@@ -37,6 +37,13 @@ export {
   usePitchMutations,
   useMyActivePitches,
 } from './usePitches'
+export {
+  usePhases,
+  usePhasesByProject,
+  usePhaseById,
+  usePhaseTemplates,
+  usePhaseMutations,
+} from './usePhases'
 
 // Notes hooks
 export {
@@ -74,3 +81,11 @@ export {
   useRecentStatusUpdates,
   useStatusUpdateMutations,
 } from './useStatusUpdates'
+
+// Portal hooks
+export {
+  usePortalSets,
+  usePortalRequirements,
+  usePortalDocuments,
+  usePortalStatusUpdates,
+} from './usePortal'
