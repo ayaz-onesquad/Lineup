@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useProjectWithHierarchy } from '@/hooks/useProjects'
-// import { useEntityStatusUpdates } from '@/hooks' // TODO: Implement status updates
+import { useEntityStatusUpdates } from '@/hooks/useStatusUpdates'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,18 +16,17 @@ import {
   Calendar,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
-// TODO: Implement status updates (Plan 06-03)
-// import { StatusUpdateCard } from '@/components/shared'
+import { StatusUpdateCard } from '@/components/shared'
 
 export function PortalProjectPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
-  // TODO: Implement status updates
-  // const { data: clientUpdates, isLoading: updatesLoading } = useEntityStatusUpdates(
-  //   'project',
-  //   projectId!,
-  //   false // Only fetch client-visible updates
-  // )
+  // Fetch only client-visible status updates (includeInternalOnly = false)
+  const { data: clientUpdates, isLoading: updatesLoading } = useEntityStatusUpdates(
+    'project',
+    projectId!,
+    false
+  )
 
   if (isLoading) {
     return (
@@ -230,12 +229,35 @@ export function PortalProjectPage() {
         </TabsContent>
 
         <TabsContent value="updates" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Status updates coming soon</p>
-            </CardContent>
-          </Card>
+          {updatesLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : !clientUpdates || clientUpdates.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No updates shared yet</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="relative">
+              {/* Vertical timeline line */}
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
+
+              {/* Status update cards */}
+              <div className="space-y-4">
+                {clientUpdates.map((update, index) => (
+                  <StatusUpdateCard
+                    key={update.id}
+                    update={update}
+                    isFirst={index === 0}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
