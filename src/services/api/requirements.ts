@@ -460,4 +460,35 @@ export const requirementsApi = {
     if (error) throw error
     return data || []
   },
+
+  /**
+   * Get portal-visible requirements for a project (for client portal)
+   */
+  getPortalVisible: async (projectId: string): Promise<RequirementWithRelations[]> => {
+    // Get requirements through sets that belong to the project
+    const { data, error } = await supabase
+      .from('requirements')
+      .select(`
+        *,
+        sets (*),
+        pitches (*),
+        assigned_to:assigned_to_id (id, full_name, avatar_url),
+        lead:lead_id (id, full_name, avatar_url),
+        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+        pm:pm_id (id, full_name, avatar_url),
+        reviewer:reviewer_id (id, full_name, avatar_url)
+      `)
+      .eq('show_in_client_portal', true)
+      .is('deleted_at', null)
+      .in('set_id',
+        supabase
+          .from('sets')
+          .select('id')
+          .eq('project_id', projectId)
+      )
+      .order('requirement_order', { ascending: true })
+
+    if (error) throw error
+    return data || []
+  },
 }

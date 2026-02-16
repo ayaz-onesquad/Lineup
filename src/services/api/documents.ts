@@ -170,4 +170,39 @@ export const documentsApi = {
   download: async (fileUrl: string): Promise<void> => {
     window.open(fileUrl, '_blank')
   },
+
+  /**
+   * Get portal-visible documents for a project (for client portal)
+   */
+  getPortalVisible: async (projectId: string): Promise<DocumentWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('documents')
+      .select(`
+        *,
+        document_catalog:document_catalog_id (id, name, category),
+        uploader:uploaded_by (id, full_name, avatar_url)
+      `)
+      .eq('show_in_portal', true)
+      .is('deleted_at', null)
+      .or(`parent_entity_id.eq.${projectId},parent_entity_type.eq.project`)
+      .order('uploaded_at', { ascending: false })
+
+    if (error) throw error
+    return data || []
+  },
+
+  /**
+   * Get signed URL for file download (works for private storage)
+   */
+  getSignedUrl: async (fileUrl: string): Promise<string> => {
+    // Extract path from full URL
+    const path = fileUrl.split('/').slice(-5).join('/')
+
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(path, 3600) // 1 hour expiry
+
+    if (error) throw error
+    return data.signedUrl
+  },
 }

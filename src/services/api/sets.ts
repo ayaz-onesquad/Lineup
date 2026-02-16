@@ -347,4 +347,29 @@ export const setsApi = {
     if (error) throw error
     return data || []
   },
+
+  /**
+   * Get portal-visible sets for a project (for client portal)
+   */
+  getPortalVisible: async (projectId: string): Promise<SetWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('sets')
+      .select(`
+        *,
+        clients:client_id (id, name),
+        projects (*, clients (*)),
+        project_phases (*),
+        owner:owner_id (id, full_name, avatar_url),
+        lead:lead_id (id, full_name, avatar_url),
+        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+        pm:pm_id (id, full_name, avatar_url)
+      `)
+      .eq('project_id', projectId)
+      .eq('show_in_client_portal', true)
+      .is('deleted_at', null)
+      .order('set_order', { ascending: true })
+
+    if (error) throw error
+    return data || []
+  },
 }
