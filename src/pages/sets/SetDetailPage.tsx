@@ -54,6 +54,7 @@ import { formatDate, getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calcul
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import { DocumentUpload, NotesPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { SetStatus, UrgencyLevel, ImportanceLevel } from '@/types/database'
 
@@ -920,7 +921,6 @@ export function SetDetailPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Approval</TableHead>
                       <TableHead>Lead</TableHead>
                       <TableHead>Progress</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
@@ -947,13 +947,6 @@ export function SetDetailPage() {
                           <Badge className={getStatusColor(pitch.status)} variant="outline">
                             {pitch.status.replace('_', ' ')}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {pitch.is_approved ? (
-                            <Badge variant="default" className="bg-green-600">Approved</Badge>
-                          ) : (
-                            <Badge variant="secondary">Pending</Badge>
-                          )}
                         </TableCell>
                         <TableCell>
                           {pitch.lead?.full_name || '—'}
@@ -991,22 +984,24 @@ export function SetDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No documents yet</p>
-              <Button className="mt-4">Upload Document</Button>
-            </CardContent>
-          </Card>
+          <DocumentUpload
+            entityType="set"
+            entityId={setId!}
+            title="Set Documents"
+            description="Upload and manage files for this set"
+            maxHeight="500px"
+            allowMultiple
+          />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No activity yet</p>
-            </CardContent>
-          </Card>
+          <NotesPanel
+            entityType="set"
+            entityId={setId!}
+            title="Set Notes"
+            description="Add meeting notes and updates"
+            maxHeight="500px"
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -37,3 +37,30 @@ export {
   usePitchMutations,
   useMyActivePitches,
 } from './usePitches'
+
+// Notes hooks
+export {
+  useEntityNotes,
+  useNote,
+  useLatestNote,
+  useRecentNotes,
+  useNoteMutations,
+} from './useNotes'
+
+// My Work dashboard hooks
+export {
+  useMyWorkKpis,
+  useMyWorkItems,
+  useMyWorkGrouped,
+  useMyPastDueItems,
+  useMyHighPriorityTasks,
+  useMyTasksByPriority,
+  useMyWorkHierarchy,
+} from './useMyWork'
+
+// Documents hooks
+export {
+  useDocuments,
+  useDocumentsByEntity,
+  useDocumentMutations,
+} from './useDocuments'

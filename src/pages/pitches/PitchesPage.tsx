@@ -30,8 +30,8 @@ import {
   MoreVertical,
   ExternalLink,
   Filter,
-  ShieldCheck,
-  Clock,
+  CheckCircle,
+  PlayCircle,
 } from 'lucide-react'
 import { getStatusColor, getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -46,16 +46,9 @@ const STATUS_OPTIONS = [
   { value: 'on_hold', label: 'On Hold' },
 ]
 
-const APPROVAL_OPTIONS = [
-  { value: '', label: 'All' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'pending', label: 'Pending Approval' },
-]
-
 export function PitchesPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [approvalFilter, setApprovalFilter] = useState('')
 
   const navigate = useNavigate()
   const { data: pitches, isLoading } = usePitches()
@@ -75,24 +68,18 @@ export function PitchesPage() {
       // Status filter
       const matchesStatus = !statusFilter || pitch.status === statusFilter
 
-      // Approval filter
-      const matchesApproval =
-        !approvalFilter ||
-        (approvalFilter === 'approved' && pitch.is_approved) ||
-        (approvalFilter === 'pending' && !pitch.is_approved)
-
-      return matchesSearch && matchesStatus && matchesApproval
+      return matchesSearch && matchesStatus
     })
-  }, [pitches, search, statusFilter, approvalFilter])
+  }, [pitches, search, statusFilter])
 
   // Stats
   const stats = useMemo(() => {
-    if (!pitches) return { total: 0, approved: 0, pending: 0, inProgress: 0 }
+    if (!pitches) return { total: 0, completed: 0, inProgress: 0, blocked: 0 }
     return {
       total: pitches.length,
-      approved: pitches.filter((p) => p.is_approved).length,
-      pending: pitches.filter((p) => !p.is_approved).length,
+      completed: pitches.filter((p) => p.status === 'completed').length,
       inProgress: pitches.filter((p) => p.status === 'in_progress').length,
+      blocked: pitches.filter((p) => p.status === 'blocked').length,
     }
   }, [pitches])
 
@@ -114,7 +101,7 @@ export function PitchesPage() {
             Pitches
           </h1>
           <p className="text-muted-foreground">
-            Manage requirement groupings and approval workflows
+            Manage requirement groupings within sets
           </p>
         </div>
         <Button onClick={() => openCreateModal('pitch' as any)}>
@@ -137,28 +124,28 @@ export function PitchesPage() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-green-600" />
-              <span className="text-sm text-muted-foreground">Approved</span>
-            </div>
-            <p className="text-2xl font-bold mt-1 text-green-600">{stats.approved}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-amber-600" />
-              <span className="text-sm text-muted-foreground">Pending Approval</span>
-            </div>
-            <p className="text-2xl font-bold mt-1 text-amber-600">{stats.pending}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Presentation className="h-4 w-4 text-blue-600" />
+              <PlayCircle className="h-4 w-4 text-blue-600" />
               <span className="text-sm text-muted-foreground">In Progress</span>
             </div>
             <p className="text-2xl font-bold mt-1 text-blue-600">{stats.inProgress}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-muted-foreground">Completed</span>
+            </div>
+            <p className="text-2xl font-bold mt-1 text-green-600">{stats.completed}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <Presentation className="h-4 w-4 text-red-600" />
+              <span className="text-sm text-muted-foreground">Blocked</span>
+            </div>
+            <p className="text-2xl font-bold mt-1 text-red-600">{stats.blocked}</p>
           </CardContent>
         </Card>
       </div>
@@ -183,13 +170,6 @@ export function PitchesPage() {
             placeholder="Status"
             className="w-40"
           />
-          <SearchableSelect
-            options={APPROVAL_OPTIONS}
-            value={approvalFilter}
-            onValueChange={(v) => setApprovalFilter(v || '')}
-            placeholder="Approval"
-            className="w-40"
-          />
         </div>
       </div>
 
@@ -205,13 +185,12 @@ export function PitchesPage() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Presentation className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No pitches found</p>
-            {search || statusFilter || approvalFilter ? (
+            {search || statusFilter ? (
               <Button
                 variant="link"
                 onClick={() => {
                   setSearch('')
                   setStatusFilter('')
-                  setApprovalFilter('')
                 }}
               >
                 Clear filters
@@ -234,7 +213,6 @@ export function PitchesPage() {
                   <TableHead>Set</TableHead>
                   <TableHead>Pitch Name</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Approval</TableHead>
                   <TableHead>Lead</TableHead>
                   <TableHead>Progress</TableHead>
                   <TableHead>Priority</TableHead>
@@ -273,19 +251,6 @@ export function PitchesPage() {
                         <Badge className={getStatusColor(pitch.status)} variant="outline">
                           {pitch.status.replace('_', ' ')}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {pitch.is_approved ? (
-                          <Badge variant="default" className="gap-1 bg-green-600">
-                            <ShieldCheck className="h-3 w-3" />
-                            Approved
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="gap-1">
-                            <Clock className="h-3 w-3" />
-                            Pending
-                          </Badge>
-                        )}
                       </TableCell>
                       <TableCell>
                         {pitch.lead ? (

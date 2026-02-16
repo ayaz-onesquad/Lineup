@@ -1,0 +1,99 @@
+-- Supabase Storage Setup for LineUp
+-- Run this in Supabase SQL Editor after running migrations
+-- NOTE: Bucket creation is typically done via Supabase Dashboard or API
+-- This file documents the required policies
+
+-- ============================================================================
+-- BUCKET: documents
+-- Purpose: Store documents for all entities (clients, projects, sets, etc.)
+-- Path pattern: {tenant_id}/{user_id}/{entity_type}/{entity_id}/{filename}
+-- IMPORTANT: All paths MUST start with tenant_id for RLS enforcement
+-- ============================================================================
+
+-- Bucket should be created via Dashboard or API:
+-- await supabase.storage.createBucket('documents', { public: false })
+
+-- ============================================================================
+-- STORAGE POLICIES
+-- These policies ensure tenant isolation via the documents table RLS
+-- ============================================================================
+
+-- The key insight: We don't need complex storage policies because:
+-- 1. File uploads go through our API (documentsApi.upload)
+-- 2. The API creates a record in the 'documents' table
+-- 3. The 'documents' table has tenant-based RLS
+-- 4. File URLs are retrieved via the documents table, which is RLS-protected
+
+-- For direct storage access, these policies provide additional protection:
+
+-- ============================================================================
+-- TENANT-BASED STORAGE RLS (Migration 029)
+-- ============================================================================
+--
+-- File paths MUST follow this format:
+--   {tenant_id}/{user_id}/{entity_type}/{entity_id}/{timestamp}.{ext}
+--
+-- RLS policies validate:
+--   1. First path segment is a valid UUID (tenant_id)
+--   2. User belongs to that tenant (via tenant_users table)
+--
+-- Example valid path:
+--   550e8400-e29b-41d4-a716-446655440000/user123/client/abc123/1707123456789.pdf
+--
+-- The migration 029_tenant_storage_rls.sql creates:
+--
+-- Helper functions (in PUBLIC schema, not storage):
+--   - public.get_storage_tenant_id() - Extracts tenant_id from JWT
+--   - public.validate_storage_tenant_path(path) - Validates path ownership
+--
+-- Storage policies:
+--   - tenant_upload_policy: INSERT with tenant path validation
+--   - tenant_read_policy: SELECT with tenant path validation
+--   - tenant_update_policy: UPDATE with tenant path validation
+--   - tenant_delete_policy: DELETE with tenant path validation
+--
+-- It also includes a trigger to sync tenant_id to JWT app_metadata when
+-- users are added to tenants, enabling faster RLS checks.
+-- ============================================================================
+
+-- ============================================================================
+-- RECOMMENDED APPROACH
+-- ============================================================================
+--
+-- Tenant isolation is enforced at two levels:
+--
+-- LEVEL 1: Storage RLS (Migration 029)
+-- - File paths MUST start with tenant_id
+-- - Policies validate user belongs to path's tenant
+-- - Applies to all storage operations (upload, read, delete)
+--
+-- LEVEL 2: Documents Table RLS
+-- - documents table has tenant_id column with RLS
+-- - Access requires tenant_users membership
+-- - Signed URLs expire for additional security
+--
+-- SETUP IN SUPABASE DASHBOARD:
+-- 1. Go to Storage > Create Bucket
+-- 2. Name: "documents"
+-- 3. Public: OFF (important!)
+-- 4. File size limit: 50MB (or your preference)
+-- 5. Allowed MIME types: * (or restrict to specific types)
+-- 6. Run migration 029_tenant_storage_rls.sql to create policies
+--
+-- ============================================================================
+
+-- ============================================================================
+-- TROUBLESHOOTING 403 ERRORS
+-- ============================================================================
+--
+-- If users get 403 errors on upload, check:
+--
+-- 1. File path format: Must be {tenant_id}/{user_id}/...
+-- 2. JWT has tenant_id: User may need to log out/in to refresh token
+-- 3. Tenant membership: User must be in tenant_users for that tenant
+--
+-- The UI shows a toast suggesting session refresh for 403 errors.
+-- The sync_tenant_to_jwt trigger updates JWT on tenant_users insert,
+-- but users added before migration 029 need to re-login.
+--
+-- ============================================================================

@@ -46,6 +46,29 @@ export function useSet(id: string) {
   })
 }
 
+export function useMyActiveSets() {
+  const { currentTenant } = useTenantStore()
+  const { user } = useAuthStore()
+
+  // Get user profile ID (not auth user ID)
+  const { data: userProfile } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      const { data } = await import('@/services/supabase').then((m) =>
+        m.supabase.from('user_profiles').select('id').eq('user_id', user!.id).single()
+      )
+      return data
+    },
+    enabled: !!user?.id,
+  })
+
+  return useQuery({
+    queryKey: ['sets', 'my-active', currentTenant?.id, userProfile?.id],
+    queryFn: () => setsApi.getMyActive(currentTenant!.id, userProfile!.id),
+    enabled: !!currentTenant?.id && !!userProfile?.id,
+  })
+}
+
 export function useSetMutations() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()

@@ -54,6 +54,29 @@ export function usePitch(id: string) {
   })
 }
 
+export function useMyActivePitches() {
+  const { currentTenant } = useTenantStore()
+  const { user } = useAuthStore()
+
+  // Get user profile ID (not auth user ID)
+  const { data: userProfile } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      const { data } = await import('@/services/supabase').then((m) =>
+        m.supabase.from('user_profiles').select('id').eq('user_id', user!.id).single()
+      )
+      return data
+    },
+    enabled: !!user?.id,
+  })
+
+  return useQuery({
+    queryKey: ['pitches', 'my-active', currentTenant?.id, userProfile?.id],
+    queryFn: () => pitchesApi.getMyActive(currentTenant!.id, userProfile!.id),
+    enabled: !!currentTenant?.id && !!userProfile?.id,
+  })
+}
+
 export function usePitchTemplates() {
   const { currentTenant } = useTenantStore()
 
@@ -140,45 +163,6 @@ export function usePitchMutations() {
     },
   })
 
-  const approvePitch = useMutation({
-    mutationFn: ({ id, approvedById }: { id: string; approvedById: string }) =>
-      pitchesApi.approve(id, user!.id, approvedById),
-    onSuccess: async (_data, variables) => {
-      await queryClient.refetchQueries({ queryKey: ['pitch', variables.id] })
-      queryClient.invalidateQueries({ queryKey: ['pitches'] })
-      toast({
-        title: 'Pitch approved',
-        description: 'The pitch has been marked as approved.',
-      })
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Failed to approve pitch',
-        description: error.message,
-        variant: 'destructive',
-      })
-    },
-  })
-
-  const rejectPitch = useMutation({
-    mutationFn: (id: string) => pitchesApi.reject(id, user!.id),
-    onSuccess: async (_data, variables) => {
-      await queryClient.refetchQueries({ queryKey: ['pitch', variables] })
-      queryClient.invalidateQueries({ queryKey: ['pitches'] })
-      toast({
-        title: 'Pitch rejected',
-        description: 'The pitch approval has been removed.',
-      })
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Failed to reject pitch',
-        description: error.message,
-        variant: 'destructive',
-      })
-    },
-  })
-
   const updateCompletionPercentage = useMutation({
     mutationFn: pitchesApi.updateCompletionPercentage,
     onSuccess: (_data, pitchId) => {
@@ -192,8 +176,6 @@ export function usePitchMutations() {
     updatePitch,
     deletePitch,
     reorderPitches,
-    approvePitch,
-    rejectPitch,
     updateCompletionPercentage,
   }
 }

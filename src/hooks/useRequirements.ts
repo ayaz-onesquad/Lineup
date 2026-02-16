@@ -72,6 +72,29 @@ export function useMyRequirements() {
   })
 }
 
+export function useMyActiveTasks() {
+  const { user } = useAuthStore()
+  const { currentTenant } = useTenantStore()
+
+  // Get user profile ID (not auth user ID)
+  const { data: userProfile } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      const { data } = await import('@/services/supabase').then((m) =>
+        m.supabase.from('user_profiles').select('id').eq('user_id', user!.id).single()
+      )
+      return data
+    },
+    enabled: !!user?.id,
+  })
+
+  return useQuery({
+    queryKey: ['requirements', 'my-tasks', currentTenant?.id, userProfile?.id],
+    queryFn: () => requirementsApi.getMyTasks(currentTenant!.id, userProfile!.id),
+    enabled: !!currentTenant?.id && !!userProfile?.id,
+  })
+}
+
 export function useRequirement(id: string) {
   return useQuery({
     queryKey: ['requirement', id],

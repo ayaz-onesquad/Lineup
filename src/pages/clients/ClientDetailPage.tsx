@@ -93,6 +93,7 @@ import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_R
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import { DocumentUpload, NotesPanel } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -562,6 +563,10 @@ export function ClientDetailPage() {
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
             Documents
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Notes
           </TabsTrigger>
         </TabsList>
 
@@ -1335,7 +1340,6 @@ export function ClientDetailPage() {
                       <TableHead>Set</TableHead>
                       <TableHead>Project</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Approval</TableHead>
                       <TableHead>Progress</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
@@ -1387,13 +1391,6 @@ export function ClientDetailPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {pitch.is_approved ? (
-                            <Badge variant="default" className="bg-green-600">Approved</Badge>
-                          ) : (
-                            <Badge variant="secondary">Pending</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
                           <div className="flex items-center gap-2">
                             <Progress value={pitch.completion_percentage} className="h-2 w-16" />
                             <span className="text-xs text-muted-foreground">
@@ -1427,13 +1424,24 @@ export function ClientDetailPage() {
 
         {/* Documents Tab */}
         <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No documents yet</p>
-              <Button className="mt-4">Upload Document</Button>
-            </CardContent>
-          </Card>
+          <DocumentUpload
+            entityType="client"
+            entityId={clientId!}
+            title="Client Documents"
+            description="Upload and manage files for this client"
+            maxHeight="500px"
+            allowMultiple
+          />
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-6">
+          <NotesPanel
+            entityType="client"
+            entityId={clientId!}
+            title="Client Notes"
+            description="Add meeting notes and updates"
+            maxHeight="500px"
+          />
         </TabsContent>
       </Tabs>
 

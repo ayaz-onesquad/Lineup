@@ -66,6 +66,7 @@ import {
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import { DocumentUpload, NotesPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -805,22 +806,24 @@ export function PitchDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No documents yet</p>
-              <Button className="mt-4">Upload Document</Button>
-            </CardContent>
-          </Card>
+          <DocumentUpload
+            entityType="pitch"
+            entityId={pitchId!}
+            title="Pitch Documents"
+            description="Upload and manage files for this pitch"
+            maxHeight="500px"
+            allowMultiple
+          />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No activity yet</p>
-            </CardContent>
-          </Card>
+          <NotesPanel
+            entityType="pitch"
+            entityId={pitchId!}
+            title="Pitch Notes"
+            description="Add meeting notes and updates"
+            maxHeight="500px"
+          />
         </TabsContent>
       </Tabs>
 

@@ -32,6 +32,8 @@ import { PitchesPage } from '@/pages/pitches/PitchesPage'
 import { PitchDetailPage } from '@/pages/pitches/PitchDetailPage'
 import { DocumentCatalogPage } from '@/pages/settings/DocumentCatalogPage'
 import { TemplatesPage } from '@/pages/templates/TemplatesPage'
+import { DocumentsPage } from '@/pages/documents/DocumentsPage'
+import { NotesPage, NoteDetailPage } from '@/pages/notes'
 
 // Client Portal
 import { PortalLoginPage } from '@/pages/portal/PortalLoginPage'
@@ -115,6 +117,9 @@ function App() {
               <Route path="/pitches" element={<PitchesPage />} />
               <Route path="/pitches/:pitchId" element={<PitchDetailPage />} />
               <Route path="/templates" element={<TemplatesPage />} />
+              <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/notes" element={<NotesPage />} />
+              <Route path="/notes/:noteId" element={<NoteDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/team" element={<TeamPage />} />
               <Route path="/settings/document-catalog" element={<DocumentCatalogPage />} />

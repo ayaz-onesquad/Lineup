@@ -1097,3 +1097,220 @@ After running migration 027:
 - [ ] Can create contacts from LeadDetailPage
 - [ ] Pitch parent links are clickable
 - [ ] Dashboard shows 3 new "My Active" widgets
+
+## 📋 Unified Work Command Center (Migration 028)
+
+### Polymorphic Notes System
+
+Notes can be attached to any entity in the system:
+
+**Schema:**
+```sql
+CREATE TABLE notes (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    note_type VARCHAR(50) CHECK (note_type IN ('meeting', 'internal', 'client')),
+    parent_entity_type VARCHAR(50) CHECK (parent_entity_type IN (
+        'client', 'project', 'phase', 'set', 'pitch', 'requirement', 'lead', 'contact'
+    )),
+    parent_entity_id UUID NOT NULL,
+    is_pinned BOOLEAN DEFAULT false,
+    -- audit fields
+);
+```
+
+**Note Types:**
+- `meeting` - Meeting notes and minutes
+- `internal` - Internal team notes
+- `client` - Client-visible notes
+
+**API:** `notesApi` | **Hooks:** `useEntityNotes`, `useLatestNote`, `useNoteMutations`
+
+**Usage:**
+```typescript
+// Fetch notes for an entity
+const { data: notes } = useEntityNotes('client', clientId)
+
+// Get latest note for roll-up display
+const { data: latestNote } = useLatestNote('client', clientId)
+
+// CRUD operations
+const { createNote, updateNote, togglePinNote, deleteNote } = useNoteMutations()
+
+createNote.mutate({
+  parent_entity_type: 'client',
+  parent_entity_id: clientId,
+  title: 'Follow-up Call',
+  description: 'Discussed project timeline...',
+  note_type: 'meeting',
+})
+```
+
+**UI Component:**
+```typescript
+import { NotesPanel } from '@/components/shared'
+
+// In any detail page
+<NotesPanel
+  entityType="client"
+  entityId={clientId}
+  title="Client Notes"
+  description="Add meeting notes and updates"
+/>
+```
+
+### Unified Dashboard ("My Work" Command Center)
+
+**Removed from Dashboard:**
+- Active Projects card
+- My Requirements card
+
+**New Dashboard Features:**
+
+**1. Premium KPI Cards (Past Due vs Active):**
+- My Sets: Shows active count with past due percentage
+- My Pitches: Shows active count with past due percentage
+- My Tasks: Shows active count with past due percentage
+- My Requirements: Shows active count with past due percentage
+
+**2. Priority Tasks Column:**
+- High-priority tasks (`is_task = true`, `priority <= 2`)
+- Checklist-style with due date indicators
+- Past due highlighting
+
+**3. Unified "My Work" Section:**
+- Grouped lists: Sets, Pitches, Requirements
+- Flame icon for high priority items
+- Unassigned grouping for orphan items
+
+**Hooks:**
+```typescript
+import { useMyWorkKpis, useMyWorkGrouped, useMyHighPriorityTasks } from '@/hooks'
+
+// KPI metrics
+const { data: kpis } = useMyWorkKpis()
+// kpis = { sets: { active: 5, past_due: 1 }, pitches: {...}, tasks: {...}, requirements: {...} }
+
+// Grouped work items
+const { sets, pitches, requirements, isLoading } = useMyWorkGrouped()
+
+// High priority tasks
+const { data: tasks } = useMyHighPriorityTasks(15)
+```
+
+**Database Views:**
+- `my_work_items` - Unified view combining sets, pitches, requirements
+- `my_past_due_sets` - Sets with expected_end_date < today
+- `my_past_due_pitches` - Pitches past due
+- `my_past_due_requirements` - Requirements past due
+- `entity_latest_notes` - Latest note per entity for roll-up
+
+**RPC Function:**
+- `get_my_work_kpis(p_user_profile_id)` - Returns JSON with KPI counts
+
+### Document Upload Component
+
+Multi-file drag-and-drop upload with progress tracking:
+
+**Usage:**
+```typescript
+import { DocumentUpload } from '@/components/shared'
+
+<DocumentUpload
+  entityType="requirement"
+  entityId={requirementId}
+  title="Attachments"
+  description="Upload files for this requirement"
+  allowMultiple={true}
+/>
+```
+
+**Features:**
+- Drag-and-drop zone
+- Multiple file upload queue
+- Progress indicators
+- File type icons
+- Download and delete actions
+- Portal visibility toggle
+
+### Supabase Storage
+
+**Bucket:** `documents` (private)
+
+**Path Pattern:** `{tenant_id}/{user_id}/{entity_type}/{entity_id}/{filename}`
+
+**IMPORTANT:** All file paths MUST start with `tenant_id` for RLS enforcement. This enables storage-level tenant isolation independent of the documents table.
+
+**Security Model:**
+1. **Storage RLS (Migration 029):** Validates file path starts with user's tenant_id
+2. **Documents Table RLS:** Secondary isolation via tenant_id column
+3. Bucket is PRIVATE (no public access)
+4. Signed URLs for file downloads (expire after set time)
+
+**JWT Tenant Sync:**
+- Migration 029 adds a trigger that syncs `tenant_id` to user's `app_metadata` when added to tenant
+- Existing users need to log out/in after migration to refresh their JWT
+- The `public.validate_storage_tenant_path()` function checks user's tenant membership
+
+**Error Handling:**
+- 403 errors on upload show a toast suggesting session refresh
+- `StoragePermissionError` class exported from `documentsApi` for specific error handling
+
+**Setup:**
+1. Create bucket in Supabase Dashboard (name: `documents`, public: OFF)
+2. Run `supabase/migrations/029_tenant_storage_rls.sql`
+3. Run `supabase/storage-setup.sql` for additional documentation
+
+### Migration 028 Checklist
+After running migration 028:
+- [ ] `notes` table exists with RLS policies
+- [ ] `entity_latest_notes` view exists
+- [ ] `my_work_items` view exists
+- [ ] `get_my_work_kpis` RPC function exists
+- [ ] Dashboard shows unified "My Work" section
+- [ ] NotesPanel component works in detail pages
+- [ ] DocumentUpload component handles multi-file uploads
+- [ ] Documents bucket created in Supabase Storage (via Dashboard)
+
+## 📋 Tenant-Based Storage RLS (Migration 029)
+
+### Problem Solved
+Previously, file paths used `{user_id}/...` format which didn't enforce tenant isolation at the storage level. A user could potentially construct paths to access other tenants' files if they knew the path structure.
+
+### Solution
+File paths now start with `{tenant_id}/...` and storage RLS policies validate:
+1. First path segment is a valid UUID (tenant_id)
+2. User belongs to that tenant via `tenant_users` table
+
+### Migration Components
+
+**Helper Functions (in public schema - not storage schema due to Supabase restrictions):**
+- `public.get_storage_tenant_id()` - Extracts tenant_id from JWT or falls back to tenant_users
+- `public.validate_storage_tenant_path(path)` - Validates path belongs to user's tenant
+
+**Storage Policies:**
+- `tenant_upload_policy` - INSERT with tenant path validation
+- `tenant_read_policy` - SELECT with tenant path validation
+- `tenant_update_policy` - UPDATE with tenant path validation
+- `tenant_delete_policy` - DELETE with tenant path validation
+
+**JWT Sync Trigger:**
+- `sync_tenant_to_jwt_trigger` - Updates user's `raw_app_meta_data` with tenant_id when added to tenant
+
+### Frontend Changes
+- `documentsApi.upload()` now uses `${tenantId}/${userId}/...` path format
+- `StoragePermissionError` class for specific 403 error handling
+- DocumentUpload component shows session refresh toast on 403 errors
+
+### Migration 029 Checklist
+After running migration 029:
+- [ ] `public.validate_storage_tenant_path()` function exists
+- [ ] `public.get_storage_tenant_id()` function exists
+- [ ] `tenant_upload_policy` exists on `storage.objects`
+- [ ] `tenant_read_policy` exists on `storage.objects`
+- [ ] `sync_tenant_to_jwt_trigger` exists on `tenant_users`
+- [ ] Existing users have `tenant_id` backfilled in `raw_app_meta_data`
+- [ ] File uploads use tenant-prefixed paths
+- [ ] 403 errors show session refresh toast

@@ -34,8 +34,7 @@ const PITCH_SELECT = `
     id, name, client_id, project_id
   ),
   lead:lead_id (id, full_name, avatar_url),
-  secondary_lead:secondary_lead_id (id, full_name, avatar_url),
-  approved_by:approved_by_id (id, full_name, avatar_url)
+  secondary_lead:secondary_lead_id (id, full_name, avatar_url)
 `
 
 // Helper to enrich pitches with client/project data
@@ -303,7 +302,6 @@ export const pitchesApi = {
         urgency: cleanedInput.urgency || 'medium',
         importance: cleanedInput.importance || 'medium',
         completion_percentage: 0,
-        is_approved: false,
         is_template: cleanedInput.is_template || false,
         ...cleanedInput,
       })
@@ -324,7 +322,6 @@ export const pitchesApi = {
       'secondary_lead_id',
       'predecessor_pitch_id',
       'successor_pitch_id',
-      'approved_by_id',
     ])
 
     const { data, error } = await supabase
@@ -371,50 +368,6 @@ export const pitchesApi = {
   },
 
   /**
-   * Approve a pitch
-   */
-  approve: async (
-    id: string,
-    userId: string,
-    approvedById: string
-  ): Promise<Pitch> => {
-    const { data, error } = await supabase
-      .from('pitches')
-      .update({
-        is_approved: true,
-        approved_by_id: approvedById,
-        approved_at: new Date().toISOString(),
-        updated_by: userId,
-      })
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  },
-
-  /**
-   * Reject/unapprove a pitch
-   */
-  reject: async (id: string, userId: string): Promise<Pitch> => {
-    const { data, error } = await supabase
-      .from('pitches')
-      .update({
-        is_approved: false,
-        approved_by_id: null,
-        approved_at: null,
-        updated_by: userId,
-      })
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  },
-
-  /**
    * Update completion percentage based on child requirements
    */
   updateCompletionPercentage: async (id: string): Promise<void> => {
@@ -433,5 +386,29 @@ export const pitchesApi = {
         .update({ completion_percentage: completion })
         .eq('id', id)
     }
+  },
+
+  /**
+   * Get active pitches where the user is assigned (lead, secondary_lead)
+   */
+  getMyActive: async (tenantId: string, userProfileId: string): Promise<PitchWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('pitches')
+      .select(`
+        *,
+        sets:set_id (id, name, client_id, project_id)
+      `)
+      .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
+      .eq('is_template', false)
+      .neq('status', 'completed')
+      .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId}`)
+      .order('priority', { ascending: true })
+      .limit(10)
+
+    if (error) throw error
+
+    // Enrich with client/project data
+    return enrichPitchesWithRelations(data || [])
   },
 }

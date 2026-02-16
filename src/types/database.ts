@@ -354,7 +354,7 @@ export interface Requirement {
 
 export interface RequirementWithRelations extends Requirement {
   sets?: SetWithRelations
-  pitches?: { id: string; name: string; status?: string; is_approved?: boolean } // Parent pitch relation
+  pitches?: { id: string; name: string; status?: string } // Parent pitch relation
   assigned_to?: UserProfile
   lead?: UserProfile
   secondary_lead?: UserProfile
@@ -720,9 +720,6 @@ export interface Pitch {
   priority: number
   status: PitchStatus
   completion_percentage: number
-  is_approved: boolean
-  approved_by_id?: string
-  approved_at?: string
   show_in_client_portal: boolean
   is_template: boolean
   notes?: string
@@ -737,7 +734,6 @@ export interface PitchWithRelations extends Pitch {
   sets?: SetWithRelations
   lead?: UserProfile
   secondary_lead?: UserProfile
-  approved_by?: UserProfile
   requirements?: RequirementWithRelations[]
   creator?: UserProfile
   updater?: UserProfile
@@ -765,9 +761,6 @@ export interface UpdatePitchInput extends Partial<Omit<CreatePitchInput, 'set_id
   status?: PitchStatus
   actual_start_date?: string
   actual_end_date?: string
-  is_approved?: boolean
-  approved_by_id?: string
-  approved_at?: string
 }
 
 // Enhanced Phase types (with new fields)
@@ -901,4 +894,99 @@ export interface ConvertLeadOptions {
   relationship_manager_id?: string
   copy_contacts?: boolean
   copy_documents?: boolean
+}
+
+// ============================================================================
+// V3 FEATURES: Polymorphic Notes System, My Work Dashboard
+// ============================================================================
+
+// Note types
+export type NoteType = 'meeting' | 'internal' | 'client'
+export type NoteParentEntityType = 'client' | 'project' | 'phase' | 'set' | 'pitch' | 'requirement' | 'lead' | 'contact'
+
+export interface Note {
+  id: string
+  tenant_id: string
+  display_id: number
+  title: string
+  description?: string
+  note_type: NoteType
+  parent_entity_type: NoteParentEntityType
+  parent_entity_id: string
+  is_pinned: boolean
+  created_at: string
+  created_by?: string
+  updated_at: string
+  updated_by?: string
+  deleted_at?: string
+}
+
+export interface NoteWithAuthor extends Note {
+  author?: UserProfile
+}
+
+export interface CreateNoteInput {
+  parent_entity_type: NoteParentEntityType
+  parent_entity_id: string
+  title: string
+  description?: string
+  note_type?: NoteType
+  is_pinned?: boolean
+}
+
+export interface UpdateNoteInput {
+  title?: string
+  description?: string
+  note_type?: NoteType
+  is_pinned?: boolean
+}
+
+// Latest note for entity (for roll-up display in tables)
+export interface EntityLatestNote {
+  parent_entity_type: NoteParentEntityType
+  parent_entity_id: string
+  note_id: string
+  latest_note_title: string
+  latest_note_description?: string
+  latest_note_type: NoteType
+  latest_note_created_at: string
+  latest_note_created_by?: string
+  latest_note_author_name?: string
+}
+
+// My Work KPIs
+export interface MyWorkKpis {
+  sets: { active: number; past_due: number }
+  pitches: { active: number; past_due: number }
+  tasks: { active: number; past_due: number }
+  requirements: { active: number; past_due: number }
+}
+
+// Unified work item (from my_work_items view)
+export type WorkItemType = 'set' | 'pitch' | 'requirement'
+
+export interface MyWorkItem {
+  item_type: WorkItemType
+  id: string
+  tenant_id: string
+  name: string
+  description?: string
+  status: string
+  priority: number
+  expected_start_date?: string
+  expected_due_date?: string
+  completion_percentage: number
+  lead_id?: string
+  secondary_lead_id?: string
+  pm_id?: string
+  assigned_to_id?: string
+  client_id?: string
+  project_id?: string
+  set_id?: string
+  pitch_id?: string
+  client_name?: string
+  project_name?: string
+  set_name?: string
+  pitch_name?: string
+  created_at: string
 }

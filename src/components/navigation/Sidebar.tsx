@@ -22,6 +22,8 @@ import {
   Target,
   LayoutTemplate,
   Presentation,
+  FileText,
+  StickyNote,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +37,8 @@ const mainNavItems = [
   { href: '/sets', label: 'All Sets', icon: Layers },
   { href: '/pitches', label: 'Pitches', icon: Presentation },
   { href: '/requirements', label: 'Requirements', icon: CheckSquare },
+  { href: '/documents', label: 'Documents', icon: FileText },
+  { href: '/notes', label: 'Notes', icon: StickyNote },
 ]
 
 const bottomNavItems = [

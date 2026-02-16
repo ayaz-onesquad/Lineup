@@ -324,4 +324,27 @@ export const setsApi = {
       }
     }
   },
+
+  /**
+   * Get active sets where the user is assigned (lead, secondary_lead, pm)
+   */
+  getMyActive: async (tenantId: string, userProfileId: string): Promise<SetWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('sets')
+      .select(`
+        *,
+        clients:client_id (id, name),
+        projects (id, name, clients (id, name))
+      `)
+      .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
+      .eq('is_template', false)
+      .neq('status', 'completed')
+      .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId},pm_id.eq.${userProfileId}`)
+      .order('priority', { ascending: true })
+      .limit(10)
+
+    if (error) throw error
+    return data || []
+  },
 }
