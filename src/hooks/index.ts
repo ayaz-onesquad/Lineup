@@ -64,3 +64,6 @@ export {
   useDocumentsByEntity,
   useDocumentMutations,
 } from './useDocuments'
+
+// Discussions hooks
+export { useEntityDiscussions, useDiscussionMutations } from './useDiscussions'
