@@ -23,7 +23,6 @@ import {
 import { Label } from '@/components/ui/label'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
-  Plus,
   Search,
   MoreVertical,
   Copy,
@@ -106,17 +105,11 @@ export function TemplatesPage() {
   return (
     <div className="page-carbon p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Project Templates</h1>
-          <p className="text-muted-foreground">
-            Create and manage reusable project templates
-          </p>
-        </div>
-        <Button onClick={() => navigate('/projects')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Save Project as Template
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Project Templates</h1>
+        <p className="text-muted-foreground">
+          Create and manage reusable project templates
+        </p>
       </div>
 
       {/* Info Card */}
