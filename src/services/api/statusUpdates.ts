@@ -23,17 +23,32 @@ export const statusUpdatesApi = {
       query = query.eq('show_in_client_portal', true)
     }
 
-    const { data, error } = await query
+    const { data: updates, error } = await query
 
     if (error) throw error
-    return data || []
+    if (!updates || updates.length === 0) return []
+
+    // Fetch author profiles separately
+    const authorIds = new Set(updates.map((u) => u.author_id).filter(Boolean))
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('id, user_id, full_name, avatar_url')
+      .in('user_id', Array.from(authorIds))
+
+    // Map profiles to updates
+    const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || [])
+
+    return updates.map((update) => ({
+      ...update,
+      author: update.author_id ? profileMap.get(update.author_id) : undefined,
+    }))
   },
 
   getRecent: async (
     tenantId: string,
     limit: number = 10
   ): Promise<StatusUpdateWithAuthor[]> => {
-    const { data, error } = await supabase
+    const { data: updates, error } = await supabase
       .from('status_updates')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -41,7 +56,22 @@ export const statusUpdatesApi = {
       .limit(limit)
 
     if (error) throw error
-    return data || []
+    if (!updates || updates.length === 0) return []
+
+    // Fetch author profiles separately
+    const authorIds = new Set(updates.map((u) => u.author_id).filter(Boolean))
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('id, user_id, full_name, avatar_url')
+      .in('user_id', Array.from(authorIds))
+
+    // Map profiles to updates
+    const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || [])
+
+    return updates.map((update) => ({
+      ...update,
+      author: update.author_id ? profileMap.get(update.author_id) : undefined,
+    }))
   },
 
   create: async (

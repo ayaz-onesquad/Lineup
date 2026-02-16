@@ -67,3 +67,10 @@ export {
 
 // Discussions hooks
 export { useEntityDiscussions, useDiscussionMutations } from './useDiscussions'
+
+// Status updates hooks
+export {
+  useEntityStatusUpdates,
+  useRecentStatusUpdates,
+  useStatusUpdateMutations,
+} from './useStatusUpdates'
