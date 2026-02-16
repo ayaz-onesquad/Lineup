@@ -10,10 +10,10 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 ## Current Position
 
 Milestone: v2.1 Stability & Features — IN PROGRESS
-Status: Phase 5 complete, ready for Phase 6
-Last activity: 2026-02-16 - Completed Phase 5 (User Management Fix)
+Status: Phase 6 in progress (1/3 plans complete)
+Last activity: 2026-02-16 - Completed Plan 06-01 (Template Creation Finalization)
 
-Progress: 3/8 plans (v2.1)
+Progress: 4/8 plans (v2.1)
 
 ## Phase 5 Completion Summary
 
@@ -41,15 +41,15 @@ Progress: 3/8 plans (v2.1)
 ✅ Fixed session hijacking
 ✅ Added validation and error handling
 
-### 🟠 HIGH — Phase 6: High Priority Features
+### 🟠 HIGH — Phase 6: High Priority Features (1/3 complete)
 **Features:**
-- Template creation (95% done, missing UI button)
+- Template creation ✅ COMPLETE (SaveAsTemplateDialog + actions menu)
 - Discussions/Comments (schema exists, no UI)
 - Status Updates (schema exists, no UI)
 
 **Plans:**
-- 06-01: Template Creation Finalization
-- 06-02: Discussions/Comments System
+- 06-01: Template Creation Finalization ✅ COMPLETE (2 min)
+- 06-02: Discussions/Comments System — NEXT
 - 06-03: Status Updates System
 
 ### 🟡 MEDIUM — Phase 7: Enhancements
@@ -68,17 +68,11 @@ Migration 026+ applied. Backend ready for UI work:
 2. **Enhanced Documents** — ✅ Upload working
 3. **Pitches** — ✅ Full CRUD + Detail Page
 4. **Leads** — ✅ Full pipeline + conversion
-5. **Templates** — ⚠️ Backend done, missing "Save as Template" button
+5. **Templates** — ✅ Complete (SaveAsTemplateDialog + actions menu)
 6. **Notes** — ✅ Polymorphic notes working
 7. **Dashboard 2.0** — ✅ KPIs, My Work, Priority Tasks
 
 ## Identified Issues (Remaining)
-
-### Templates (HIGH)
-| Component | Issue | File |
-|-----------|-------|------|
-| UI | Missing "Save as Template" button | ProjectDetailPage.tsx |
-| Dialog | No SaveAsTemplateDialog | Not created |
 
 ### Discussions (HIGH)
 | Component | Issue | File |
@@ -96,18 +90,29 @@ Migration 026+ applied. Backend ready for UI work:
 | Hooks | ❌ Missing | Need useStatusUpdates |
 | UI | ❌ Missing | Need StatusTimeline |
 
+## Phase 6 Plan 01 Completion
+
+**Completed:** 2026-02-16T17:38:33Z
+**Duration:** 2 minutes
+**Summary:** Added "Save as Template" UI to ProjectDetailPage with dialog and workflow improvements
+
+**Commits:**
+- 8d1663d: feat(06-01): add SaveAsTemplateDialog component
+- 6a48bc6: feat(06-01): add actions menu to ProjectDetailPage
+- 1e21d23: feat(06-01): update TemplatesPage workflow info
+
+**Files:**
+- Created: src/components/projects/SaveAsTemplateDialog.tsx
+- Modified: src/pages/projects/ProjectDetailPage.tsx, src/pages/templates/TemplatesPage.tsx
+
 ## Next Steps
 
-**Immediate:** Start Phase 6 execution
+**Immediate:** Continue Phase 6
 ```
-/gsd:execute-phase 6
+/gsd:execute-phase 6 --plan 02
 ```
 
-Or run migration first:
-```sql
--- Apply migration 031 in Supabase SQL Editor
--- See: supabase/migrations/031_fix_user_creation_rls.sql
-```
+Next plan: 06-02 Discussions/Comments System
 
 ## Technical Constraints
 
@@ -120,5 +125,6 @@ Or run migration first:
 ## Session Continuity
 
 Last session: 2026-02-16
-Completed: Phase 5 (User Management Fix)
-Next: Execute Phase 6 (High Priority Features)
+Completed: Plan 06-01 (Template Creation Finalization)
+Stopped at: Ready for Plan 06-02 (Discussions/Comments System)
+Next: Execute Phase 6, Plan 02
