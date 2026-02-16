@@ -84,7 +84,7 @@ export function ProjectDetailPage() {
   const { data: projectSets, isLoading: setsLoading } = useSetsByProject(projectId!)
   const { data: projectRequirements, isLoading: requirementsLoading } = useRequirementsByProject(projectId!)
   const { data: projectPitches, isLoading: pitchesLoading } = usePitchesByProject(projectId!)
-  const { updateProject } = useProjectMutations()
+  const { updateProject, duplicateProject } = useProjectMutations()
   const { data: users } = useTenantUsers()
   const { openDetailPanel, openCreateModal } = useUIStore()
 
@@ -312,7 +312,13 @@ export function ProjectDetailPage() {
                     <DropdownMenuItem onClick={() => setSaveTemplateOpen(true)}>
                       Save as Template
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {/* TODO: duplicate logic */}}>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (projectId && confirm('Duplicate this project?')) {
+                          duplicateProject.mutate({ projectId, options: { include_children: true } })
+                        }
+                      }}
+                    >
                       Duplicate Project
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -887,7 +893,7 @@ export function ProjectDetailPage() {
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button onClick={() => openCreateModal('pitch' as any, { project_id: projectId })}>
+            <Button onClick={() => openCreateModal('pitch', { project_id: projectId })}>
               <Plus className="mr-2 h-4 w-4" />
               Create Pitch
             </Button>

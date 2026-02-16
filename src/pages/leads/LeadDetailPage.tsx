@@ -67,7 +67,7 @@ import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
-import type { LeadStatus, CompanySize, ContactRole } from '@/types/database'
+import type { LeadStatus, CompanySize, ContactRole, ReferralSource } from '@/types/database'
 import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
 // Lead form schema
@@ -235,7 +235,7 @@ export function LeadDetailPage() {
         company_size: data.company_size as CompanySize | undefined,
         estimated_value: data.estimated_value,
         estimated_close_date: data.estimated_close_date || undefined,
-        source: data.source as any,
+        source: data.source as ReferralSource | undefined,
         lead_owner_id: data.lead_owner_id || undefined,
         notes: data.notes,
       })

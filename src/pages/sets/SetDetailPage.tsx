@@ -874,7 +874,7 @@ export function SetDetailPage() {
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button onClick={() => openCreateModal('pitch' as any, { set_id: setId })}>
+            <Button onClick={() => openCreateModal('pitch', { set_id: setId })}>
               <Plus className="mr-2 h-4 w-4" />
               Create Pitch
             </Button>
@@ -911,7 +911,7 @@ export function SetDetailPage() {
                 <p className="text-muted-foreground">No pitches yet</p>
                 <Button
                   className="mt-4"
-                  onClick={() => openCreateModal('pitch' as any, { set_id: setId })}
+                  onClick={() => openCreateModal('pitch', { set_id: setId })}
                 >
                   Create First Pitch
                 </Button>

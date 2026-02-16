@@ -62,6 +62,7 @@ interface SortablePhaseRowProps {
   toggleSet: (setId: string) => void
   openCreateModal: (type: EntityType, context?: Record<string, unknown>) => void
   projectId: string
+  onDeletePhase: (phaseId: string) => void
 }
 
 function SortablePhaseRow({
@@ -73,6 +74,7 @@ function SortablePhaseRow({
   toggleSet,
   openCreateModal,
   projectId,
+  onDeletePhase,
 }: SortablePhaseRowProps) {
   const navigate = useNavigate()
   const {
@@ -164,8 +166,7 @@ function SortablePhaseRow({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (confirm(`Delete phase "${phase.name}"?`)) {
-                          // TODO: implement deletePhase mutation
-                          console.log('Delete phase:', phase.id)
+                          onDeletePhase(phase.id)
                         }
                       }}
                     >
@@ -257,7 +258,7 @@ export function DraggablePhasesTable({
   openCreateModal,
 }: DraggablePhasesTableProps) {
   const [items, setItems] = useState(phases)
-  const { reorderPhases } = usePhaseMutations()
+  const { reorderPhases, deletePhase } = usePhaseMutations()
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -302,6 +303,7 @@ export function DraggablePhasesTable({
               toggleSet={toggleSet}
               openCreateModal={openCreateModal}
               projectId={projectId}
+              onDeletePhase={(id) => deletePhase.mutate(id)}
             />
           ))}
         </div>

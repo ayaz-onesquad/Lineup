@@ -1291,7 +1291,7 @@ export function ClientDetailPage() {
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
           <div className="flex justify-end mb-4">
-            <Button onClick={() => openCreateModal('pitch' as any, { client_id: safeClientId })}>
+            <Button onClick={() => openCreateModal('pitch', { client_id: safeClientId })}>
               <Plus className="mr-2 h-4 w-4" />
               Create Pitch
             </Button>

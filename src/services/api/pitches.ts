@@ -37,9 +37,16 @@ const PITCH_SELECT = `
   secondary_lead:secondary_lead_id (id, full_name, avatar_url)
 `
 
+// Raw pitch data from Supabase query (before enrichment)
+interface RawPitchData extends Pitch {
+  sets?: { id: string; name: string; client_id?: string; project_id?: string } | null
+  lead?: { id: string; full_name: string; avatar_url: string | null } | null
+  secondary_lead?: { id: string; full_name: string; avatar_url: string | null } | null
+}
+
 // Helper to enrich pitches with client/project data
-async function enrichPitchesWithRelations(pitches: any[]): Promise<any[]> {
-  if (!pitches.length) return pitches
+async function enrichPitchesWithRelations(pitches: RawPitchData[]): Promise<PitchWithRelations[]> {
+  if (!pitches.length) return [] as PitchWithRelations[]
 
   // Collect all unique client and project IDs
   const clientIds = new Set<string>()
@@ -67,7 +74,7 @@ async function enrichPitchesWithRelations(pitches: any[]): Promise<any[]> {
   // Enrich pitches
   return pitches.map((pitch) => {
     const set = pitch.sets
-    if (!set) return pitch
+    if (!set) return pitch as unknown as PitchWithRelations
 
     const project = set.project_id ? projectMap.get(set.project_id) : null
     const client = project
@@ -81,7 +88,7 @@ async function enrichPitchesWithRelations(pitches: any[]): Promise<any[]> {
         clients: client || null,
         projects: project ? { ...project, clients: clientMap.get(project.client_id) || null } : null,
       },
-    }
+    } as unknown as PitchWithRelations
   })
 }
 

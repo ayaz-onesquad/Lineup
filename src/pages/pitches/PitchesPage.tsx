@@ -104,7 +104,7 @@ export function PitchesPage() {
             Manage requirement groupings within sets
           </p>
         </div>
-        <Button onClick={() => openCreateModal('pitch' as any)}>
+        <Button onClick={() => openCreateModal('pitch')}>
           <Plus className="mr-2 h-4 w-4" />
           New Pitch
         </Button>
@@ -196,7 +196,7 @@ export function PitchesPage() {
                 Clear filters
               </Button>
             ) : (
-              <Button className="mt-4" onClick={() => openCreateModal('pitch' as any)}>
+              <Button className="mt-4" onClick={() => openCreateModal('pitch')}>
                 Create First Pitch
               </Button>
             )}

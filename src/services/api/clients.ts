@@ -9,6 +9,9 @@ import type {
   UpdateClientInput,
 } from '@/types/database'
 
+// Contact with primary flag (from client_contacts join)
+type ContactWithPrimary = Contact & { is_primary: boolean }
+
 export const clientsApi = {
   getAll: async (tenantId: string): Promise<ClientWithRelations[]> => {
     // Get all clients for tenant
@@ -73,7 +76,7 @@ export const clientsApi = {
     if (!data) return null
 
     // Fetch contacts via client_contacts join table (is_primary is here, NOT on contacts)
-    let contactsWithPrimary: unknown[] = []
+    let contactsWithPrimary: ContactWithPrimary[] = []
     try {
       const { data: clientContacts } = await supabase
         .from('client_contacts')
@@ -87,10 +90,10 @@ export const clientsApi = {
         contactsWithPrimary = clientContacts
           .filter(cc => cc.contacts)
           .map(cc => ({
-            ...cc.contacts as object,
+            ...(cc.contacts as unknown as Contact),
             is_primary: cc.is_primary ?? false,
           }))
-          .sort((a: any, b: any) => {
+          .sort((a, b) => {
             // Primary contacts first
             if (a.is_primary && !b.is_primary) return -1
             if (!a.is_primary && b.is_primary) return 1
@@ -122,7 +125,7 @@ export const clientsApi = {
     return {
       ...data,
       contacts: contactsWithPrimary,
-      primary_contact: (contactsWithPrimary as any[]).find((c) => c.is_primary) || null,
+      primary_contact: contactsWithPrimary.find((c) => c.is_primary) || null,
       creator: data.created_by ? profileMap.get(data.created_by) || null : null,
       updater: data.updated_by ? profileMap.get(data.updated_by) || null : null,
     } as ClientWithRelations

@@ -59,6 +59,7 @@ import {
   FileLock,
   FileBox,
   FileStack,
+  type LucideIcon,
 } from 'lucide-react'
 import type { DocumentCatalog, DocumentCatalogCategory } from '@/types/database'
 
@@ -74,7 +75,7 @@ const catalogFormSchema = z.object({
 
 type CatalogFormValues = z.infer<typeof catalogFormSchema>
 
-const CATEGORY_OPTIONS: { value: DocumentCatalogCategory; label: string; icon: any }[] = [
+const CATEGORY_OPTIONS: { value: DocumentCatalogCategory; label: string; icon: LucideIcon }[] = [
   { value: 'deliverable', label: 'Deliverable', icon: FileCheck },
   { value: 'legal', label: 'Legal', icon: FileLock },
   { value: 'internal', label: 'Internal', icon: FileBox },
@@ -424,7 +425,7 @@ export function DocumentCatalogPage() {
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Recent documents:</p>
                     <ul className="text-sm space-y-1">
-                      {usageData.documents.map((doc: any) => (
+                      {(usageData.documents as Array<{ id: string; name: string }>).map((doc) => (
                         <li key={doc.id} className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-muted-foreground" />
                           <span>{doc.name}</span>
