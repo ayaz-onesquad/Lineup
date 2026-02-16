@@ -24,6 +24,7 @@ import { RequirementsPage } from '@/pages/requirements/RequirementsPage'
 import { RequirementDetailPage } from '@/pages/requirements/RequirementDetailPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { TeamPage } from '@/pages/settings/TeamPage'
+import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage'
 
 // V2 Pages
 import { LeadsPage } from '@/pages/leads/LeadsPage'
@@ -121,6 +122,7 @@ function App() {
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/notes/:noteId" element={<NoteDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/security" element={<SecuritySettingsPage />} />
               <Route path="/settings/team" element={<TeamPage />} />
               <Route path="/settings/document-catalog" element={<DocumentCatalogPage />} />
             </Route>

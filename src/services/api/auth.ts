@@ -1,6 +1,9 @@
-import { supabase } from '@/services/supabase'
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/services/supabase'
 import type { UserProfile, Tenant, TenantUser } from '@/types/database'
 import { checkRateLimit, RATE_LIMITS, RateLimitError, isValidEmail, enforceMaxLength, INPUT_LIMITS } from '@/lib/security'
+
+// Edge Function URL for admin password reset
+const ADMIN_RESET_PASSWORD_URL = `${SUPABASE_URL}/functions/v1/admin-reset-password`
 
 export interface SignUpData {
   email: string
@@ -345,5 +348,40 @@ export const authApi = {
       }
     }
     return data[0].role as TenantUser['role']
+  },
+
+  // Admin function to reset another user's password (requires sys_admin role)
+  // This calls an Edge Function that uses the service_role key
+  adminResetPassword: async (targetUserId: string, newPassword: string): Promise<void> => {
+    // Validate password length
+    if (newPassword.length < 8) {
+      throw new Error('Password must be at least 8 characters')
+    }
+
+    // Get current session for authorization
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      throw new Error('Not authenticated')
+    }
+
+    // Call the Edge Function
+    const response = await fetch(ADMIN_RESET_PASSWORD_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        targetUserId,
+        newPassword,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to reset password')
+    }
   },
 }

@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { tenantsApi, clientsApi, projectsApi } from '@/services/api'
+import { tenantsApi, clientsApi, projectsApi, authApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -54,6 +54,7 @@ import {
   Check,
   Power,
   AlertTriangle,
+  Key,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
@@ -111,6 +112,13 @@ const createUserSchema = z.object({
 
 type CreateUserFormData = z.infer<typeof createUserSchema>
 
+// Reset password schema
+const resetPasswordSchema = z.object({
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+
+type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>
+
 export function AdminTenantDetailPage() {
   const { tenantId } = useParams<{ tenantId: string }>()
   const queryClient = useQueryClient()
@@ -121,6 +129,10 @@ export function AdminTenantDetailPage() {
   const [passwordCopied, setPasswordCopied] = useState(false)
   const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false)
   const [deleteConfirmationName, setDeleteConfirmationName] = useState('')
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false)
+  const [selectedUserForReset, setSelectedUserForReset] = useState<TenantUserWithProfile | null>(null)
+  const [showResetPassword, setShowResetPassword] = useState(true)
+  const [resetPasswordCopied, setResetPasswordCopied] = useState(false)
 
   // Copy password to clipboard
   const copyPassword = () => {
@@ -129,6 +141,16 @@ export function AdminTenantDetailPage() {
       navigator.clipboard.writeText(password)
       setPasswordCopied(true)
       setTimeout(() => setPasswordCopied(false), 2000)
+    }
+  }
+
+  // Copy reset password to clipboard
+  const copyResetPassword = () => {
+    const password = resetPasswordForm.getValues('password')
+    if (password) {
+      navigator.clipboard.writeText(password)
+      setResetPasswordCopied(true)
+      setTimeout(() => setResetPasswordCopied(false), 2000)
     }
   }
 
@@ -144,6 +166,14 @@ export function AdminTenantDetailPage() {
       phone: '',
       timezone: 'America/New_York',
       sendWelcomeEmail: true,
+    },
+  })
+
+  // Reset password form
+  const resetPasswordForm = useForm<ResetPasswordFormData>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      password: '',
     },
   })
 
@@ -221,6 +251,49 @@ export function AdminTenantDetailPage() {
 
   const onCreateUser = (data: CreateUserFormData) => {
     createUserMutation.mutate(data)
+  }
+
+  // Reset password mutation
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (data: ResetPasswordFormData) => {
+      if (!selectedUserForReset) throw new Error('No user selected')
+      await authApi.adminResetPassword(selectedUserForReset.user_id, data.password)
+    },
+    onSuccess: (_result, variables) => {
+      toast({
+        title: 'Password reset successfully',
+        description: (
+          <div className="space-y-2">
+            <p><strong>User:</strong> {selectedUserForReset?.user_profiles?.full_name}</p>
+            <p><strong>New Password:</strong> <code className="bg-muted px-1 py-0.5 rounded font-mono text-sm">{variables.password}</code></p>
+            <p className="text-sm text-muted-foreground">Share this password with the user.</p>
+          </div>
+        ),
+        duration: 15000,
+      })
+      setIsResetPasswordOpen(false)
+      setSelectedUserForReset(null)
+      resetPasswordForm.reset()
+      setShowResetPassword(true)
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to reset password',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const onResetPassword = (data: ResetPasswordFormData) => {
+    resetPasswordMutation.mutate(data)
+  }
+
+  const openResetPasswordDialog = (user: TenantUserWithProfile) => {
+    setSelectedUserForReset(user)
+    resetPasswordForm.reset()
+    setShowResetPassword(true)
+    setIsResetPasswordOpen(true)
   }
 
   // Step 1: Deactivate tenant (blocks user login)
@@ -891,6 +964,7 @@ export function AdminTenantDetailPage() {
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -943,6 +1017,16 @@ export function AdminTenantDetailPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{formatDate(user.created_at)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openResetPasswordDialog(user)}
+                        >
+                          <Key className="mr-2 h-4 w-4" />
+                          Reset Password
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -952,6 +1036,98 @@ export function AdminTenantDetailPage() {
           })()}
         </TabsContent>
       </Tabs>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={isResetPasswordOpen} onOpenChange={setIsResetPasswordOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              Reset User Password
+            </DialogTitle>
+            <DialogDescription>
+              Set a new password for {selectedUserForReset?.user_profiles?.full_name || 'this user'}.
+              They will need to use this password on their next login.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...resetPasswordForm}>
+            <form onSubmit={resetPasswordForm.handleSubmit(onResetPassword)} className="space-y-4">
+              <FormField
+                control={resetPasswordForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password *</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showResetPassword ? 'text' : 'password'}
+                            placeholder="Enter new password"
+                            className="pr-10 font-mono"
+                            {...field}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                            onClick={() => setShowResetPassword(!showResetPassword)}
+                          >
+                            {showResetPassword ? (
+                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={copyResetPassword}
+                          disabled={!field.value}
+                          title="Copy password"
+                        >
+                          {resetPasswordCopied ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Must be at least 8 characters. Share this password with the user.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsResetPasswordOpen(false)
+                    setSelectedUserForReset(null)
+                    resetPasswordForm.reset()
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={resetPasswordMutation.isPending}>
+                  {resetPasswordMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Reset Password
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
