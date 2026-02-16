@@ -27,6 +27,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -44,6 +45,7 @@ import {
   Save,
   Loader2,
   MoreVertical,
+  MoreHorizontal,
   ExternalLink,
   Calendar,
   Users,
@@ -55,6 +57,7 @@ import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DocumentUpload, NotesPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
 import type { ProjectStatus, ProjectHealth } from '@/types/database'
 
 // Project form schema
@@ -102,6 +105,7 @@ export function ProjectDetailPage() {
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set())
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
   // Project form
   const form = useForm<ProjectFormValues>({
@@ -267,7 +271,7 @@ export function ProjectDetailPage() {
       {/* Project Info Card - Key fields: Client (1st), Project Name, Status, Health */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          {/* Edit/Save buttons */}
+          {/* Edit/Save buttons and Actions menu */}
           <div className="flex justify-end gap-2 mb-4">
             {isEditing ? (
               <>
@@ -294,10 +298,31 @@ export function ProjectDetailPage() {
                 </Button>
               </>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSaveTemplateOpen(true)}>
+                      Save as Template
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {/* TODO: duplicate logic */}}>
+                      Duplicate Project
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive">
+                      Delete Project
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
             )}
           </div>
 
@@ -1147,6 +1172,14 @@ export function ProjectDetailPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Save as Template Dialog */}
+      <SaveAsTemplateDialog
+        projectId={project.id}
+        projectName={project.name}
+        open={saveTemplateOpen}
+        onOpenChange={setSaveTemplateOpen}
+      />
     </div>
   )
 }
