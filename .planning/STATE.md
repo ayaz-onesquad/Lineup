@@ -10,10 +10,10 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 ## Current Position
 
 Milestone: v2.1 Stability & Features — IN PROGRESS
-Status: Phase 6 complete - All 3 plans finished
-Last activity: 2026-02-16 - Completed Plan 06-03 (Status Updates System UI)
+Status: Phase 7 in progress - 1/2 plans completed
+Last activity: 2026-02-16 - Completed Plan 07-02 (Client Portal Enhancement)
 
-Progress: 6/8 plans (v2.1)
+Progress: 7/8 plans (v2.1)
 
 ## Phase 6 Completion Summary
 
@@ -71,14 +71,14 @@ Progress: 6/8 plans (v2.1)
 - 06-02: Discussions/Comments System ✅ COMPLETE (7 min)
 - 06-03: Status Updates System ✅ COMPLETE (6 min)
 
-### 🟠 HIGH — Phase 7: Enhancements
+### 🟡 IN PROGRESS — Phase 7: Medium Priority Enhancements
 **Features:**
 - Phase Management UI (no PhasesPage, no PhaseDetailPage)
-- Client Portal (only shows projects, needs sets/requirements/documents)
+- Client Portal ✅ COMPLETE (sets/requirements/documents with RLS)
 
 **Plans:**
-- 07-01: Phase Management UI
-- 07-02: Client Portal Enhancement
+- 07-01: Phase Management UI (pending)
+- 07-02: Client Portal Enhancement ✅ COMPLETE (5.3 min)
 
 ## v2.1 Backend Infrastructure (Already Built)
 
@@ -109,29 +109,35 @@ Migration 026+ applied. Backend ready for UI work:
 | Hooks | ✅ Complete | useStatusUpdates |
 | UI | ✅ Complete | StatusUpdatesTimeline |
 
-## Phase 6 Plan 01 Completion
+## Phase 7 Plan 02 Completion
 
-**Completed:** 2026-02-16T17:38:33Z
-**Duration:** 2 minutes
-**Summary:** Added "Save as Template" UI to ProjectDetailPage with dialog and workflow improvements
+**Completed:** 2026-02-16T18:16:05Z
+**Duration:** 5.3 minutes
+**Summary:** Enhanced client portal with read-only views for sets, requirements, and documents using RLS policies and portal-specific components
 
 **Commits:**
-- 8d1663d: feat(06-01): add SaveAsTemplateDialog component
-- 6a48bc6: feat(06-01): add actions menu to ProjectDetailPage
-- 1e21d23: feat(06-01): update TemplatesPage workflow info
+- 6fcfc39: feat(07-02): add client portal RLS policies for sets, requirements, and documents
+- 7e4d76e: feat(07-02): add portal API methods to sets, requirements, and documents services
+- 903fd84: feat(07-02): add portal hooks for sets, requirements, documents, and status updates
+- 36c460a: feat(07-02): add portal-specific components (sets table, requirements table, documents grid)
+- 748649d: feat(07-02): update PortalProjectPage with tabs for sets, requirements, and documents
 
 **Files:**
-- Created: src/components/projects/SaveAsTemplateDialog.tsx
-- Modified: src/pages/projects/ProjectDetailPage.tsx, src/pages/templates/TemplatesPage.tsx
+- Created: migration 032, usePortal.ts, 3 portal components + index
+- Modified: sets.ts, requirements.ts, documents.ts, hooks/index.ts, PortalProjectPage.tsx
+
+**Key Decisions:**
+- Use RLS policies for client_user access control (database-level security)
+- Create signed URLs for document downloads (private storage bucket)
 
 ## Next Steps
 
-**Immediate:** Start Phase 7
+**Immediate:** Complete Phase 7
 ```
-/gsd:execute-phase 7
+/gsd:execute-plan 07-01
 ```
 
-Next: Phase 7 - Medium Priority Enhancements (Phase Management UI, Client Portal)
+Next: Phase 7 Plan 01 - Phase Management UI
 
 ## Technical Constraints
 
@@ -144,6 +150,6 @@ Next: Phase 7 - Medium Priority Enhancements (Phase Management UI, Client Portal
 ## Session Continuity
 
 Last session: 2026-02-16
-Completed: Phase 6 (High Priority Features) - All 3 plans
-Stopped at: Ready for Phase 7 (Enhancements)
-Next: Execute Phase 7
+Completed: Phase 7 Plan 02 (Client Portal Enhancement)
+Stopped at: Plan 07-02 complete - Ready for Plan 07-01
+Next: Execute Phase 7 Plan 01 (Phase Management UI)
