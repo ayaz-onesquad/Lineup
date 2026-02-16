@@ -21,7 +21,7 @@
 
 </details>
 
-### ✅ v2.1 Stability & Features (Phases 5-7) — SHIPPED 2026-02-16
+### ✅ v2.1 Stability & Features (Phases 5-8) — SHIPPED 2026-02-16
 
 #### Phase 5: User Management Fix (CRITICAL) ✅
 **Priority:** 🟢 Complete
@@ -67,12 +67,25 @@
 
 ---
 
+#### Phase 8: Quality & Consistency Improvements ✅
+**Priority:** 🟢 Complete
+**Status:** Completed 2026-02-16
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| 08-01 | Fix TODOs and TypeScript issues | ✅ Done |
+
+**Goal:** Clean up technical debt and ensure type safety
+**Delivered:** deletePhase mutation wiring, duplicate project functionality, removed all `any` types, proper TypeScript interfaces
+
+---
+
 ## Progress
 
 | Milestone | Phases | Plans | Status | Completed |
 |-----------|--------|-------|--------|-----------|
 | v1.0 MVP | 1-4 | 13/13 | Complete | 2026-02-15 |
-| v2.1 Stability | 5-7 | 8/8 | Complete | 2026-02-16 |
+| v2.1 Stability | 5-8 | 9/9 | Complete | 2026-02-16 |
 
 ## Deferred Features (v3.0)
 
