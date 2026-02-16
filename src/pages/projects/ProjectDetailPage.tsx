@@ -465,7 +465,7 @@ export function ProjectDetailPage() {
             <div className="space-y-4">
               {project.phases
                 ?.sort((a, b) => a.phase_order - b.phase_order)
-                .map((phase) => (
+                .map((phase, index) => (
                   <Card key={phase.id}>
                     <Collapsible
                       open={expandedPhases.has(phase.id)}
@@ -474,11 +474,16 @@ export function ProjectDetailPage() {
                       <CollapsibleTrigger asChild>
                         <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-4">
-                            <ChevronRight
-                              className={`h-4 w-4 transition-transform ${
-                                expandedPhases.has(phase.id) ? 'rotate-90' : ''
-                              }`}
-                            />
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground font-mono w-8">
+                                #{index + 1}
+                              </span>
+                              <ChevronRight
+                                className={`h-4 w-4 transition-transform ${
+                                  expandedPhases.has(phase.id) ? 'rotate-90' : ''
+                                }`}
+                              />
+                            </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <CardTitle className="text-lg">{phase.name}</CardTitle>
@@ -489,9 +494,50 @@ export function ProjectDetailPage() {
                               <CardDescription>
                                 {phase.sets?.length || 0} sets • {phase.completion_percentage}%
                                 complete
+                                {phase.expected_end_date && (
+                                  <> • Due {formatDate(phase.expected_end_date)}</>
+                                )}
                               </CardDescription>
                             </div>
-                            <Progress value={phase.completion_percentage} className="w-24 h-2" />
+                            <div className="flex items-center gap-2">
+                              <Progress value={phase.completion_percentage} className="w-24 h-2" />
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation()
+                                    navigate(`/phases/${phase.id}`)
+                                  }}>
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    Open Detail Page
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation()
+                                    navigate(`/phases/${phase.id}?edit=true`)
+                                  }}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Edit Phase
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (confirm(`Delete phase "${phase.name}"?`)) {
+                                        // TODO: implement deletePhase mutation
+                                        console.log('Delete phase:', phase.id)
+                                      }
+                                    }}
+                                  >
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </CardHeader>
                       </CollapsibleTrigger>
