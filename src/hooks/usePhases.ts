@@ -40,13 +40,16 @@ export function usePhasesByProject(projectId: string, includeTemplates = false) 
 }
 
 /**
- * Get phase by ID
+ * Get phase by ID with tenant security
  */
 export function usePhaseById(id: string) {
+  const { currentTenant } = useTenant()
+  const currentTenantId = currentTenant?.id
+
   return useQuery({
     queryKey: phaseKeys.detail(id),
-    queryFn: () => phasesApi.getById(id),
-    enabled: !!id,
+    queryFn: () => phasesApi.getById(id, currentTenantId),
+    enabled: !!id && !!currentTenantId,
   })
 }
 

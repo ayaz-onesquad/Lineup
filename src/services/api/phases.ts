@@ -29,13 +29,54 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
   return cleaned as T
 }
 
+// Base select without user profile joins (those fail due to FK targets)
 const PHASE_SELECT = `
   *,
-  projects (id, name, client_id, clients (id, name)),
-  lead:lead_id (id, full_name, avatar_url),
-  secondary_lead:secondary_lead_id (id, full_name, avatar_url),
-  owner:owner_id (id, full_name, avatar_url)
+  projects (id, name, client_id, clients (id, name))
 `
+
+// Helper to fetch and map user profiles to phases
+// Uses type assertion since the raw data includes enhanced fields from DB
+async function enrichPhasesWithProfiles(phases: Record<string, unknown>[]): Promise<EnhancedProjectPhase[]> {
+  if (!phases.length) return phases as unknown as EnhancedProjectPhase[]
+
+  // Collect all user IDs from phases (cast to access dynamic properties)
+  const userIds = new Set<string>()
+  for (const phase of phases) {
+    const p = phase as Record<string, unknown>
+    if (p.lead_id && typeof p.lead_id === 'string') userIds.add(p.lead_id)
+    if (p.secondary_lead_id && typeof p.secondary_lead_id === 'string') userIds.add(p.secondary_lead_id)
+    if (p.owner_id && typeof p.owner_id === 'string') userIds.add(p.owner_id)
+    if (p.created_by && typeof p.created_by === 'string') userIds.add(p.created_by)
+    if (p.updated_by && typeof p.updated_by === 'string') userIds.add(p.updated_by)
+  }
+
+  if (userIds.size === 0) {
+    return phases as unknown as EnhancedProjectPhase[]
+  }
+
+  // Fetch profiles separately - these reference user_profiles.id directly
+  const { data: profiles } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, avatar_url')
+    .in('id', Array.from(userIds))
+
+  // Create lookup map by profile id
+  const profileMap = new Map(profiles?.map(p => [p.id, p]) || [])
+
+  // Map profiles to phases
+  return phases.map(phase => {
+    const p = phase as Record<string, unknown>
+    return {
+      ...phase,
+      lead: typeof p.lead_id === 'string' ? profileMap.get(p.lead_id) || null : null,
+      secondary_lead: typeof p.secondary_lead_id === 'string' ? profileMap.get(p.secondary_lead_id) || null : null,
+      owner: typeof p.owner_id === 'string' ? profileMap.get(p.owner_id) || null : null,
+      creator: typeof p.created_by === 'string' ? profileMap.get(p.created_by) || null : null,
+      updater: typeof p.updated_by === 'string' ? profileMap.get(p.updated_by) || null : null,
+    }
+  }) as unknown as EnhancedProjectPhase[]
+}
 
 // Extended input types for enhanced phases
 interface CreateEnhancedPhaseInput extends CreatePhaseInput {
@@ -82,7 +123,9 @@ export const phasesApi = {
     const { data, error } = await query
 
     if (error) throw error
-    return data || []
+
+    // Enrich with user profiles
+    return enrichPhasesWithProfiles(data || [])
   },
 
   /**
@@ -103,22 +146,34 @@ export const phasesApi = {
     const { data, error } = await query
 
     if (error) throw error
-    return data || []
+
+    // Enrich with user profiles
+    return enrichPhasesWithProfiles(data || [])
   },
 
   /**
-   * Get phase by ID
+   * Get phase by ID with explicit tenant filtering
    */
-  getById: async (id: string): Promise<EnhancedProjectPhase | null> => {
-    const { data, error } = await supabase
+  getById: async (id: string, tenantId?: string): Promise<EnhancedProjectPhase | null> => {
+    let query = supabase
       .from('project_phases')
       .select(PHASE_SELECT)
       .eq('id', id)
       .is('deleted_at', null)
-      .single()
+
+    // Add tenant filter if provided for explicit security
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId)
+    }
+
+    const { data, error } = await query.single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    if (!data) return null
+
+    // Enrich with user profiles
+    const [enriched] = await enrichPhasesWithProfiles([data])
+    return enriched
   },
 
   /**
@@ -134,7 +189,9 @@ export const phasesApi = {
       .order('name', { ascending: true })
 
     if (error) throw error
-    return data || []
+
+    // Enrich with user profiles
+    return enrichPhasesWithProfiles(data || [])
   },
 
   /**

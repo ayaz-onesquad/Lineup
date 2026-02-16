@@ -244,6 +244,138 @@ export function useMyTasksByPriority(limit: number = 50) {
 }
 
 /**
+ * Get ALL tasks grouped by all 6 priority levels
+ * Priority levels: 1 (Critical), 2 (Do First), 3 (Schedule), 4 (Routine), 5 (Delegate), 6 (Defer)
+ */
+export function useMyTasksByAllPriorities(limit: number = 100) {
+  const { currentTenant } = useTenantStore()
+  const { data: userProfileId } = useUserProfileId()
+
+  return useQuery({
+    queryKey: ['my-tasks-all-priorities', currentTenant?.id, userProfileId, limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('requirements')
+        .select(`
+          *,
+          sets:set_id (id, name, client_id, clients:client_id (id, name)),
+          pitches:pitch_id (id, name)
+        `)
+        .eq('tenant_id', currentTenant!.id)
+        .eq('is_task', true)
+        .eq('assigned_to_id', userProfileId!)
+        .is('deleted_at', null)
+        .eq('is_template', false)
+        .not('status', 'in', '("completed","cancelled")')
+        .order('priority', { ascending: true })
+        .order('expected_due_date', { ascending: true, nullsFirst: false })
+        .limit(limit)
+
+      if (error) throw error
+
+      // Group by all 6 priority levels
+      const tasks = data || []
+      return {
+        priority1: tasks.filter((t) => t.priority === 1), // Critical/Crisis
+        priority2: tasks.filter((t) => t.priority === 2), // Do First
+        priority3: tasks.filter((t) => t.priority === 3), // Schedule
+        priority4: tasks.filter((t) => t.priority === 4), // Routine
+        priority5: tasks.filter((t) => t.priority === 5), // Delegate
+        priority6: tasks.filter((t) => t.priority === 6 || !t.priority), // Defer/Unset
+        all: tasks,
+      }
+    },
+    enabled: !!currentTenant?.id && !!userProfileId,
+  })
+}
+
+/**
+ * Get items for KPI drill-down by type and status (active vs past due)
+ */
+export function useKpiDrillDownItems(type: 'sets' | 'pitches' | 'tasks' | 'requirements', filter: 'active' | 'past_due' | 'all' = 'all') {
+  const { currentTenant } = useTenantStore()
+  const { data: userProfileId } = useUserProfileId()
+
+  return useQuery({
+    queryKey: ['kpi-drill-down', currentTenant?.id, userProfileId, type, filter],
+    queryFn: async () => {
+      const today = new Date().toISOString().split('T')[0]
+      let query
+
+      if (type === 'sets') {
+        query = supabase
+          .from('sets')
+          .select(`*, clients:client_id (id, name), projects:project_id (id, name)`)
+          .eq('tenant_id', currentTenant!.id)
+          .is('deleted_at', null)
+          .eq('is_template', false)
+          .not('status', 'in', '("completed","cancelled")')
+          .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId},pm_id.eq.${userProfileId}`)
+
+        if (filter === 'past_due') {
+          query = query.lt('expected_end_date', today)
+        } else if (filter === 'active') {
+          query = query.or(`expected_end_date.is.null,expected_end_date.gte.${today}`)
+        }
+      } else if (type === 'pitches') {
+        query = supabase
+          .from('pitches')
+          .select(`*, sets:set_id (id, name, clients:client_id (id, name))`)
+          .eq('tenant_id', currentTenant!.id)
+          .is('deleted_at', null)
+          .eq('is_template', false)
+          .not('status', 'in', '("completed","cancelled")')
+          .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId}`)
+
+        if (filter === 'past_due') {
+          query = query.lt('expected_end_date', today)
+        } else if (filter === 'active') {
+          query = query.or(`expected_end_date.is.null,expected_end_date.gte.${today}`)
+        }
+      } else if (type === 'tasks') {
+        query = supabase
+          .from('requirements')
+          .select(`*, sets:set_id (id, name, clients:client_id (id, name))`)
+          .eq('tenant_id', currentTenant!.id)
+          .eq('is_task', true)
+          .eq('assigned_to_id', userProfileId!)
+          .is('deleted_at', null)
+          .eq('is_template', false)
+          .not('status', 'in', '("completed","cancelled")')
+
+        if (filter === 'past_due') {
+          query = query.lt('expected_due_date', today)
+        } else if (filter === 'active') {
+          query = query.or(`expected_due_date.is.null,expected_due_date.gte.${today}`)
+        }
+      } else {
+        // requirements
+        query = supabase
+          .from('requirements')
+          .select(`*, sets:set_id (id, name, clients:client_id (id, name))`)
+          .eq('tenant_id', currentTenant!.id)
+          .eq('assigned_to_id', userProfileId!)
+          .is('deleted_at', null)
+          .eq('is_template', false)
+          .not('status', 'in', '("completed","cancelled")')
+
+        if (filter === 'past_due') {
+          query = query.lt('expected_due_date', today)
+        } else if (filter === 'active') {
+          query = query.or(`expected_due_date.is.null,expected_due_date.gte.${today}`)
+        }
+      }
+
+      const { data, error } = await query.order('expected_end_date', { ascending: true, nullsFirst: false }).limit(50)
+
+      if (error) throw error
+      return data || []
+    },
+    enabled: !!currentTenant?.id && !!userProfileId,
+  })
+}
+
+/**
  * Build hierarchical work structure: Sets -> Pitches -> Requirements
  * with expandable state tracking
  */
@@ -310,8 +442,15 @@ export function useMyWorkHierarchy() {
   hierarchy.orphanPitches = orphanPitchList
   hierarchy.orphanRequirements = orphanReqs
 
-  // Group by priority (use parent priority for child items)
+  // Group by all 6 priority levels (Eisenhower Matrix)
   const byPriority = {
+    priority1: hierarchy.sets.filter((s) => s.priority === 1), // Critical/Crisis
+    priority2: hierarchy.sets.filter((s) => s.priority === 2), // Do First
+    priority3: hierarchy.sets.filter((s) => s.priority === 3), // Schedule
+    priority4: hierarchy.sets.filter((s) => s.priority === 4), // Routine
+    priority5: hierarchy.sets.filter((s) => s.priority === 5), // Delegate
+    priority6: hierarchy.sets.filter((s) => s.priority === 6 || !s.priority), // Defer/Unset
+    // Legacy groupings for backward compatibility
     high: hierarchy.sets.filter((s) => s.priority && s.priority <= 2),
     medium: hierarchy.sets.filter((s) => s.priority && s.priority >= 3 && s.priority <= 4),
     low: hierarchy.sets.filter((s) => !s.priority || s.priority >= 5),

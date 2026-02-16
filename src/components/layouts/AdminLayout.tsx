@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Building2, LogOut, Settings, Shield, Users } from 'lucide-react'
+import { Building2, LogOut, Settings, Shield, Users, Ticket } from 'lucide-react'
 import { getInitials, cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
 
@@ -17,6 +17,7 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Shield },
   { href: '/admin/tenants', label: 'Tenants', icon: Building2 },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/support', label: 'Support', icon: Ticket },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ]
 

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -17,14 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { FolderKanban, LogOut, Settings, User, Building2 } from 'lucide-react'
+import { FolderKanban, LogOut, Settings, User, Building2, HelpCircle, Ticket } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { authApi } from '@/services/api'
+import { SubmitTicketDialog } from '@/components/shared/SubmitTicketDialog'
 
 export function TopNav() {
   const navigate = useNavigate()
   const { profile, logout } = useAuthStore()
   const { currentTenant, tenants, switchTenant, clearTenant } = useTenantStore()
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false)
 
   const handleLogout = async () => {
     await authApi.signOut()
@@ -48,6 +51,17 @@ export function TopNav() {
 
         {/* Right Section */}
         <div className="flex items-center gap-4">
+          {/* Submit Ticket Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTicketDialogOpen(true)}
+            className="hidden sm:flex items-center gap-2"
+          >
+            <HelpCircle className="h-4 w-4" />
+            <span>Support</span>
+          </Button>
+
           {/* Tenant Switcher */}
           {tenants.length > 1 && (
             <Select
@@ -116,6 +130,12 @@ export function TopNav() {
                   <span>Settings</span>
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/my-tickets" className="flex items-center">
+                  <Ticket className="mr-2 h-4 w-4" />
+                  <span>My Tickets</span>
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
@@ -125,6 +145,12 @@ export function TopNav() {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Submit Ticket Dialog */}
+      <SubmitTicketDialog
+        open={ticketDialogOpen}
+        onOpenChange={setTicketDialogOpen}
+      />
     </header>
   )
 }

@@ -188,11 +188,40 @@ export function PhaseDetailPage() {
     setIsEditing(false)
   }
 
-  if (isLoading || !phase) {
+  // Show skeleton only while loading
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64" />
+      </div>
+    )
+  }
+
+  // Show error message if phase not found (404 case)
+  if (!phase) {
+    return (
+      <div className="space-y-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(-1)}
+          className="mb-2"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <Card className="page-carbon">
+          <CardContent className="text-center py-12">
+            <h2 className="text-xl font-semibold mb-2">Phase Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              The phase you're looking for doesn't exist or has been deleted.
+            </p>
+            <Button onClick={() => navigate('/phases')}>
+              View All Phases
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -477,7 +506,11 @@ export function PhaseDetailPage() {
         <TabsContent value="sets" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Sets</h3>
-            <Button size="sm" onClick={() => openCreateModal('set')}>
+            <Button size="sm" onClick={() => openCreateModal('set', {
+              phase_id: phaseId,
+              project_id: phase.project_id,
+              client_id: phase.projects?.client_id,
+            })}>
               <Plus className="mr-2 h-4 w-4" />
               Create Set
             </Button>

@@ -125,7 +125,10 @@ export function CreateModal() {
           </TabsContent>
 
           <TabsContent value="phase" className="mt-4">
-            <PhaseForm onSuccess={() => handleSuccess('Phase')} />
+            <PhaseForm
+              defaultValues={createModalContext}
+              onSuccess={() => handleSuccess('Phase')}
+            />
           </TabsContent>
 
           <TabsContent value="set" className="mt-4">

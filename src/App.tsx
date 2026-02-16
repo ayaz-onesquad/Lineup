@@ -47,6 +47,10 @@ import { PortalProjectPage } from '@/pages/portal/PortalProjectPage'
 import { AdminLoginPage } from '@/pages/admin/AdminLoginPage'
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
 import { AdminTenantDetailPage } from '@/pages/admin/AdminTenantDetailPage'
+import { SupportDashboardPage } from '@/pages/admin/SupportDashboardPage'
+
+// Support Tickets
+import { MyTicketsPage } from '@/pages/tickets/MyTicketsPage'
 
 // Layouts
 import { MainLayout } from '@/components/layouts/MainLayout'
@@ -129,6 +133,7 @@ function App() {
               <Route path="/settings/security" element={<SecuritySettingsPage />} />
               <Route path="/settings/team" element={<TeamPage />} />
               <Route path="/settings/document-catalog" element={<DocumentCatalogPage />} />
+              <Route path="/my-tickets" element={<MyTicketsPage />} />
             </Route>
 
             {/* Client Portal Routes */}
@@ -155,6 +160,7 @@ function App() {
             >
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/tenants/:tenantId" element={<AdminTenantDetailPage />} />
+              <Route path="/admin/support" element={<SupportDashboardPage />} />
             </Route>
 
               {/* Redirects */}
