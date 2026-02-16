@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { phasesApi } from '@/services/api/phases'
 import { useTenant } from './useTenant'
 import { useAuth } from './useAuth'
-import type { EnhancedProjectPhase, CreatePhaseInput, UpdatePhaseInput } from '@/types/database'
+import type { CreatePhaseInput, UpdatePhaseInput } from '@/types/database'
 import { toast } from './use-toast'
 
 // Query keys
@@ -18,7 +18,8 @@ const phaseKeys = {
  * Get all phases for current tenant
  */
 export function usePhases(includeTemplates = false) {
-  const { currentTenantId } = useTenant()
+  const { currentTenant } = useTenant()
+  const currentTenantId = currentTenant?.id
 
   return useQuery({
     queryKey: [...phaseKeys.byTenant(currentTenantId || ''), includeTemplates],
@@ -53,7 +54,8 @@ export function usePhaseById(id: string) {
  * Get template phases
  */
 export function usePhaseTemplates() {
-  const { currentTenantId } = useTenant()
+  const { currentTenant } = useTenant()
+  const currentTenantId = currentTenant?.id
 
   return useQuery({
     queryKey: phaseKeys.templates(currentTenantId || ''),
@@ -67,7 +69,8 @@ export function usePhaseTemplates() {
  */
 export function usePhaseMutations() {
   const queryClient = useQueryClient()
-  const { currentTenantId } = useTenant()
+  const { currentTenant } = useTenant()
+  const currentTenantId = currentTenant?.id
   const { user } = useAuth()
 
   const createPhase = useMutation({

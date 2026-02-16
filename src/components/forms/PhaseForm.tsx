@@ -134,7 +134,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
                 <SearchableSelect
                   options={projectOptions}
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   placeholder="Select project..."
                 />
               </FormControl>
@@ -190,7 +190,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
                 <SearchableSelect
                   options={STATUS_OPTIONS}
                   value={field.value}
-                  onChange={field.onChange}
+                  onValueChange={field.onChange}
                   placeholder="Select status..."
                 />
               </FormControl>
@@ -209,9 +209,9 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
                 <FormLabel>Urgency</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={URGENCY_OPTIONS}
+                    options={[...URGENCY_OPTIONS]}
                     value={field.value}
-                    onChange={field.onChange}
+                    onValueChange={field.onChange}
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
@@ -230,9 +230,9 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
                 <FormLabel>Importance</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={IMPORTANCE_OPTIONS}
+                    options={[...IMPORTANCE_OPTIONS]}
                     value={field.value}
-                    onChange={field.onChange}
+                    onValueChange={field.onChange}
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
@@ -287,7 +287,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
                   <SearchableSelect
                     options={userOptions}
                     value={field.value || ''}
-                    onChange={field.onChange}
+                    onValueChange={field.onChange}
                     placeholder="Select lead..."
                     clearable
                   />
@@ -307,7 +307,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
                   <SearchableSelect
                     options={userOptions}
                     value={field.value || ''}
-                    onChange={field.onChange}
+                    onValueChange={field.onChange}
                     placeholder="Select secondary lead..."
                     clearable
                   />

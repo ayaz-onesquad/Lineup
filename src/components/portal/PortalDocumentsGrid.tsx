@@ -106,7 +106,7 @@ export function PortalDocumentsGrid({ documents }: PortalDocumentsGridProps) {
                       )}
 
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(doc.uploaded_at)}
+                        {formatDate(doc.created_at)}
                       </p>
 
                       {doc.uploader && (

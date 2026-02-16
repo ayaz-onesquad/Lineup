@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { usePhases } from '@/hooks'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Search, Calendar } from 'lucide-react'
+import { Search, Calendar } from 'lucide-react'
 import { getStatusColor } from '@/lib/utils'
 import { format } from 'date-fns'
 import type { EnhancedProjectPhase } from '@/types/database'

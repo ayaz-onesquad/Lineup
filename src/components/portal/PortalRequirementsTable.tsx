@@ -107,7 +107,7 @@ export function PortalRequirementsTable({ requirements }: PortalRequirementsTabl
           <DataTable
             columns={columns}
             data={requirements}
-            onRowClick={(row) => navigate(`/portal/requirements/${row.id}`)}
+            onRowClick={(row: RequirementWithRelations) => navigate(`/portal/requirements/${row.id}`)}
           />
         )}
       </CardContent>

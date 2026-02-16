@@ -41,6 +41,7 @@ import {
 } from 'lucide-react'
 import { getStatusColor, formatDate } from '@/lib/utils'
 import type { ProjectPhase } from '@/types/database'
+import type { EntityType } from '@/stores/uiStore'
 
 interface DraggablePhasesTableProps {
   projectId: string
@@ -49,7 +50,7 @@ interface DraggablePhasesTableProps {
   togglePhase: (phaseId: string) => void
   expandedSets: Set<string>
   toggleSet: (setId: string) => void
-  openCreateModal: (type: string, context?: Record<string, string>) => void
+  openCreateModal: (type: EntityType, context?: Record<string, unknown>) => void
 }
 
 interface SortablePhaseRowProps {
@@ -59,7 +60,7 @@ interface SortablePhaseRowProps {
   togglePhase: (phaseId: string) => void
   expandedSets: Set<string>
   toggleSet: (setId: string) => void
-  openCreateModal: (type: string, context?: Record<string, string>) => void
+  openCreateModal: (type: EntityType, context?: Record<string, unknown>) => void
   projectId: string
 }
 

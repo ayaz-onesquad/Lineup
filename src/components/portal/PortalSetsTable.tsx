@@ -80,7 +80,7 @@ export function PortalSetsTable({ sets }: PortalSetsTableProps) {
           <DataTable
             columns={columns}
             data={sets}
-            onRowClick={(row) => navigate(`/portal/sets/${row.id}`)}
+            onRowClick={(row: Set) => navigate(`/portal/sets/${row.id}`)}
           />
         )}
       </CardContent>

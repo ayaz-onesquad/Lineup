@@ -6,6 +6,7 @@ import type {
   EnhancedProjectPhase,
   UrgencyLevel,
   ImportanceLevel,
+  PhaseStatus,
 } from '@/types/database'
 
 // Helper to validate UUID format
@@ -38,6 +39,7 @@ const PHASE_SELECT = `
 
 // Extended input types for enhanced phases
 interface CreateEnhancedPhaseInput extends CreatePhaseInput {
+  status?: PhaseStatus
   lead_id?: string
   secondary_lead_id?: string
   order_manual?: number
@@ -175,7 +177,7 @@ export const phasesApi = {
         tenant_id: tenantId,
         created_by: userId,
         phase_order: nextOrder,
-        status: 'not_started',
+        status: cleanedInput.status || 'not_started',
         completion_percentage: 0,
         urgency: cleanedInput.urgency || 'medium',
         importance: cleanedInput.importance || 'medium',

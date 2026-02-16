@@ -1,5 +1,5 @@
 import { supabase } from '@/services/supabase'
-import type { Document, DocumentWithUploader, EntityType } from '@/types/database'
+import type { Document, DocumentWithUploader, DocumentWithRelations, EntityType } from '@/types/database'
 
 // Custom error class for storage permission errors
 export class StoragePermissionError extends Error {

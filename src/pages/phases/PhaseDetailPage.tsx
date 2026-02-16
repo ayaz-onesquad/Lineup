@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -32,16 +32,13 @@ import {
   Loader2,
   Calendar,
   Users,
-  Building2,
-  FolderKanban,
   ListOrdered,
 } from 'lucide-react'
-import { formatDate, getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, getPriorityLabel, getPriorityColor, type PriorityScore } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
-import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { PhaseStatus, UrgencyLevel, ImportanceLevel } from '@/types/database'
 
 // Phase form schema
@@ -169,13 +166,13 @@ export function PhaseDetailPage() {
           status: data.status,
           urgency: data.urgency as UrgencyLevel,
           importance: data.importance as ImportanceLevel,
-          expected_start_date: data.expected_start_date || null,
-          expected_end_date: data.expected_end_date || null,
-          actual_start_date: data.actual_start_date || null,
-          actual_end_date: data.actual_end_date || null,
-          lead_id: data.lead_id || null,
-          secondary_lead_id: data.secondary_lead_id || null,
-          notes: data.notes || null,
+          expected_start_date: data.expected_start_date || undefined,
+          expected_end_date: data.expected_end_date || undefined,
+          actual_start_date: data.actual_start_date || undefined,
+          actual_end_date: data.actual_end_date || undefined,
+          lead_id: data.lead_id || undefined,
+          secondary_lead_id: data.secondary_lead_id || undefined,
+          notes: data.notes || undefined,
         },
       })
       setIsEditing(false)
@@ -314,35 +311,35 @@ export function PhaseDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <ViewEditField
+                  type="text"
                   label="Phase Name"
                   value={form.watch('name')}
-                  onChange={(value) => form.setValue('name', value)}
-                  isEditMode={isEditing}
+                  onChange={(value: string) => form.setValue('name', value)}
+                  isEditing={isEditing}
                   required
                 />
                 <ViewEditField
                   label="Description"
                   value={form.watch('description') || ''}
                   onChange={(value) => form.setValue('description', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="textarea"
                 />
                 <ViewEditField
                   label="Project"
                   value={form.watch('project_id')}
                   onChange={(value) => form.setValue('project_id', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="select"
                   options={projectOptions}
                   searchable
                   required
-                  renderValue={() => phase.projects?.name || '-'}
                 />
                 <ViewEditField
                   label="Status"
                   value={form.watch('status')}
                   onChange={(value) => form.setValue('status', value as PhaseStatus)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="select"
                   options={PHASE_STATUS_OPTIONS}
                   required
@@ -351,7 +348,7 @@ export function PhaseDetailPage() {
                   label="Notes"
                   value={form.watch('notes') || ''}
                   onChange={(value) => form.setValue('notes', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="textarea"
                 />
               </CardContent>
@@ -370,23 +367,21 @@ export function PhaseDetailPage() {
                   label="Lead"
                   value={form.watch('lead_id') || ''}
                   onChange={(value) => form.setValue('lead_id', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="select"
                   options={userOptions}
                   searchable
                   clearable
-                  renderValue={() => phase.lead?.full_name || '-'}
                 />
                 <ViewEditField
                   label="Secondary Lead"
                   value={form.watch('secondary_lead_id') || ''}
                   onChange={(value) => form.setValue('secondary_lead_id', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="select"
                   options={userOptions}
                   searchable
                   clearable
-                  renderValue={() => phase.secondary_lead?.full_name || '-'}
                 />
               </CardContent>
             </Card>
@@ -404,33 +399,29 @@ export function PhaseDetailPage() {
                   label="Expected Start Date"
                   value={form.watch('expected_start_date') || ''}
                   onChange={(value) => form.setValue('expected_start_date', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="date"
-                  renderValue={() => phase.expected_start_date ? formatDate(phase.expected_start_date) : '-'}
                 />
                 <ViewEditField
                   label="Expected End Date"
                   value={form.watch('expected_end_date') || ''}
                   onChange={(value) => form.setValue('expected_end_date', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="date"
-                  renderValue={() => phase.expected_end_date ? formatDate(phase.expected_end_date) : '-'}
                 />
                 <ViewEditField
                   label="Actual Start Date"
                   value={form.watch('actual_start_date') || ''}
                   onChange={(value) => form.setValue('actual_start_date', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="date"
-                  renderValue={() => phase.actual_start_date ? formatDate(phase.actual_start_date) : '-'}
                 />
                 <ViewEditField
                   label="Actual End Date"
                   value={form.watch('actual_end_date') || ''}
                   onChange={(value) => form.setValue('actual_end_date', value)}
-                  isEditMode={isEditing}
+                  isEditing={isEditing}
                   type="date"
-                  renderValue={() => phase.actual_end_date ? formatDate(phase.actual_end_date) : '-'}
                 />
               </CardContent>
             </Card>
@@ -448,7 +439,7 @@ export function PhaseDetailPage() {
                     label="Urgency"
                     value={form.watch('urgency') || 'medium'}
                     onChange={(value) => form.setValue('urgency', value as UrgencyLevel)}
-                    isEditMode={isEditing}
+                    isEditing={isEditing}
                     type="select"
                     options={URGENCY_OPTIONS}
                   />
@@ -456,15 +447,15 @@ export function PhaseDetailPage() {
                     label="Importance"
                     value={form.watch('importance') || 'medium'}
                     onChange={(value) => form.setValue('importance', value as ImportanceLevel)}
-                    isEditMode={isEditing}
+                    isEditing={isEditing}
                     type="select"
                     options={IMPORTANCE_OPTIONS}
                   />
                   {phase.priority && (
                     <div>
                       <label className="text-sm font-medium mb-2 block">Calculated Priority</label>
-                      <Badge className={getPriorityColor(phase.priority)}>
-                        {getPriorityLabel(phase.priority)}
+                      <Badge className={getPriorityColor(phase.priority as PriorityScore)}>
+                        {getPriorityLabel(phase.priority as PriorityScore)}
                       </Badge>
                     </div>
                   )}
@@ -474,7 +465,12 @@ export function PhaseDetailPage() {
           </div>
 
           {/* Audit Trail */}
-          <AuditTrail record={phase} />
+          <AuditTrail
+            created_at={phase.created_at}
+            updated_at={phase.updated_at}
+            creator={phase.creator}
+            updater={phase.updater}
+          />
         </TabsContent>
 
         {/* Sets Tab */}

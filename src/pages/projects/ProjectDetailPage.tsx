@@ -10,7 +10,7 @@ import { usePitchesByProject } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -30,10 +30,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   ArrowLeft,
-  ChevronRight,
   Plus,
   Layers,
   CheckSquare,

@@ -388,6 +388,15 @@ export interface DocumentWithUploader extends Document {
   uploader?: UserProfile
 }
 
+export interface DocumentWithRelations extends Document {
+  uploader?: UserProfile
+  document_catalog?: {
+    id: string
+    name: string
+    category: DocumentCatalogCategory
+  }
+}
+
 // Discussion types
 export interface Discussion {
   id: string
@@ -541,10 +550,17 @@ export interface CreatePhaseInput {
   expected_start_date?: string
   expected_end_date?: string
   show_in_client_portal?: boolean
+  // Enhanced phase fields
+  status?: PhaseStatus
+  lead_id?: string
+  secondary_lead_id?: string
+  urgency?: UrgencyLevel
+  importance?: ImportanceLevel
+  notes?: string
+  is_template?: boolean
 }
 
 export interface UpdatePhaseInput extends Partial<CreatePhaseInput> {
-  status?: PhaseStatus
   actual_start_date?: string
   actual_end_date?: string
 }
@@ -780,6 +796,18 @@ export interface EnhancedProjectPhase extends ProjectPhase {
   lead?: UserProfile
   secondary_lead?: UserProfile
   pitches?: Pitch[]
+  // Relation populated by API select
+  projects?: {
+    id: string
+    name: string
+    client_id: string
+    clients?: {
+      id: string
+      name: string
+    }
+  }
+  creator?: UserProfile
+  updater?: UserProfile
 }
 
 // Lead types

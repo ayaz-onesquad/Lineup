@@ -95,6 +95,35 @@ export const statusUpdatesApi = {
     return data
   },
 
+  // Get client-visible status updates for a project
+  getClientVisible: async (projectId: string): Promise<StatusUpdateWithAuthor[]> => {
+    const { data: updates, error } = await supabase
+      .from('status_updates')
+      .select('*')
+      .eq('entity_type', 'project')
+      .eq('entity_id', projectId)
+      .eq('show_in_client_portal', true)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    if (!updates || updates.length === 0) return []
+
+    // Fetch author profiles separately
+    const authorIds = new Set(updates.map((u) => u.author_id).filter(Boolean))
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('id, user_id, full_name, avatar_url')
+      .in('user_id', Array.from(authorIds))
+
+    // Map profiles to updates
+    const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || [])
+
+    return updates.map((update) => ({
+      ...update,
+      author: update.author_id ? profileMap.get(update.author_id) : undefined,
+    }))
+  },
+
   // Helper to create status update when entity status changes
   createStatusChange: async (
     tenantId: string,

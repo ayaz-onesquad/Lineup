@@ -105,11 +105,11 @@ test.describe('Pitches Page', () => {
     await page.goto('/pitches')
     await page.waitForLoadState('networkidle')
 
-    // Should show stats cards
+    // Should show stats cards (Total, In Progress, Completed, Blocked)
     await expect(page.getByText(/Total Pitches/i)).toBeVisible()
-    await expect(page.getByText(/Approved/i)).toBeVisible()
-    await expect(page.getByText(/Pending Approval/i)).toBeVisible()
     await expect(page.getByText(/In Progress/i)).toBeVisible()
+    await expect(page.getByText(/Completed/i)).toBeVisible()
+    await expect(page.getByText(/Blocked/i)).toBeVisible()
   })
 
   test('pitches page has New Pitch button', async ({ page }) => {
@@ -228,12 +228,13 @@ test.describe('Templates Page', () => {
     await expect(page.getByRole('heading', { name: /Project Templates/i })).toBeVisible()
   })
 
-  test('templates page has Save Project as Template button', async ({ page }) => {
+  test('templates page shows how to save templates info', async ({ page }) => {
     await page.goto('/templates')
     await page.waitForLoadState('networkidle')
 
+    // Templates are saved from project detail page, info card explains this
     await expect(
-      page.getByRole('button', { name: /Save Project as Template/i })
+      page.getByText(/To save a project as a template/i)
     ).toBeVisible()
   })
 

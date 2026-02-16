@@ -27,6 +27,7 @@ import {
   Calendar,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
+import type { StatusUpdateWithAuthor } from '@/types/database'
 
 export function PortalProjectPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -197,7 +198,7 @@ export function PortalProjectPage() {
 
               {/* Status update cards */}
               <div className="space-y-4">
-                {clientUpdates.map((update, index) => (
+                {clientUpdates.map((update: StatusUpdateWithAuthor, index: number) => (
                   <StatusUpdateCard
                     key={update.id}
                     update={update}

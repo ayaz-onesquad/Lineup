@@ -37,12 +37,12 @@ test.describe('Dashboard - My Work KPI Cards', () => {
     await expect(page.getByText(/active/i).first()).toBeVisible()
   })
 
-  test('dashboard shows Priority Tasks section', async ({ page }) => {
+  test('dashboard shows All Tasks section', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForLoadState('networkidle')
 
-    // Should show Priority Tasks card
-    await expect(page.getByText(/Priority Tasks/i).first()).toBeVisible()
+    // Should show All Tasks card (tasks grouped by priority)
+    await expect(page.getByText(/All Tasks/i).first()).toBeVisible()
   })
 
   test('dashboard shows My Work section', async ({ page }) => {
