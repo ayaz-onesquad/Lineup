@@ -2,8 +2,9 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/services/supabase'
 import type { UserProfile, Tenant, TenantUser } from '@/types/database'
 import { checkRateLimit, RATE_LIMITS, RateLimitError, isValidEmail, enforceMaxLength, INPUT_LIMITS } from '@/lib/security'
 
-// Edge Function URL for admin password reset
+// Edge Function URLs
 const ADMIN_RESET_PASSWORD_URL = `${SUPABASE_URL}/functions/v1/admin-reset-password`
+const ADMIN_CREATE_USER_URL = `${SUPABASE_URL}/functions/v1/admin-create-user`
 
 export interface SignUpData {
   email: string
@@ -244,123 +245,47 @@ export const authApi = {
   },
 
   // Admin function to create a new user (requires admin privileges)
-  // This preserves the admin's session by saving and restoring it
+  // Uses an Edge Function with the service_role key so the admin's browser session
+  // is never affected. supabase.auth.signUp() must NOT be used here because it
+  // switches the current session to the newly created user.
   adminCreateUser: async (data: AdminCreateUserData): Promise<{ userId: string; profile: UserProfile; adminUserId: string }> => {
     const fullName = `${data.firstName} ${data.lastName}`
 
-    // CRITICAL: Save the current admin session BEFORE creating the new user
-    // signUp() may auto-login as the new user, which would kick out the admin
-    const { data: currentSession } = await supabase.auth.getSession()
-    const adminSession = currentSession?.session
-    const adminUserId = adminSession?.user?.id
-
-    if (!adminSession || !adminUserId) {
+    // Get admin's current session for authorization and to return adminUserId
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
       throw new Error('Admin session not found. Please log in again.')
     }
+    const adminUserId = session.user.id
 
-    let newUserId: string | null = null
-
-    try {
-      // Create the auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
+    // Call the Edge Function which uses the service_role key server-side.
+    // This creates the user without affecting the current browser session.
+    const response = await fetch(ADMIN_CREATE_USER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        email: data.email.trim().toLowerCase(),
         password: data.password,
-        options: {
-          data: {
-            full_name: fullName,
-            phone: data.phone,
-            timezone: data.timezone,
-          },
-        },
-      })
+        fullName,
+        phone: data.phone,
+        timezone: data.timezone,
+      }),
+    })
 
-      if (authError) throw authError
-      if (!authData.user) throw new Error('Failed to create user')
+    const result = await response.json()
 
-      newUserId = authData.user.id
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to create user')
+    }
 
-      // CRITICAL: Restore the admin's session immediately
-      // This prevents the admin from being logged out as the new user
-      const { error: restoreError } = await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      })
-
-      if (restoreError) {
-        console.error('Failed to restore admin session:', restoreError)
-        // Try one more time
-        const { error: retryError } = await supabase.auth.setSession({
-          access_token: adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        })
-        if (retryError) {
-          throw new Error(
-            'Failed to restore admin session after user creation. ' +
-            'Please refresh the page and try again. The user may have been created.'
-          )
-        }
-      }
-
-      // VERIFY session was actually restored
-      const { data: verifySession } = await supabase.auth.getSession()
-      if (verifySession.session?.user.id !== adminUserId) {
-        // Session restoration failed - try one more time
-        const { error: finalRetryError } = await supabase.auth.setSession({
-          access_token: adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        })
-
-        if (finalRetryError) {
-          throw new Error(
-            'Session verification failed. Please refresh the page and try again. ' +
-            'The user may have been created.'
-          )
-        }
-
-        // Final verification
-        const { data: finalSession } = await supabase.auth.getSession()
-        if (finalSession.session?.user.id !== adminUserId) {
-          throw new Error(
-            'Session verification failed after retry. Please refresh the page. ' +
-            'The user may have been created.'
-          )
-        }
-      }
-
-      // Create user profile (the trigger may not fire for admin-created users)
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .upsert({
-          user_id: newUserId,
-          full_name: fullName,
-        })
-        .select()
-        .single()
-
-      if (profileError) {
-        console.error('Failed to create user profile:', profileError)
-        throw new Error(
-          `User was created in auth but profile creation failed: ${profileError.message}. ` +
-          'The user exists but may not appear in the list. Try refreshing.'
-        )
-      }
-
-      return {
-        userId: newUserId,
-        profile,
-        adminUserId,
-      }
-    } catch (error) {
-      // If anything fails, try to restore admin session
-      if (adminSession) {
-        await supabase.auth.setSession({
-          access_token: adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        }).catch(() => {
-          // Silent fail - admin may need to re-login
-        })
-      }
-      throw error
+    return {
+      userId: result.userId,
+      profile: result.profile,
+      adminUserId,
     }
   },
 

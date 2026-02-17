@@ -10,6 +10,22 @@ export interface CreateTenantUserInput extends AdminCreateUserData {
 }
 
 export const tenantsApi = {
+  // Check if an email already exists in auth system
+  checkEmailExists: async (email: string): Promise<boolean> => {
+    // Use RPC function that checks auth.users (SECURITY DEFINER)
+    const { data: rpcData, error } = await supabase
+      .rpc('check_email_exists', { p_email: email.trim().toLowerCase() })
+
+    if (error) {
+      // If RPC doesn't exist or fails, return false to allow attempt
+      // The actual creation will fail if email exists
+      console.warn('check_email_exists RPC failed:', error)
+      return false
+    }
+
+    return rpcData === true
+  },
+
   // Create tenant and add creator as org_admin (for regular user onboarding)
   // Uses RPC function to bypass RLS for new users who don't have tenant access yet
   create: async (input: CreateTenantInput, _userId: string): Promise<Tenant> => {
@@ -175,16 +191,10 @@ export const tenantsApi = {
       throw new Error('Tenant ID is required to create a user')
     }
 
-    // Get admin's current user ID for verification
-    const { data: { session: preSession } } = await supabase.auth.getSession()
-    const adminUserId = preSession?.user?.id
-
-    if (!adminUserId) {
-      throw new Error('No active session. Please log in again.')
-    }
-
-    // 1. Create the auth user and profile
-    const { userId, profile, adminUserId: returnedAdminId } = await authApi.adminCreateUser({
+    // 1. Create the auth user and profile via Edge Function
+    // The Edge Function uses the service_role key server-side, so the admin's
+    // browser session is never affected - no session switching or restoration needed.
+    const { userId, profile } = await authApi.adminCreateUser({
       email: input.email,
       password: input.password,
       firstName: input.firstName,
@@ -193,58 +203,50 @@ export const tenantsApi = {
       timezone: input.timezone,
     })
 
-    // 2. VERIFY session is still the admin before tenant_users INSERT
-    const { data: { session: postSession } } = await supabase.auth.getSession()
-    if (postSession?.user.id !== adminUserId) {
-      // Session changed unexpectedly - this is a critical error
-      console.error('Session changed during user creation', {
-        expected: adminUserId,
-        actual: postSession?.user.id,
-        returnedAdminId,
+    // 2. Add user to tenant using RPC function (SECURITY DEFINER bypasses RLS)
+    const { data: tenantUserId, error: tenantError } = await supabase
+      .rpc('add_user_to_tenant', {
+        p_tenant_id: tenantId,
+        p_user_id: userId,
+        p_role: input.role,
+        p_status: 'active',
       })
-      throw new Error(
-        'Session changed during user creation. ' +
-        'The user was created but may not be added to the tenant. ' +
-        'Please refresh the page and check the user list.'
-      )
-    }
-
-    // 3. Add user to tenant with specified role
-    const { data: tenantUser, error: tenantError } = await supabase
-      .from('tenant_users')
-      .insert({
-        tenant_id: tenantId,
-        user_id: userId,
-        role: input.role,
-        status: 'active',
-      })
-      .select()
-      .single()
 
     if (tenantError) {
       // If we fail to add to tenant, the user is still created
-      // This is a partial failure state - log details for debugging
       console.error('Failed to add user to tenant:', {
         error: tenantError,
         tenantId,
         userId,
         role: input.role,
-        adminUserId,
       })
-
-      // Check if it's an RLS error
-      if (tenantError.code === '42501' || tenantError.message.includes('permission denied')) {
-        throw new Error(
-          `User created but permission denied when adding to tenant. ` +
-          `You may not have admin rights for this tenant. ` +
-          `Please check your role or contact a system administrator.`
-        )
-      }
 
       throw new Error(
         `User created but failed to add to tenant: ${tenantError.message}. ` +
         `The user exists but may not appear in this tenant's list.`
       )
+    }
+
+    // 3. Fetch the created tenant_user record to return
+    const { data: tenantUser, error: fetchError } = await supabase
+      .from('tenant_users')
+      .select('*')
+      .eq('id', tenantUserId)
+      .single()
+
+    if (fetchError || !tenantUser) {
+      console.error('Failed to fetch tenant_user after creation:', fetchError)
+      // Return a minimal object since the user was created successfully
+      return {
+        id: tenantUserId,
+        tenant_id: tenantId,
+        user_id: userId,
+        role: input.role,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        user_profiles: profile,
+      } as TenantUserWithProfile
     }
 
     // TODO: If sendWelcomeEmail is true, trigger welcome email
