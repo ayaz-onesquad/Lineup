@@ -100,11 +100,12 @@ export const tenantsApi = {
   },
 
   getUsers: async (tenantId: string): Promise<TenantUserWithProfile[]> => {
-    // First get tenant users
+    // Get tenant users, excluding sys_admin (they have global access, not tenant-specific)
     const { data: tenantUsers, error } = await supabase
       .from('tenant_users')
       .select('*')
       .eq('tenant_id', tenantId)
+      .neq('role', 'sys_admin')
       .order('created_at', { ascending: false })
 
     if (error) throw error
