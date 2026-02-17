@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore, useTenantStore } from '@/stores'
+import { useUserRole } from '@/hooks/useUserRole'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -27,7 +28,10 @@ export function TopNav() {
   const navigate = useNavigate()
   const { profile, logout } = useAuthStore()
   const { currentTenant, tenants, switchTenant, clearTenant } = useTenantStore()
+  const { role } = useUserRole()
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false)
+
+  const isAdmin = role === 'org_admin' || role === 'sys_admin'
 
   const handleLogout = async () => {
     await authApi.signOut()
@@ -124,12 +128,14 @@ export function TopNav() {
                   <span>Profile</span>
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/settings/team" className="flex items-center">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Manage Team</span>
-                </Link>
-              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem asChild>
+                  <Link to="/settings/team" className="flex items-center">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Manage Team</span>
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <Link to="/my-tickets" className="flex items-center">
                   <Ticket className="mr-2 h-4 w-4" />
