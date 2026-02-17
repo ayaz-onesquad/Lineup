@@ -7,7 +7,7 @@ export { phasesApi } from './phases'
 export { setsApi } from './sets'
 export { requirementsApi } from './requirements'
 export { documentsApi, StoragePermissionError, StorageBucketNotFoundError } from './documents'
-export { discussionsApi } from './discussions'
+export { discussionsApi, type DiscussionWithContext } from './discussions'
 export { statusUpdatesApi } from './statusUpdates'
 
 // V2 Feature APIs

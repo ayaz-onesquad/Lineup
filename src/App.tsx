@@ -37,6 +37,7 @@ import { DocumentCatalogPage } from '@/pages/settings/DocumentCatalogPage'
 import { TemplatesPage } from '@/pages/templates/TemplatesPage'
 import { DocumentsPage } from '@/pages/documents/DocumentsPage'
 import { NotesPage, NoteDetailPage } from '@/pages/notes'
+import { DiscussionsPage, DiscussionDetailPage } from '@/pages/discussions'
 
 // Client Portal
 import { PortalLoginPage } from '@/pages/portal/PortalLoginPage'
@@ -129,6 +130,8 @@ function App() {
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/notes/:noteId" element={<NoteDetailPage />} />
+              <Route path="/discussions" element={<DiscussionsPage />} />
+              <Route path="/discussions/:discussionId" element={<DiscussionDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/security" element={<SecuritySettingsPage />} />
               <Route path="/settings/team" element={<TeamPage />} />

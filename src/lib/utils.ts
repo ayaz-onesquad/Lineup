@@ -100,13 +100,13 @@ export function getUrgencyImportanceColor(urgency: string, importance: string): 
  * Calculate Eisenhower Priority Score (1-6)
  * Lower number = higher priority
  *
- * Eisenhower Matrix Mapping:
- * 1 = Critical (Importance) + High (Urgency) - Crisis/Do First
- * 2 = High + High - Important & Urgent
- * 3 = High + Medium - Schedule
- * 4 = Medium + Medium - Plan
- * 5 = Medium + Low - Delegate
- * 6 = Low + Low - Eliminate/Defer
+ * Eisenhower Matrix Mapping (aligned with CLAUDE.md standards):
+ * 1 = Critical (Do First / Crisis)
+ * 2 = High (Do First / Urgent)
+ * 3 = Medium-High (Schedule)
+ * 4 = Medium (Plan)
+ * 5 = Medium-Low (Delegate)
+ * 6 = Low (Eliminate)
  */
 export type UrgencyLevel = 'low' | 'medium' | 'high' | 'critical'
 export type ImportanceLevel = 'low' | 'medium' | 'high' | 'critical'
@@ -155,8 +155,8 @@ export function getPriorityLabel(score: PriorityScore): string {
     2: 'High',
     3: 'Medium-High',
     4: 'Medium',
-    5: 'Low',
-    6: 'Minimal',
+    5: 'Medium-Low',
+    6: 'Low',
   }
   return labels[score]
 }

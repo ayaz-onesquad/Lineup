@@ -113,6 +113,7 @@ export const documentsApi = {
       .insert({
         tenant_id: tenantId,
         name: file.name,
+        document_type: 'file',
         file_url: urlData.publicUrl,
         file_type: file.type,
         file_size_bytes: file.size,
@@ -128,9 +129,43 @@ export const documentsApi = {
     return data
   },
 
+  // Create external link document (no file upload)
+  createLink: async (
+    tenantId: string,
+    userId: string,
+    entityType: EntityType,
+    entityId: string,
+    name: string,
+    url: string,
+    description?: string,
+    showInClientPortal: boolean = false
+  ): Promise<Document> => {
+    const { data, error } = await supabase
+      .from('documents')
+      .insert({
+        tenant_id: tenantId,
+        name,
+        url,
+        description,
+        document_type: 'link',
+        file_url: null,
+        file_type: '',
+        file_size_bytes: 0,
+        entity_type: entityType,
+        entity_id: entityId,
+        show_in_client_portal: showInClientPortal,
+        uploaded_by: userId,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
   update: async (
     id: string,
-    updates: { name?: string; description?: string; show_in_client_portal?: boolean }
+    updates: { name?: string; description?: string; show_in_client_portal?: boolean; url?: string }
   ): Promise<Document> => {
     const { data, error } = await supabase
       .from('documents')

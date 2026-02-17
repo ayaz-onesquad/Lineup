@@ -398,11 +398,13 @@ export interface DocumentWithRelations extends Document {
 }
 
 // Discussion types
+export type DiscussionVisibility = 'internal' | 'external'
+
 export interface Discussion {
   id: string
   tenant_id: string
-  entity_type: EntityType
-  entity_id: string
+  entity_type?: EntityType // Now optional for global discussions
+  entity_id?: string // Now optional for global discussions
   parent_discussion_id?: string
   content: string
   is_internal: boolean
@@ -410,11 +412,21 @@ export interface Discussion {
   created_at: string
   updated_at: string
   deleted_at?: string
+  // New fields for polymorphic threaded discussions
+  title?: string
+  topic_type?: EntityType | 'lead'
+  topic_id?: string
+  visibility?: DiscussionVisibility
+  root_client_id?: string
+  participants?: string[]
+  display_id?: number
+  discussion_id_display?: string
 }
 
 export interface DiscussionWithAuthor extends Discussion {
   author?: UserProfile
   replies?: DiscussionWithAuthor[]
+  reply_count?: number
 }
 
 // Status Update types

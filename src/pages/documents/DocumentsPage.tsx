@@ -40,6 +40,8 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { formatDateTime, formatFileSize } from '@/lib/utils'
@@ -64,6 +66,8 @@ import {
   AlertCircle,
   Edit,
   Eye,
+  Link as LinkIcon,
+  ExternalLink,
 } from 'lucide-react'
 import type { DocumentWithUploader, EntityType } from '@/types/database'
 
@@ -159,6 +163,10 @@ export function DocumentsPage() {
   const [uploadEntityType, setUploadEntityType] = useState<EntityType>('client')
   const [uploadEntityId, setUploadEntityId] = useState('')
   const [showInPortal, setShowInPortal] = useState(false)
+  const [uploadMode, setUploadMode] = useState<'file' | 'link'>('file')
+  const [linkName, setLinkName] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+  const [linkDescription, setLinkDescription] = useState('')
 
   // Edit state
   const [editingDoc, setEditingDoc] = useState<DocumentWithUploader | null>(null)
@@ -299,6 +307,40 @@ export function DocumentsPage() {
     }, 3000)
   }, [currentTenant, user, pendingFiles, uploadEntityType, uploadEntityId, showInPortal, uploadQueue.length])
 
+  // Process link creation
+  const handleConfirmLink = useCallback(async () => {
+    if (!currentTenant || !user || !uploadEntityId || !linkName.trim() || !linkUrl.trim()) return
+
+    try {
+      await documentsApi.createLink(
+        currentTenant.id,
+        user.id,
+        uploadEntityType,
+        uploadEntityId,
+        linkName.trim(),
+        linkUrl.trim(),
+        linkDescription.trim() || undefined,
+        showInPortal
+      )
+
+      toast({
+        title: 'Link added',
+        description: `${linkName} added successfully`,
+      })
+
+      setShowUploadDialog(false)
+      setLinkName('')
+      setLinkUrl('')
+      setLinkDescription('')
+    } catch (error) {
+      toast({
+        title: 'Failed to add link',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    }
+  }, [currentTenant, user, uploadEntityType, uploadEntityId, linkName, linkUrl, linkDescription, showInPortal])
+
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -357,10 +399,19 @@ export function DocumentsPage() {
             Manage all files across your workspace
           </p>
         </div>
-        <Button onClick={() => fileInputRef.current?.click()}>
-          <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-          Upload Files
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => fileInputRef.current?.click()}>
+            <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+            Upload Files
+          </Button>
+          <Button variant="outline" onClick={() => {
+            setUploadMode('link')
+            setShowUploadDialog(true)
+          }}>
+            <LinkIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add Link
+          </Button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -548,14 +599,20 @@ export function DocumentsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredDocuments.map((doc) => {
-                    const Icon = getFileIcon(doc.file_type)
+                    const isLink = (doc as { document_type?: string }).document_type === 'link'
+                    const docUrl = isLink ? (doc as { url?: string }).url : doc.file_url
+                    const Icon = isLink ? LinkIcon : getFileIcon(doc.file_type)
                     return (
-                      <TableRow key={doc.id} className="cursor-pointer hover:bg-muted/50">
+                      <TableRow
+                        key={doc.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => isLink ? window.open(docUrl, '_blank') : handleDownload(doc)}
+                      >
                         <TableCell>
                           <div
                             className={cn(
                               'p-2 rounded w-fit',
-                              getFileTypeColor(doc.file_type)
+                              isLink ? 'bg-blue-100 text-blue-700' : getFileTypeColor(doc.file_type)
                             )}
                           >
                             <Icon className="h-4 w-4" />
@@ -563,7 +620,10 @@ export function DocumentsPage() {
                         </TableCell>
                         <TableCell className="font-medium">
                           <div className="flex flex-col">
-                            <span className="truncate max-w-[300px]">{doc.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="truncate max-w-[300px]">{doc.name}</span>
+                              {isLink && <ExternalLink className="h-3 w-3 text-muted-foreground" />}
+                            </div>
                             {doc.description && (
                               <span className="text-xs text-muted-foreground truncate max-w-[300px]">
                                 {doc.description}
@@ -577,7 +637,7 @@ export function DocumentsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {formatFileSize(doc.file_size_bytes)}
+                          {isLink ? <span className="text-xs">External Link</span> : formatFileSize(doc.file_size_bytes)}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {formatDateTime(doc.created_at)}
@@ -700,26 +760,92 @@ export function DocumentsPage() {
         </div>
       )}
 
-      {/* Upload Dialog - Entity Selection */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+      {/* Upload Dialog - File or Link */}
+      <Dialog open={showUploadDialog} onOpenChange={(open) => {
+        setShowUploadDialog(open)
+        if (!open) {
+          setPendingFiles([])
+          setLinkName('')
+          setLinkUrl('')
+          setLinkDescription('')
+        }
+      }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Upload Files</DialogTitle>
+            <DialogTitle>Add Document</DialogTitle>
             <DialogDescription>
-              Select where to attach these {pendingFiles.length} file{pendingFiles.length !== 1 ? 's' : ''}.
+              Upload a file or add an external link.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Pending files preview */}
-            <div className="max-h-32 overflow-y-auto space-y-1 border rounded-lg p-2 bg-muted/30">
-              {pendingFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-sm">
-                  <FileIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate flex-1">{file.name}</span>
-                  <span className="text-xs text-muted-foreground">{formatFileSize(file.size)}</span>
+            {/* File / Link Toggle */}
+            <Tabs value={uploadMode} onValueChange={(v) => setUploadMode(v as 'file' | 'link')}>
+              <TabsList className="w-full">
+                <TabsTrigger value="file" className="flex-1 gap-2">
+                  <Upload className="h-4 w-4" />
+                  Upload File
+                </TabsTrigger>
+                <TabsTrigger value="link" className="flex-1 gap-2">
+                  <LinkIcon className="h-4 w-4" />
+                  Add External Link
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* File Upload Content */}
+            {uploadMode === 'file' && pendingFiles.length > 0 && (
+              <div className="max-h-32 overflow-y-auto space-y-1 border rounded-lg p-2 bg-muted/30">
+                {pendingFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-sm">
+                    <FileIcon className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate flex-1">{file.name}</span>
+                    <span className="text-xs text-muted-foreground">{formatFileSize(file.size)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {uploadMode === 'file' && pendingFiles.length === 0 && (
+              <div
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Click to select files</p>
+              </div>
+            )}
+
+            {/* Link Input Fields */}
+            {uploadMode === 'link' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Link Name *</Label>
+                  <Input
+                    value={linkName}
+                    onChange={(e) => setLinkName(e.target.value)}
+                    placeholder="e.g., Design Mockups - Figma"
+                  />
                 </div>
-              ))}
-            </div>
+                <div className="space-y-2">
+                  <Label>URL *</Label>
+                  <Input
+                    type="url"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea
+                    value={linkDescription}
+                    onChange={(e) => setLinkDescription(e.target.value)}
+                    placeholder="Optional description..."
+                    rows={2}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Entity Type Selection */}
             <div className="space-y-2">
@@ -766,7 +892,7 @@ export function DocumentsPage() {
               <div className="space-y-0.5">
                 <Label htmlFor="portal-toggle">Show in Client Portal</Label>
                 <p className="text-xs text-muted-foreground">
-                  Make these files visible to clients
+                  Make visible to clients
                 </p>
               </div>
               <Switch
@@ -782,14 +908,24 @@ export function DocumentsPage() {
               onClick={() => {
                 setShowUploadDialog(false)
                 setPendingFiles([])
+                setLinkName('')
+                setLinkUrl('')
+                setLinkDescription('')
               }}
             >
               Cancel
             </Button>
-            <Button onClick={handleConfirmUpload} disabled={!uploadEntityId}>
-              <Upload className="mr-2 h-4 w-4" />
-              Upload {pendingFiles.length} File{pendingFiles.length !== 1 ? 's' : ''}
-            </Button>
+            {uploadMode === 'file' ? (
+              <Button onClick={handleConfirmUpload} disabled={!uploadEntityId || pendingFiles.length === 0}>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload {pendingFiles.length} File{pendingFiles.length !== 1 ? 's' : ''}
+              </Button>
+            ) : (
+              <Button onClick={handleConfirmLink} disabled={!uploadEntityId || !linkName.trim() || !linkUrl.trim()}>
+                <LinkIcon className="mr-2 h-4 w-4" />
+                Add Link
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

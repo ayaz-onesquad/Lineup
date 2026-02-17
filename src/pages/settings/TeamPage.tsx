@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
-import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   Table,
   TableBody,
@@ -69,20 +68,14 @@ function parseUserCreationError(error: unknown): string {
   return message || 'An unexpected error occurred'
 }
 
-// User role options (excludes sys_admin - only SysAdmin can create SysAdmins)
-const ROLE_OPTIONS = [
-  { value: 'org_admin', label: 'Organization Admin', description: 'Full access to manage organization' },
-  { value: 'org_user', label: 'Team Member', description: 'Can manage projects and requirements' },
-  { value: 'client_user', label: 'Client User', description: 'Read-only access to client portal' },
-]
-
 // Form schema for creating a user
+// OrgAdmins can only create org_user - role is hardcoded
 const createUserSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email('Valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  role: z.enum(['org_admin', 'org_user', 'client_user'] as const),
+  role: z.literal('org_user'), // Hardcoded - OrgAdmins cannot select roles
   phone: z.string().optional(),
   sendWelcomeEmail: z.boolean(),
 })
@@ -337,21 +330,23 @@ export function TeamPage() {
                     )}
                   />
 
+                  {/* Role is hardcoded to org_user - OrgAdmins cannot select roles */}
+                  {/* Only SysAdmins can change roles via Admin Portal */}
                   <FormField
                     control={createUserForm.control}
                     name="role"
-                    render={({ field }) => (
+                    render={() => (
                       <FormItem>
-                        <FormLabel>User Role *</FormLabel>
-                        <FormControl>
-                          <SearchableSelect
-                            options={ROLE_OPTIONS}
-                            value={field.value}
-                            onValueChange={(value) => field.onChange(value || 'org_user')}
-                            placeholder="Select role..."
-                          />
-                        </FormControl>
-                        <FormMessage />
+                        <FormLabel>User Role</FormLabel>
+                        <div className="flex items-center gap-2 h-10">
+                          <Badge className="bg-blue-100 text-blue-800">Team Member</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            (Role assigned automatically)
+                          </span>
+                        </div>
+                        <FormDescription>
+                          Contact a System Administrator to change user roles.
+                        </FormDescription>
                       </FormItem>
                     )}
                   />

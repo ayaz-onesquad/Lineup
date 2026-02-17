@@ -51,14 +51,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import type { MyWorkItem } from '@/types/database'
 
-// Priority level configuration for 6-level Eisenhower Matrix (aligned with getPriorityLabel in utils.ts)
+// Priority level configuration for 6-level Eisenhower Matrix (aligned with CLAUDE.md standards)
 const PRIORITY_LEVELS = [
-  { level: 1, label: 'Critical', sublabel: 'Crisis/Fire', icon: Flame, color: 'text-red-700', bgColor: 'bg-red-100', borderColor: 'border-red-200' },
-  { level: 2, label: 'High', sublabel: 'Important & Urgent', icon: Zap, color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-100' },
-  { level: 3, label: 'Medium-High', sublabel: 'Important, Plan', icon: Calendar, color: 'text-amber-600', bgColor: 'bg-amber-100', borderColor: 'border-amber-200' },
-  { level: 4, label: 'Medium', sublabel: 'Standard Work', icon: ListChecks, color: 'text-amber-500', bgColor: 'bg-amber-50', borderColor: 'border-amber-100' },
-  { level: 5, label: 'Low', sublabel: 'Delegate/Defer', icon: ArrowRight, color: 'text-blue-600', bgColor: 'bg-blue-100', borderColor: 'border-blue-200' },
-  { level: 6, label: 'Minimal', sublabel: 'Eliminate/Drop', icon: Timer, color: 'text-slate-500', bgColor: 'bg-slate-100', borderColor: 'border-slate-200' },
+  { level: 1, label: 'Critical', sublabel: 'Do First / Crisis', icon: Flame, color: 'text-red-700', bgColor: 'bg-red-100', borderColor: 'border-red-200' },
+  { level: 2, label: 'High', sublabel: 'Do First / Urgent', icon: Zap, color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-100' },
+  { level: 3, label: 'Medium-High', sublabel: 'Schedule', icon: Calendar, color: 'text-amber-600', bgColor: 'bg-amber-100', borderColor: 'border-amber-200' },
+  { level: 4, label: 'Medium', sublabel: 'Plan', icon: ListChecks, color: 'text-amber-500', bgColor: 'bg-amber-50', borderColor: 'border-amber-100' },
+  { level: 5, label: 'Medium-Low', sublabel: 'Delegate', icon: ArrowRight, color: 'text-blue-600', bgColor: 'bg-blue-100', borderColor: 'border-blue-200' },
+  { level: 6, label: 'Low', sublabel: 'Eliminate', icon: Timer, color: 'text-slate-500', bgColor: 'bg-slate-100', borderColor: 'border-slate-200' },
 ]
 
 // KPI Drill-down Modal

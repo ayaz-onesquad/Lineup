@@ -11,7 +11,6 @@ import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -293,17 +292,6 @@ export function PhaseDetailPage() {
           </Button>
         )}
       </div>
-
-      {/* Progress Card */}
-      <Card className="page-carbon">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Overall Progress</span>
-            <span className="text-sm text-muted-foreground">{phase.completion_percentage}%</span>
-          </div>
-          <Progress value={phase.completion_percentage} className="h-2" />
-        </CardContent>
-      </Card>
 
       {/* Tabs */}
       <Tabs defaultValue="details" className="space-y-4">

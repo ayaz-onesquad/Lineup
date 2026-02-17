@@ -368,32 +368,8 @@ export function PitchDetailPage() {
             </h1>
             <Badge className={getStatusColor(pitch.status)}>{pitch.status.replace('_', ' ')}</Badge>
           </div>
-          {/* Parent links - clickable in view mode, dropdowns in edit mode */}
-          {!isEditing ? (
-            <p className="text-muted-foreground mt-1">
-              {client && (
-                <Link to={`/clients/${client.id}`} className="hover:underline">
-                  {client.name}
-                </Link>
-              )}
-              {project && (
-                <>
-                  {' > '}
-                  <Link to={`/projects/${project.id}`} className="hover:underline">
-                    {project.name}
-                  </Link>
-                </>
-              )}
-              {set && (
-                <>
-                  {' > '}
-                  <Link to={`/sets/${set.id}`} className="hover:underline">
-                    {set.name}
-                  </Link>
-                </>
-              )}
-            </p>
-          ) : (
+          {/* Parent selection dropdowns - only shown in edit mode */}
+          {isEditing && (
             <div className="flex gap-4 mt-2">
               <div className="w-48">
                 <Label className="text-xs text-muted-foreground">Client</Label>

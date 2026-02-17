@@ -6,7 +6,121 @@ import type {
   EntityType,
 } from '@/types/database'
 
+export interface DiscussionWithContext extends DiscussionWithAuthor {
+  topic_name?: string
+  client_name?: string
+  reply_count?: number
+}
+
 export const discussionsApi = {
+  // Get all discussions for the tenant (global list)
+  getAll: async (
+    tenantId: string,
+    options?: {
+      clientId?: string
+      visibility?: 'internal' | 'external'
+      limit?: number
+    }
+  ): Promise<DiscussionWithContext[]> => {
+    let query = supabase
+      .from('discussions')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .is('parent_discussion_id', null)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (options?.clientId) {
+      query = query.eq('root_client_id', options.clientId)
+    }
+    if (options?.visibility) {
+      query = query.eq('visibility', options.visibility)
+    }
+    if (options?.limit) {
+      query = query.limit(options.limit)
+    }
+
+    const { data, error } = await query
+    if (error) throw error
+    if (!data || data.length === 0) return []
+
+    // Get author profiles
+    const authorIds = [...new Set(data.map(d => d.author_id))]
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .in('user_id', authorIds)
+
+    const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || [])
+
+    // Get reply counts
+    const discussionIds = data.map(d => d.id)
+    const { data: replyCounts } = await supabase
+      .from('discussions')
+      .select('parent_discussion_id')
+      .in('parent_discussion_id', discussionIds)
+      .is('deleted_at', null)
+
+    const replyCountMap = new Map<string, number>()
+    replyCounts?.forEach(r => {
+      const count = replyCountMap.get(r.parent_discussion_id) || 0
+      replyCountMap.set(r.parent_discussion_id, count + 1)
+    })
+
+    return data.map(d => ({
+      ...d,
+      author: profileMap.get(d.author_id),
+      reply_count: replyCountMap.get(d.id) || 0,
+    }))
+  },
+
+  // Get single discussion by ID with full context
+  getById: async (id: string): Promise<DiscussionWithContext | null> => {
+    const { data, error } = await supabase
+      .from('discussions')
+      .select('*')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error
+    if (!data) return null
+
+    // Get author profile
+    const { data: author } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', data.author_id)
+      .single()
+
+    // Get replies with authors
+    const { data: replies } = await supabase
+      .from('discussions')
+      .select('*')
+      .eq('parent_discussion_id', id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+
+    // Get author profiles for replies
+    const replyAuthorIds = [...new Set(replies?.map(r => r.author_id) || [])]
+    const { data: replyProfiles } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .in('user_id', replyAuthorIds)
+
+    const profileMap = new Map(replyProfiles?.map(p => [p.user_id, p]) || [])
+
+    return {
+      ...data,
+      author,
+      replies: replies?.map(r => ({
+        ...r,
+        author: profileMap.get(r.author_id),
+      })) || [],
+    }
+  },
+
+
   getByEntity: async (
     entityType: EntityType,
     entityId: string,

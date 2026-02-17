@@ -39,6 +39,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   ArrowLeft,
   User,
@@ -604,7 +605,7 @@ export function ContactDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <Form {...convertForm}>
-            <form onSubmit={convertForm.handleSubmit((data) => convertMutation.mutate(data))} className="space-y-4">
+            <form onSubmit={convertForm.handleSubmit((data) => convertMutation.mutate({ ...data, password: data.password.trim() }))} className="space-y-4">
               <FormField
                 control={convertForm.control}
                 name="clientId"
@@ -612,18 +613,15 @@ export function ContactDetailPage() {
                   <FormItem>
                     <FormLabel>Client Access *</FormLabel>
                     <FormControl>
-                      <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      <SearchableSelect
                         value={field.value}
-                        onChange={(e) => field.onChange(e.target.value)}
-                      >
-                        <option value="">Select client...</option>
-                        {linkedClients?.map((lc) => (
-                          <option key={lc.client.id} value={lc.client.id}>
-                            {lc.client.name}
-                          </option>
-                        ))}
-                      </select>
+                        onValueChange={field.onChange}
+                        placeholder="Select client..."
+                        options={(linkedClients || []).map((lc) => ({
+                          value: lc.client.id,
+                          label: lc.client.name,
+                        }))}
+                      />
                     </FormControl>
                     <FormDescription>
                       The client this user will have portal access to

@@ -245,7 +245,7 @@ export function useMyTasksByPriority(limit: number = 50) {
 
 /**
  * Get ALL tasks grouped by all 6 priority levels
- * Priority levels: 1 (Critical), 2 (Do First), 3 (Schedule), 4 (Routine), 5 (Delegate), 6 (Defer)
+ * Priority levels: 1 (Critical), 2 (High), 3 (Medium-High), 4 (Medium), 5 (Medium-Low), 6 (Low)
  */
 export function useMyTasksByAllPriorities(limit: number = 100) {
   const { currentTenant } = useTenantStore()
@@ -273,15 +273,15 @@ export function useMyTasksByAllPriorities(limit: number = 100) {
 
       if (error) throw error
 
-      // Group by all 6 priority levels
+      // Group by all 6 priority levels (Eisenhower)
       const tasks = data || []
       return {
-        priority1: tasks.filter((t) => t.priority === 1), // Critical/Crisis
-        priority2: tasks.filter((t) => t.priority === 2), // Do First
-        priority3: tasks.filter((t) => t.priority === 3), // Schedule
-        priority4: tasks.filter((t) => t.priority === 4), // Routine
-        priority5: tasks.filter((t) => t.priority === 5), // Delegate
-        priority6: tasks.filter((t) => t.priority === 6 || !t.priority), // Defer/Unset
+        priority1: tasks.filter((t) => t.priority === 1), // Critical (Do First / Crisis)
+        priority2: tasks.filter((t) => t.priority === 2), // High (Do First / Urgent)
+        priority3: tasks.filter((t) => t.priority === 3), // Medium-High (Schedule)
+        priority4: tasks.filter((t) => t.priority === 4), // Medium (Plan)
+        priority5: tasks.filter((t) => t.priority === 5), // Medium-Low (Delegate)
+        priority6: tasks.filter((t) => t.priority === 6 || !t.priority), // Low (Eliminate/Unset)
         all: tasks,
       }
     },
@@ -442,14 +442,14 @@ export function useMyWorkHierarchy() {
   hierarchy.orphanPitches = orphanPitchList
   hierarchy.orphanRequirements = orphanReqs
 
-  // Group by all 6 priority levels (Eisenhower Matrix)
+  // Group by all 6 priority levels (Eisenhower)
   const byPriority = {
-    priority1: hierarchy.sets.filter((s) => s.priority === 1), // Critical/Crisis
-    priority2: hierarchy.sets.filter((s) => s.priority === 2), // Do First
-    priority3: hierarchy.sets.filter((s) => s.priority === 3), // Schedule
-    priority4: hierarchy.sets.filter((s) => s.priority === 4), // Routine
-    priority5: hierarchy.sets.filter((s) => s.priority === 5), // Delegate
-    priority6: hierarchy.sets.filter((s) => s.priority === 6 || !s.priority), // Defer/Unset
+    priority1: hierarchy.sets.filter((s) => s.priority === 1), // Critical (Do First / Crisis)
+    priority2: hierarchy.sets.filter((s) => s.priority === 2), // High (Do First / Urgent)
+    priority3: hierarchy.sets.filter((s) => s.priority === 3), // Medium-High (Schedule)
+    priority4: hierarchy.sets.filter((s) => s.priority === 4), // Medium (Plan)
+    priority5: hierarchy.sets.filter((s) => s.priority === 5), // Medium-Low (Delegate)
+    priority6: hierarchy.sets.filter((s) => s.priority === 6 || !s.priority), // Low (Eliminate/Unset)
     // Legacy groupings for backward compatibility
     high: hierarchy.sets.filter((s) => s.priority && s.priority <= 2),
     medium: hierarchy.sets.filter((s) => s.priority && s.priority >= 3 && s.priority <= 4),

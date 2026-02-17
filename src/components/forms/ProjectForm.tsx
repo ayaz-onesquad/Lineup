@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useProjectMutations } from '@/hooks/useProjects'
+import { useProjectMutations, useProjectTemplates } from '@/hooks/useProjects'
 import { useClients } from '@/hooks/useClients'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, LayoutTemplate } from 'lucide-react'
 
 const projectSchema = z.object({
   client_id: z.string().min(1, 'Client is required'),
@@ -46,9 +46,11 @@ interface ProjectFormProps {
 }
 
 export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
-  const { createProject } = useProjectMutations()
+  const { createProject, createFromTemplate } = useProjectMutations()
   const { data: clients, isLoading: clientsLoading } = useClients()
   const { data: users } = useTenantUsers()
+  const { data: templates } = useProjectTemplates()
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
 
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
@@ -71,8 +73,24 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
   }, [defaultValues?.client_id])
 
   const onSubmit = async (data: ProjectFormData) => {
-    await createProject.mutateAsync(data)
+    if (selectedTemplateId) {
+      // Create from template
+      await createFromTemplate.mutateAsync({
+        templateId: selectedTemplateId,
+        clientId: data.client_id,
+        projectName: data.name,
+        options: {
+          include_children: true,
+          clear_dates: true,
+          clear_assignments: true,
+        },
+      })
+    } else {
+      // Create new project
+      await createProject.mutateAsync(data)
+    }
     form.reset()
+    setSelectedTemplateId('')
     onSuccess?.()
   }
 
@@ -114,6 +132,34 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
             </FormItem>
           )}
         />
+
+        {/* Template Selection */}
+        {templates && templates.length > 0 && (
+          <div className="space-y-2">
+            <FormLabel className="flex items-center gap-2">
+              <LayoutTemplate className="h-4 w-4" />
+              Start from Template
+            </FormLabel>
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Start from scratch (no template)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Start from scratch</SelectItem>
+                {templates.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedTemplateId && (
+              <p className="text-xs text-muted-foreground">
+                All phases, sets, and requirements from the template will be copied. Dates and assignments will be cleared.
+              </p>
+            )}
+          </div>
+        )}
 
         <FormField
           control={form.control}
@@ -223,10 +269,10 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
         <Button
           type="submit"
           className="w-full"
-          disabled={createProject.isPending || clientsLoading || !clients?.length}
+          disabled={createProject.isPending || createFromTemplate.isPending || clientsLoading || !clients?.length}
         >
-          {createProject.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Create Project
+          {(createProject.isPending || createFromTemplate.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {selectedTemplateId ? 'Create from Template' : 'Create Project'}
         </Button>
       </form>
     </Form>
