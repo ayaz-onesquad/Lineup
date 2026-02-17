@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTenantUsers } from '@/hooks/useTenant'
-import { useAuthStore, useTenantStore } from '@/stores'
+import { useTenantStore } from '@/stores'
+import { useUserRole } from '@/hooks/useUserRole'
 import { tenantsApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,7 +41,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Plus, Users, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import { Plus, Users, Loader2, Eye, EyeOff, Copy, Check, AlertCircle } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import { isValidEmail } from '@/lib/security'
@@ -83,16 +85,69 @@ const createUserSchema = z.object({
 type CreateUserFormData = z.infer<typeof createUserSchema>
 
 export function TeamPage() {
+  const navigate = useNavigate()
   const [createUserOpen, setCreateUserOpen] = useState(false)
   const [showPassword, setShowPassword] = useState(true)
   const [passwordCopied, setPasswordCopied] = useState(false)
-  const { data: users, isLoading } = useTenantUsers()
-  const { role: currentUserRole } = useAuthStore()
+  const { data: users, isLoading, refetch: refetchUsers } = useTenantUsers()
+  const { role: currentUserRole, isLoading: roleLoading } = useUserRole()
   const { currentTenant } = useTenantStore()
   const currentTenantId = currentTenant?.id
   const queryClient = useQueryClient()
 
   const isAdmin = currentUserRole === 'org_admin' || currentUserRole === 'sys_admin'
+
+  // Route protection: redirect non-admins to dashboard
+  useEffect(() => {
+    if (roleLoading) return // Wait for role to load
+    if (!isAdmin) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [isAdmin, roleLoading, navigate])
+
+  // Email existence checking state
+  const [emailExists, setEmailExists] = useState(false)
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+  const emailCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Debounced email check function
+  const checkEmailExists = useCallback(async (email: string) => {
+    // Clear any pending check
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current)
+    }
+
+    // Reset state if email is empty or invalid
+    if (!email || !isValidEmail(email)) {
+      setEmailExists(false)
+      setIsCheckingEmail(false)
+      return
+    }
+
+    setIsCheckingEmail(true)
+
+    // Debounce the API call
+    emailCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        const exists = await tenantsApi.checkEmailExists(email)
+        setEmailExists(exists)
+      } catch (error) {
+        console.error('Error checking email:', error)
+        setEmailExists(false)
+      } finally {
+        setIsCheckingEmail(false)
+      }
+    }, 500) // 500ms debounce
+  }, [])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (emailCheckTimeoutRef.current) {
+        clearTimeout(emailCheckTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Create user form
   const createUserForm = useForm<CreateUserFormData>({
@@ -120,7 +175,7 @@ export function TeamPage() {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: (data: CreateUserFormData) => {
+    mutationFn: async (data: CreateUserFormData) => {
       // Pre-flight validation
       if (!currentTenantId) {
         throw new Error('No tenant selected. Please refresh and try again.')
@@ -135,6 +190,12 @@ export function TeamPage() {
         throw new Error('Password must be at least 8 characters.')
       }
 
+      // Backup check: verify email doesn't exist before committing
+      const exists = await tenantsApi.checkEmailExists(data.email)
+      if (exists) {
+        throw new Error('A user with this email already exists.')
+      }
+
       return tenantsApi.createUser(currentTenantId, {
         email: data.email,
         password: data.password,
@@ -147,6 +208,8 @@ export function TeamPage() {
     },
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tenantUsers'] })
+      // Force immediate refetch to show the new user
+      refetchUsers()
       toast({
         title: 'User created successfully',
         description: (
@@ -161,6 +224,7 @@ export function TeamPage() {
       setCreateUserOpen(false)
       createUserForm.reset()
       setShowPassword(true)
+      setEmailExists(false)
     },
     onError: (error: Error) => {
       const friendlyMessage = parseUserCreationError(error)
@@ -210,6 +274,20 @@ export function TeamPage() {
     }
   }
 
+  // Show loading while checking role
+  if (roleLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // Don't render anything if not admin (redirect will happen)
+  if (!isAdmin) {
+    return null
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -218,7 +296,13 @@ export function TeamPage() {
           <p className="text-muted-foreground">Manage team members and access</p>
         </div>
         {isAdmin && (
-          <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
+          <Dialog open={createUserOpen} onOpenChange={(open) => {
+            setCreateUserOpen(open)
+            if (!open) {
+              setEmailExists(false)
+              setIsCheckingEmail(false)
+            }
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -270,8 +354,34 @@ export function TeamPage() {
                       <FormItem>
                         <FormLabel>Email *</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="john.doe@example.com" {...field} />
+                          <div className="relative">
+                            <Input
+                              type="email"
+                              placeholder="john.doe@example.com"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e)
+                                checkEmailExists(e.target.value)
+                              }}
+                              className={emailExists ? 'border-destructive pr-10' : ''}
+                            />
+                            {isCheckingEmail && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              </div>
+                            )}
+                            {!isCheckingEmail && emailExists && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <AlertCircle className="h-4 w-4 text-destructive" />
+                              </div>
+                            )}
+                          </div>
                         </FormControl>
+                        {emailExists && (
+                          <p className="text-sm font-medium text-destructive">
+                            A user with this email already exists
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -387,11 +497,17 @@ export function TeamPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setCreateUserOpen(false)}
+                      onClick={() => {
+                        setCreateUserOpen(false)
+                        setEmailExists(false)
+                      }}
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={createUserMutation.isPending}>
+                    <Button
+                      type="submit"
+                      disabled={createUserMutation.isPending || emailExists || isCheckingEmail}
+                    >
                       {createUserMutation.isPending && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
