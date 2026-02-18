@@ -32,10 +32,19 @@ export function useTenant() {
   // Sync React Query data to Zustand store
   useEffect(() => {
     if (tenantsQuery.data) {
+      console.log('[Auth] Tenants fetched from database:', tenantsQuery.data.map(t => ({ id: t.id, name: t.name })))
       setTenants(tenantsQuery.data)
-      // Auto-select first tenant if none selected
-      if (!currentTenant && tenantsQuery.data.length > 0) {
+
+      // Validate that persisted currentTenant still exists in user's tenants
+      const persistedTenantValid = currentTenant && tenantsQuery.data.some(t => t.id === currentTenant.id)
+
+      if (!persistedTenantValid && tenantsQuery.data.length > 0) {
+        // Persisted tenant is stale/invalid, use first available tenant
+        console.log('[Auth] Real Tenant ID found:', tenantsQuery.data[0].id)
+        console.log('[Auth] Persisted tenant was invalid, switching to:', tenantsQuery.data[0].name)
         setCurrentTenant(tenantsQuery.data[0])
+      } else if (persistedTenantValid) {
+        console.log('[Auth] Real Tenant ID found:', currentTenant!.id)
       }
     }
   }, [tenantsQuery.data, currentTenant, setTenants, setCurrentTenant])

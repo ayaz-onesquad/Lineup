@@ -12,7 +12,14 @@ export function TenantGuard({ children }: TenantGuardProps) {
   const { currentTenant, tenants, isLoading } = useTenant()
 
   useEffect(() => {
+    console.log('[TenantGuard] State:', {
+      isLoading,
+      tenantsCount: tenants.length,
+      currentTenantId: currentTenant?.id || null,
+    })
+
     if (!isLoading && (tenants.length === 0 || !currentTenant)) {
+      console.log('[TenantGuard] No tenant found, redirecting to onboarding')
       navigate('/onboarding', { replace: true })
     }
   }, [isLoading, tenants, currentTenant, navigate])
@@ -29,5 +36,6 @@ export function TenantGuard({ children }: TenantGuardProps) {
     return null
   }
 
+  console.log('[TenantGuard] Tenant ready, rendering children with tenant:', currentTenant.id)
   return <>{children}</>
 }

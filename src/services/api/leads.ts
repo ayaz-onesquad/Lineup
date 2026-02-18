@@ -45,6 +45,12 @@ export const leadsApi = {
    * Get all leads for tenant
    */
   getAll: async (tenantId: string): Promise<LeadWithRelations[]> => {
+    // Guard: If tenantId is missing or invalid, return empty array
+    if (!tenantId || tenantId === 'undefined' || tenantId === 'null') {
+      console.warn('[LeadsAPI] No valid tenant ID provided, returning empty array')
+      return []
+    }
+
     console.log('[LeadsAPI] Fetching leads for tenant:', tenantId)
     const { data, error } = await supabase
       .from('leads')
