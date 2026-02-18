@@ -79,6 +79,8 @@ const leadFormSchema = z.object({
   website: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
+  city: z.string().optional(),
+  state: z.string().optional(),
   company_size: z.enum(['1-10', '11-50', '51-200', '201-500', '500+']).optional(),
   estimated_value: z.number().optional(),
   estimated_close_date: z.string().optional(),
@@ -151,6 +153,8 @@ export function LeadDetailPage() {
       website: lead?.website || '',
       phone: lead?.phone || '',
       email: lead?.email || '',
+      city: lead?.city || '',
+      state: lead?.state || '',
       company_size: lead?.company_size as CompanySize | undefined,
       estimated_value: lead?.estimated_value || undefined,
       estimated_close_date: lead?.estimated_close_date?.split('T')[0] || '',
@@ -197,6 +201,8 @@ export function LeadDetailPage() {
         website: lead.website || '',
         phone: lead.phone || '',
         email: lead.email || '',
+        city: lead.city || '',
+        state: lead.state || '',
         company_size: lead.company_size as CompanySize | undefined,
         estimated_value: lead.estimated_value || undefined,
         estimated_close_date: lead.estimated_close_date?.split('T')[0] || '',
@@ -232,6 +238,8 @@ export function LeadDetailPage() {
         website: data.website,
         phone: data.phone,
         email: data.email || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
         company_size: data.company_size as CompanySize | undefined,
         estimated_value: data.estimated_value,
         estimated_close_date: data.estimated_close_date || undefined,
@@ -255,6 +263,8 @@ export function LeadDetailPage() {
         website: lead.website || '',
         phone: lead.phone || '',
         email: lead.email || '',
+        city: lead.city || '',
+        state: lead.state || '',
         company_size: lead.company_size as CompanySize | undefined,
         estimated_value: lead.estimated_value || undefined,
         estimated_close_date: lead.estimated_close_date?.split('T')[0] || '',
@@ -578,6 +588,22 @@ export function LeadDetailPage() {
                   options={[...REFERRAL_SOURCE_OPTIONS]}
                   searchable
                   clearable
+                />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4">
+                <ViewEditField
+                  type="text"
+                  label="City"
+                  isEditing={isEditing}
+                  value={form.watch('city') || ''}
+                  onChange={(v) => form.setValue('city', v)}
+                />
+                <ViewEditField
+                  type="text"
+                  label="State"
+                  isEditing={isEditing}
+                  value={form.watch('state') || ''}
+                  onChange={(v) => form.setValue('state', v)}
                 />
               </div>
             </CardContent>

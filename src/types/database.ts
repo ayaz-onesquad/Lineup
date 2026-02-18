@@ -838,6 +838,9 @@ export interface Lead {
   website?: string
   phone?: string
   email?: string
+  city?: string
+  state?: string
+  address?: string
   company_size?: CompanySize
   estimated_value?: number
   estimated_close_date?: string
@@ -871,6 +874,9 @@ export interface CreateLeadInput {
   website?: string
   phone?: string
   email?: string
+  city?: string
+  state?: string
+  address?: string
   company_size?: CompanySize
   estimated_value?: number
   estimated_close_date?: string

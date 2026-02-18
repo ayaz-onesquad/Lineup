@@ -28,6 +28,8 @@ const leadSchema = z.object({
   website: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
+  city: z.string().optional(),
+  state: z.string().optional(),
   company_size: z.enum(['1-10', '11-50', '51-200', '201-500', '500+']).optional().or(z.literal('')),
   estimated_value: z.number().optional(),
   estimated_close_date: z.string().optional(),
@@ -73,6 +75,8 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
       website: '',
       phone: '',
       email: '',
+      city: '',
+      state: '',
       company_size: undefined,
       estimated_value: undefined,
       estimated_close_date: '',
@@ -103,6 +107,8 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
       website: data.website,
       phone: data.phone,
       email: data.email || undefined,
+      city: data.city || undefined,
+      state: data.state || undefined,
       company_size: (data.company_size as CompanySize) || undefined,
       estimated_value: data.estimated_value,
       estimated_close_date: data.estimated_close_date || undefined,
@@ -260,6 +266,36 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
                   <FormLabel>Phone</FormLabel>
                   <FormControl>
                     <Input placeholder="+1 (555) 000-0000" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="city"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>City</FormLabel>
+                  <FormControl>
+                    <Input placeholder="City" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="state"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>State</FormLabel>
+                  <FormControl>
+                    <Input placeholder="State" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
