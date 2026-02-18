@@ -4,21 +4,23 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useLeadMutations } from '@/hooks/useLeads'
 import { useTenantUsers } from '@/hooks/useTenant'
+import { useAllContacts, useCreateContact } from '@/hooks/useContacts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS } from '@/lib/utils'
-import type { LeadStatus, CompanySize, ReferralSource } from '@/types/database'
+import { REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
+import type { LeadStatus, CompanySize, ReferralSource, ContactRole } from '@/types/database'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, User } from 'lucide-react'
 
 const leadSchema = z.object({
   lead_name: z.string().min(1, 'Lead name is required'),
@@ -36,6 +38,29 @@ const leadSchema = z.object({
   source: z.string().optional(),
   lead_owner_id: z.string().optional(),
   notes: z.string().optional(),
+
+  // Primary contact fields
+  contact_mode: z.enum(['none', 'existing', 'new']),
+  existing_contact_id: z.string().optional(),
+  contact_first_name: z.string().optional(),
+  contact_last_name: z.string().optional(),
+  contact_email: z.string().email('Invalid email').optional().or(z.literal('')),
+  contact_phone: z.string().optional(),
+  contact_role: z.string().optional(),
+}).refine((data) => {
+  // If creating new contact, first and last name are required
+  if (data.contact_mode === 'new') {
+    return data.contact_first_name && data.contact_first_name.length > 0 &&
+           data.contact_last_name && data.contact_last_name.length > 0
+  }
+  // If selecting existing, contact ID is required
+  if (data.contact_mode === 'existing') {
+    return data.existing_contact_id && data.existing_contact_id.length > 0
+  }
+  return true
+}, {
+  message: 'Please select an existing contact or fill in the new contact details',
+  path: ['contact_mode'],
 })
 
 type LeadFormData = z.infer<typeof leadSchema>
@@ -62,8 +87,10 @@ interface LeadFormProps {
 }
 
 export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
-  const { createLead } = useLeadMutations()
+  const { createLead, linkContact } = useLeadMutations()
   const { data: users } = useTenantUsers()
+  const { data: contacts } = useAllContacts()
+  const createContact = useCreateContact()
 
   const form = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
@@ -83,8 +110,17 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
       source: '',
       lead_owner_id: '',
       notes: '',
+      contact_mode: 'none',
+      existing_contact_id: '',
+      contact_first_name: '',
+      contact_last_name: '',
+      contact_email: '',
+      contact_phone: '',
+      contact_role: '',
     },
   })
+
+  const watchContactMode = form.watch('contact_mode')
 
   // Build user options
   const userOptions = useMemo(
@@ -98,8 +134,19 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
     [users]
   )
 
+  // Build contact options for dropdown
+  const contactOptions = useMemo(() =>
+    contacts?.map((c) => ({
+      value: c.id,
+      label: `${c.first_name} ${c.last_name}`,
+      description: c.email || undefined,
+    })) || [],
+    [contacts]
+  )
+
   const onSubmit = async (data: LeadFormData) => {
-    await createLead.mutateAsync({
+    // 1. Create the lead first
+    const lead = await createLead.mutateAsync({
       lead_name: data.lead_name,
       description: data.description,
       status: data.status as LeadStatus,
@@ -117,9 +164,38 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
       notes: data.notes,
     })
 
+    // 2. Handle contact linking
+    if (data.contact_mode === 'new' && data.contact_first_name && data.contact_last_name) {
+      // Create new contact then link to lead
+      const newContact = await createContact.mutateAsync({
+        first_name: data.contact_first_name,
+        last_name: data.contact_last_name,
+        email: data.contact_email || undefined,
+        phone: data.contact_phone || undefined,
+        role: data.contact_role as ContactRole || undefined,
+      })
+
+      // Link the new contact to the lead as primary
+      await linkContact.mutateAsync({
+        lead_id: lead.id,
+        contact_id: newContact.id,
+        is_primary: true,
+        role_at_lead: data.contact_role || undefined,
+      })
+    } else if (data.contact_mode === 'existing' && data.existing_contact_id) {
+      // Link existing contact to lead as primary
+      await linkContact.mutateAsync({
+        lead_id: lead.id,
+        contact_id: data.existing_contact_id,
+        is_primary: true,
+      })
+    }
+
     form.reset()
     onSuccess?.()
   }
+
+  const isSubmitting = createLead.isPending || createContact.isPending || linkContact.isPending
 
   return (
     <Form {...form}>
@@ -389,6 +465,161 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
           </div>
         </div>
 
+        {/* Primary Contact Section */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-sm font-medium">Primary Contact</h3>
+
+          {/* Contact Mode Toggle */}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={watchContactMode === 'none' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => form.setValue('contact_mode', 'none')}
+              className="flex-1"
+            >
+              Skip
+            </Button>
+            <Button
+              type="button"
+              variant={watchContactMode === 'existing' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => form.setValue('contact_mode', 'existing')}
+              className="flex-1"
+            >
+              <User className="mr-2 h-4 w-4" />
+              Select Existing
+            </Button>
+            <Button
+              type="button"
+              variant={watchContactMode === 'new' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => form.setValue('contact_mode', 'new')}
+              className="flex-1"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create New
+            </Button>
+          </div>
+
+          {/* Existing Contact Selection */}
+          {watchContactMode === 'existing' && (
+            <FormField
+              control={form.control}
+              name="existing_contact_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Select Contact *</FormLabel>
+                  <FormControl>
+                    <SearchableSelect
+                      options={contactOptions}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value || '')}
+                      placeholder="Search contacts..."
+                      searchPlaceholder="Search by name or email..."
+                      emptyMessage="No contacts found."
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Choose from your existing contacts
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* New Contact Fields */}
+          {watchContactMode === 'new' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="contact_first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="John" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contact_last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Doe" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="contact_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="email" placeholder="john@example.com" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contact_phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="+1 (555) 123-4567" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="contact_role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <FormControl>
+                      <SearchableSelect
+                        options={CONTACT_ROLE_OPTIONS.map((o) => ({
+                          value: o.value,
+                          label: o.label,
+                        }))}
+                        value={field.value}
+                        onValueChange={(value) => field.onChange(value || '')}
+                        placeholder="Select role..."
+                        searchPlaceholder="Search roles..."
+                        emptyMessage="No role found."
+                        clearable
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          )}
+        </div>
+
         {/* Notes */}
         <FormField
           control={form.control}
@@ -406,8 +637,8 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
 
         {/* Submit */}
         <div className="flex justify-end">
-          <Button type="submit" disabled={createLead.isPending}>
-            {createLead.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create Lead
           </Button>
         </div>
