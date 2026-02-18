@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
+import { REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, US_STATE_OPTIONS } from '@/lib/utils'
 import type { LeadStatus, CompanySize, ReferralSource, ContactRole } from '@/types/database'
 import {
   Form,
@@ -371,7 +371,14 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
                 <FormItem>
                   <FormLabel>State</FormLabel>
                   <FormControl>
-                    <Input placeholder="State" {...field} />
+                    <SearchableSelect
+                      options={[...US_STATE_OPTIONS]}
+                      value={field.value || ''}
+                      onValueChange={field.onChange}
+                      placeholder="Select state..."
+                      searchPlaceholder="Search states..."
+                      clearable
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

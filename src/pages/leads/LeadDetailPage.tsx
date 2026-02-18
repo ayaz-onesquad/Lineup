@@ -62,7 +62,7 @@ import {
   Link as LinkIcon,
   UserPlus,
 } from 'lucide-react'
-import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS } from '@/lib/utils'
+import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, US_STATE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -599,11 +599,14 @@ export function LeadDetailPage() {
                   onChange={(v) => form.setValue('city', v)}
                 />
                 <ViewEditField
-                  type="text"
+                  type="select"
                   label="State"
                   isEditing={isEditing}
                   value={form.watch('state') || ''}
                   onChange={(v) => form.setValue('state', v)}
+                  options={[...US_STATE_OPTIONS]}
+                  searchable
+                  clearable
                 />
               </div>
             </CardContent>
