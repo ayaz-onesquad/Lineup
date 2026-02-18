@@ -45,6 +45,7 @@ export const leadsApi = {
    * Get all leads for tenant
    */
   getAll: async (tenantId: string): Promise<LeadWithRelations[]> => {
+    console.log('[LeadsAPI] Fetching leads for tenant:', tenantId)
     const { data, error } = await supabase
       .from('leads')
       .select(LEAD_SELECT)
@@ -52,7 +53,11 @@ export const leadsApi = {
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
-    if (error) throw error
+    if (error) {
+      console.error('[LeadsAPI] Supabase error:', error.code, error.message, error.details)
+      throw error
+    }
+    console.log('[LeadsAPI] Fetched', data?.length || 0, 'leads')
     return data || []
   },
 
