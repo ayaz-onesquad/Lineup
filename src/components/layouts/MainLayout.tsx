@@ -50,10 +50,8 @@ export function MainLayout() {
           </div>
         </main>
 
-        {/* Detail Panel - hidden on mobile/tablet, shown on lg+ */}
-        <div className="hidden lg:block">
-          <DetailPanel />
-        </div>
+        {/* Detail Panel - handles its own responsive rendering */}
+        <DetailPanel />
       </div>
 
       {/* Create Modal */}

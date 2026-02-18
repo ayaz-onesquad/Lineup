@@ -108,7 +108,7 @@ export function TeamPage() {
   // Email existence checking state
   const [emailExists, setEmailExists] = useState(false)
   const [isCheckingEmail, setIsCheckingEmail] = useState(false)
-  const emailCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const emailCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Debounced email check function
   const checkEmailExists = useCallback(async (email: string) => {

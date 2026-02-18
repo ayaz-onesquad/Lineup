@@ -19,10 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { FolderKanban, LogOut, Settings, User, Building2, HelpCircle, Ticket } from 'lucide-react'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { FolderKanban, LogOut, Settings, User, Building2, HelpCircle, Ticket, Menu } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { authApi } from '@/services/api'
 import { SubmitTicketDialog } from '@/components/shared/SubmitTicketDialog'
+import { MobileSidebar } from './MobileSidebar'
 
 export function TopNav() {
   const navigate = useNavigate()
@@ -47,15 +49,41 @@ export function TopNav() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-full items-center justify-between px-4">
-        {/* Logo & Brand */}
-        <Link to="/dashboard" className="flex items-center gap-2">
-          <FolderKanban className="h-6 w-6 text-primary" />
-          <span className="font-semibold text-lg">LineUp</span>
-        </Link>
+        {/* Left Section - Hamburger + Logo */}
+        <div className="flex items-center gap-2">
+          {/* Mobile Hamburger Menu */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open navigation menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[280px] p-0">
+              <MobileSidebar />
+            </SheetContent>
+          </Sheet>
+
+          {/* Logo & Brand */}
+          <Link to="/dashboard" className="flex items-center gap-2">
+            <FolderKanban className="h-6 w-6 text-primary" />
+            <span className="font-semibold text-lg">LineUp</span>
+          </Link>
+        </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-4">
-          {/* Submit Ticket Button */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Submit Ticket Button - Icon only on mobile */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTicketDialogOpen(true)}
+            className="sm:hidden"
+          >
+            <HelpCircle className="h-5 w-5" />
+            <span className="sr-only">Support</span>
+          </Button>
+          {/* Submit Ticket Button - Full version on desktop */}
           <Button
             variant="outline"
             size="sm"

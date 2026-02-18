@@ -8,44 +8,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  LayoutDashboard,
-  Users,
-  Contact,
-  FolderKanban,
-  Layers,
-  CheckSquare,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Target,
-  LayoutTemplate,
-  Presentation,
-  FileText,
-  StickyNote,
-  ListOrdered,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const mainNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/leads', label: 'Pipeline', icon: Target },
-  { href: '/clients', label: 'Clients', icon: Users },
-  { href: '/contacts', label: 'Contacts', icon: Contact },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/templates', label: 'Templates', icon: LayoutTemplate },
-  { href: '/phases', label: 'Phases', icon: ListOrdered },
-  { href: '/sets', label: 'All Sets', icon: Layers },
-  { href: '/pitches', label: 'Pitches', icon: Presentation },
-  { href: '/requirements', label: 'Requirements', icon: CheckSquare },
-  { href: '/documents', label: 'Documents', icon: FileText },
-  { href: '/notes', label: 'Notes', icon: StickyNote },
-]
-
-const bottomNavItems = [
-  { href: '/settings', label: 'Settings', icon: Settings },
-]
+import { mainNavItems, bottomNavItems } from './navItems'
 
 export function Sidebar() {
   const location = useLocation()

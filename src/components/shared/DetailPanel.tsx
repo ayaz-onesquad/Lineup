@@ -1,6 +1,8 @@
 import { useUIStore } from '@/stores'
+import { useMediaQuery } from '@/hooks'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,10 +16,10 @@ import { RequirementDetail } from '@/components/details/RequirementDetail'
 export function DetailPanel() {
   const { detailPanel, closeDetailPanel } = useUIStore()
   const { isOpen, entityType, entityId } = detailPanel
-
-  if (!isOpen || !entityType || !entityId) return null
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
 
   const renderDetail = () => {
+    if (!entityType || !entityId) return null
     switch (entityType) {
       case 'client':
         return <ClientDetail id={entityId} />
@@ -33,6 +35,25 @@ export function DetailPanel() {
         return null
     }
   }
+
+  // Mobile/Tablet: Render as bottom sheet
+  if (!isDesktop) {
+    return (
+      <Sheet open={isOpen} onOpenChange={(open) => !open && closeDetailPanel()}>
+        <SheetContent side="bottom" className="h-[85vh] p-0">
+          <SheetHeader className="border-b px-4 py-3">
+            <SheetTitle className="capitalize">{entityType} Details</SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[calc(85vh-4rem)]">
+            <div className="p-4">{renderDetail()}</div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+    )
+  }
+
+  // Desktop: Fixed sidebar
+  if (!isOpen || !entityType || !entityId) return null
 
   return (
     <aside

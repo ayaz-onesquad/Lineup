@@ -1,4 +1,5 @@
 export { useToast, toast } from './use-toast'
+export { useMediaQuery } from './useMediaQuery'
 export { useAuth } from './useAuth'
 export { useTenant, useTenantUsers } from './useTenant'
 export { useUserRole } from './useUserRole'
