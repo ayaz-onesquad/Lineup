@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTenant } from '@/hooks/useTenant'
 import { useUserRole } from '@/hooks/useUserRole'
+import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,7 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Building2 } from 'lucide-react'
+import { Loader2, Building2, Clock, LogOut } from 'lucide-react'
 import { generateSlug } from '@/lib/utils'
 
 const onboardingSchema = z.object({
@@ -34,6 +35,7 @@ export function OnboardingPage() {
   const navigate = useNavigate()
   const { tenants, createTenant, isLoading: tenantsLoading } = useTenant()
   const { role, isLoading: roleLoading } = useUserRole()
+  const { signOut } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<OnboardingForm>({
@@ -70,7 +72,12 @@ export function OnboardingPage() {
       navigate('/dashboard', { replace: true })
       return
     }
+
+    // Note: Users without tenants who are NOT sys_admin will see the waiting page
   }, [roleLoading, tenantsLoading, role, tenants.length, navigate, isSubmitting])
+
+  // Check if user can create organizations (only sys_admin)
+  const canCreateOrg = role === 'sys_admin'
 
   const onSubmit = async (data: OnboardingForm) => {
     setIsSubmitting(true)
@@ -98,6 +105,40 @@ export function OnboardingPage() {
     )
   }
 
+  // If user can't create organizations (not sys_admin), show waiting page
+  if (!canCreateOrg) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">
+              <Clock className="h-6 w-6 text-amber-600" />
+            </div>
+            <CardTitle className="text-2xl">Waiting for Access</CardTitle>
+            <CardDescription>
+              Your account has been created but you haven&apos;t been added to an organization yet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              Please contact your organization administrator to be added to their team.
+              Once added, you&apos;ll be able to access the dashboard.
+            </p>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => signOut.mutate()}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Only sys_admin can create organizations
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-lg">
@@ -105,9 +146,9 @@ export function OnboardingPage() {
           <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
             <Building2 className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Create Your Organization</CardTitle>
+          <CardTitle className="text-2xl">Create Organization</CardTitle>
           <CardDescription>
-            Set up your organization to start managing projects with LineUp
+            Set up a new organization in LineUp (System Admin only)
           </CardDescription>
         </CardHeader>
         <CardContent>
