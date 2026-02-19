@@ -88,6 +88,7 @@ const pitchFormSchema = z.object({
   secondary_lead_id: z.string().optional(),
   notes: z.string().optional(),
   show_in_client_portal: z.boolean(),
+  order_manual: z.number().optional(),
 })
 
 type PitchFormValues = z.infer<typeof pitchFormSchema>
@@ -166,6 +167,7 @@ export function PitchDetailPage() {
       secondary_lead_id: pitch?.secondary_lead_id || '',
       notes: pitch?.notes || '',
       show_in_client_portal: pitch?.show_in_client_portal ?? false,
+      order_manual: pitch?.order_manual ?? undefined,
     },
   })
 
@@ -198,6 +200,7 @@ export function PitchDetailPage() {
         secondary_lead_id: pitch.secondary_lead_id || '',
         notes: pitch.notes || '',
         show_in_client_portal: pitch.show_in_client_portal,
+        order_manual: pitch.order_manual ?? undefined,
       })
       // Set parent selections for edit mode
       const set = pitch.sets
@@ -236,6 +239,7 @@ export function PitchDetailPage() {
         secondary_lead_id: data.secondary_lead_id || undefined,
         notes: data.notes,
         show_in_client_portal: data.show_in_client_portal,
+        order_manual: data.order_manual,
       })
       setIsEditing(false)
     } finally {
@@ -259,6 +263,7 @@ export function PitchDetailPage() {
         secondary_lead_id: pitch.secondary_lead_id || '',
         notes: pitch.notes || '',
         show_in_client_portal: pitch.show_in_client_portal,
+        order_manual: pitch.order_manual ?? undefined,
       })
     }
     setIsEditing(false)
@@ -515,6 +520,27 @@ export function PitchDetailPage() {
                   </div>
                 )
               })()}
+            </div>
+            {/* Order field */}
+            <div className="min-h-[52px]">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Order
+              </label>
+              {isEditing ? (
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={form.watch('order_manual') ?? ''}
+                  onChange={(e) => form.setValue('order_manual', e.target.value ? Number(e.target.value) : undefined)}
+                  placeholder="0"
+                  min="0"
+                  step="1"
+                />
+              ) : (
+                <div className="h-9 flex items-center">
+                  <span className="font-medium">{pitch.order_manual ?? '—'}</span>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

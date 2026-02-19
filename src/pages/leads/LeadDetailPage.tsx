@@ -232,11 +232,11 @@ export function LeadDetailPage() {
       await updateLead.mutateAsync({
         id: leadId,
         lead_name: data.lead_name,
-        description: data.description,
+        description: data.description || undefined,
         status: data.status as LeadStatus,
-        industry: data.industry,
-        website: data.website,
-        phone: data.phone,
+        industry: data.industry || undefined,
+        website: data.website || undefined,
+        phone: data.phone || undefined,
         email: data.email || undefined,
         city: data.city || undefined,
         state: data.state || undefined,
@@ -245,9 +245,12 @@ export function LeadDetailPage() {
         estimated_close_date: data.estimated_close_date || undefined,
         source: data.source as ReferralSource | undefined,
         lead_owner_id: data.lead_owner_id || undefined,
-        notes: data.notes,
+        notes: data.notes || undefined,
       })
       setIsEditing(false)
+    } catch (error) {
+      // Error is already handled by mutation onError, but log for debugging
+      console.error('[LeadDetailPage] Save failed:', error)
     } finally {
       setIsSaving(false)
     }
@@ -846,7 +849,11 @@ export function LeadDetailPage() {
                   </TableHeader>
                   <TableBody>
                     {contacts.map((lc) => (
-                      <TableRow key={lc.id}>
+                      <TableRow
+                        key={lc.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onDoubleClick={() => navigate(`/contacts/${lc.contact_id}`)}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Avatar className="h-8 w-8">

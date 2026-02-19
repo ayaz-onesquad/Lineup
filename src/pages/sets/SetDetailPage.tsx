@@ -78,6 +78,8 @@ const setFormSchema = z.object({
   // Budget fields
   budget_days: z.number().optional(),
   budget_hours: z.number().optional(),
+  // Order field for manual sorting
+  set_order: z.number().optional(),
 })
 
 type SetFormValues = z.infer<typeof setFormSchema>
@@ -121,6 +123,7 @@ export function SetDetailPage() {
       pm_id: set?.pm_id || '',
       budget_days: set?.budget_days ?? undefined,
       budget_hours: set?.budget_hours ?? undefined,
+      set_order: set?.set_order ?? undefined,
     },
   })
 
@@ -178,6 +181,7 @@ export function SetDetailPage() {
         pm_id: set.pm_id || '',
         budget_days: set.budget_days ?? undefined,
         budget_hours: set.budget_hours ?? undefined,
+        set_order: set.set_order ?? undefined,
       })
     }
   }, [set?.id, isEditing])
@@ -213,6 +217,7 @@ export function SetDetailPage() {
         pm_id: data.pm_id || undefined,
         budget_days: data.budget_days,
         budget_hours: data.budget_hours,
+        set_order: data.set_order,
       })
       setIsEditing(false)
     } finally {
@@ -238,6 +243,7 @@ export function SetDetailPage() {
       pm_id: set?.pm_id || '',
       budget_days: set?.budget_days ?? undefined,
       budget_hours: set?.budget_hours ?? undefined,
+      set_order: set?.set_order ?? undefined,
     })
     setIsEditing(false)
   }
@@ -560,6 +566,22 @@ export function SetDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Completion</p>
                   <p>{set.completion_percentage}%</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Order</p>
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 border rounded-md text-sm"
+                      value={form.watch('set_order') ?? ''}
+                      onChange={(e) => form.setValue('set_order', e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                    />
+                  ) : (
+                    <p className="font-medium">{set.set_order ?? '—'}</p>
+                  )}
                 </div>
               </div>
               <div className="mt-4">

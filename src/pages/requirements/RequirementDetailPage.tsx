@@ -76,6 +76,8 @@ const requirementFormSchema = z.object({
   completed_date: z.string().optional(),
   estimated_hours: z.number().optional(),
   actual_hours: z.number().optional(),
+  // Order field for manual sorting
+  requirement_order: z.number().optional(),
 })
 
 type RequirementFormValues = z.infer<typeof requirementFormSchema>
@@ -115,6 +117,7 @@ export function RequirementDetailPage() {
       completed_date: requirement?.completed_date?.split('T')[0] || '',
       estimated_hours: requirement?.estimated_hours || undefined,
       actual_hours: requirement?.actual_hours || undefined,
+      requirement_order: requirement?.requirement_order ?? undefined,
     },
   })
 
@@ -139,6 +142,7 @@ export function RequirementDetailPage() {
         completed_date: requirement.completed_date?.split('T')[0] || '',
         estimated_hours: requirement.estimated_hours || undefined,
         actual_hours: requirement.actual_hours || undefined,
+        requirement_order: requirement.requirement_order ?? undefined,
       })
     }
   }, [requirement?.id, isEditing])
@@ -174,6 +178,7 @@ export function RequirementDetailPage() {
         completed_date: data.completed_date || undefined,
         estimated_hours: data.estimated_hours,
         actual_hours: data.actual_hours,
+        requirement_order: data.requirement_order,
       })
       setIsEditing(false)
     } finally {
@@ -200,6 +205,7 @@ export function RequirementDetailPage() {
       completed_date: requirement?.completed_date?.split('T')[0] || '',
       estimated_hours: requirement?.estimated_hours || undefined,
       actual_hours: requirement?.actual_hours || undefined,
+      requirement_order: requirement?.requirement_order ?? undefined,
     })
     setIsEditing(false)
   }
@@ -417,6 +423,22 @@ export function RequirementDetailPage() {
                     <Building2 className="h-3 w-3" />
                     {requirement.sets?.projects?.clients?.name || '—'}
                   </Link>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Order</p>
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 border rounded-md text-sm"
+                      value={form.watch('requirement_order') ?? ''}
+                      onChange={(e) => form.setValue('requirement_order', e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                    />
+                  ) : (
+                    <p className="font-medium">{requirement.requirement_order ?? '—'}</p>
+                  )}
                 </div>
               </div>
               <div className="mt-4">
