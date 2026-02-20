@@ -42,6 +42,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { formatDateTime, formatFileSize } from '@/lib/utils'
@@ -144,6 +145,26 @@ const FILE_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'audio', label: 'Audio' },
 ]
 
+// Document Type Catalog for categorization
+const DOCUMENT_TYPE_CATALOG: { value: string; label: string; description?: string }[] = [
+  { value: 'contract', label: 'Contract', description: 'Legal agreements and contracts' },
+  { value: 'proposal', label: 'Proposal', description: 'Project proposals and bids' },
+  { value: 'invoice', label: 'Invoice', description: 'Billing and invoices' },
+  { value: 'brief', label: 'Brief', description: 'Creative and project briefs' },
+  { value: 'report', label: 'Report', description: 'Status and progress reports' },
+  { value: 'presentation', label: 'Presentation', description: 'Slide decks and presentations' },
+  { value: 'design', label: 'Design Asset', description: 'Design files and mockups' },
+  { value: 'brand', label: 'Brand Asset', description: 'Logos, guidelines, brand materials' },
+  { value: 'photo', label: 'Photo/Image', description: 'Photography and imagery' },
+  { value: 'video', label: 'Video', description: 'Video content and footage' },
+  { value: 'audio', label: 'Audio', description: 'Audio files and recordings' },
+  { value: 'spec', label: 'Specification', description: 'Technical specifications' },
+  { value: 'reference', label: 'Reference Material', description: 'Reference documents and research' },
+  { value: 'meeting_notes', label: 'Meeting Notes', description: 'Meeting minutes and notes' },
+  { value: 'approval', label: 'Approval Document', description: 'Sign-off and approval documents' },
+  { value: 'other', label: 'Other', description: 'Miscellaneous documents' },
+]
+
 export function DocumentsPage() {
   const { currentTenant } = useTenantStore()
   const { user } = useAuthStore()
@@ -162,6 +183,7 @@ export function DocumentsPage() {
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [uploadEntityType, setUploadEntityType] = useState<EntityType>('client')
   const [uploadEntityId, setUploadEntityId] = useState('')
+  const [documentCategory, setDocumentCategory] = useState('')
   const [showInPortal, setShowInPortal] = useState(false)
   const [uploadMode, setUploadMode] = useState<'file' | 'link'>('file')
   const [linkName, setLinkName] = useState('')
@@ -768,6 +790,7 @@ export function DocumentsPage() {
           setLinkName('')
           setLinkUrl('')
           setLinkDescription('')
+          setDocumentCategory('')
         }
       }}>
         <DialogContent className="sm:max-w-[500px]">
@@ -847,9 +870,27 @@ export function DocumentsPage() {
               </div>
             )}
 
+            {/* Document Type Catalog */}
+            <div className="space-y-2">
+              <Label>Document Type</Label>
+              <SearchableSelect
+                options={DOCUMENT_TYPE_CATALOG.map(opt => ({
+                  value: opt.value,
+                  label: opt.label,
+                  description: opt.description,
+                }))}
+                value={documentCategory}
+                onValueChange={(value) => setDocumentCategory(value || '')}
+                placeholder="Select document type..."
+                searchPlaceholder="Search types..."
+                emptyMessage="No document types found."
+                clearable
+              />
+            </div>
+
             {/* Entity Type Selection */}
             <div className="space-y-2">
-              <Label>Attach to</Label>
+              <Label>Attach to <span className="text-destructive">*</span></Label>
               <Select
                 value={uploadEntityType}
                 onValueChange={(v) => {
@@ -911,6 +952,7 @@ export function DocumentsPage() {
                 setLinkName('')
                 setLinkUrl('')
                 setLinkDescription('')
+                setDocumentCategory('')
               }}
             >
               Cancel

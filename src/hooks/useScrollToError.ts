@@ -103,7 +103,7 @@ export function useScrollToError<T extends FieldValues>(
  * ```
  */
 export function createScrollableSubmit<T extends FieldValues>(
-  form: { handleSubmit: (onValid: (data: T) => void, onInvalid?: () => void) => (e?: React.BaseSyntheticEvent) => Promise<void> },
+  form: { handleSubmit: (onValid: (data: T) => void, onInvalid?: (errors: FieldErrors<T>) => void) => (e?: React.BaseSyntheticEvent) => Promise<void> },
   onValid: (data: T) => void | Promise<void>,
   options?: { offset?: number }
 ) {
@@ -111,7 +111,7 @@ export function createScrollableSubmit<T extends FieldValues>(
 
   return form.handleSubmit(
     onValid,
-    (errors) => {
+    (errors: FieldErrors<T>) => {
       const errorKeys = Object.keys(errors)
       if (errorKeys.length === 0) return
 

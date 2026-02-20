@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/tooltip'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { mainNavItems, bottomNavItems } from './navItems'
+import { navGroups, bottomNavItems } from './navItems'
 
 export function Sidebar() {
   const location = useLocation()
@@ -60,52 +60,69 @@ export function Sidebar() {
 
         <Separator />
 
-        {/* Main Navigation */}
+        {/* Main Navigation - Grouped */}
         <ScrollArea className="flex-1 px-3 py-2">
-          <nav className="space-y-1">
-            {mainNavItems.map((item) => {
-              const active = isActive(item.href)
-              return sidebarCollapsed ? (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>
-                    <Link
-                      to={item.href}
-                      aria-label={item.label}
-                      aria-current={active ? 'page' : undefined}
-                      className={cn(
-                        'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
-                        active
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-muted'
-                      )}
-                    >
-                      <item.icon className="h-5 w-5" aria-hidden="true" />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" aria-hidden="true" />
-                  {item.label}
-                </Link>
-              )
-            })}
+          <nav className="space-y-4">
+            {navGroups.map((group) => (
+              <div key={group.label}>
+                {/* Group Label - only show when expanded */}
+                {!sidebarCollapsed && (
+                  <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {group.label}
+                  </h4>
+                )}
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const active = isActive(item.href)
+                    return sidebarCollapsed ? (
+                      <Tooltip key={item.href}>
+                        <TooltipTrigger asChild>
+                          <Link
+                            to={item.href}
+                            aria-label={item.label}
+                            aria-current={active ? 'page' : undefined}
+                            className={cn(
+                              'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+                              active
+                                ? 'bg-primary text-primary-foreground'
+                                : 'hover:bg-muted'
+                            )}
+                          >
+                            <item.icon className="h-5 w-5" aria-hidden="true" />
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">{item.label}</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Link
+                        key={item.href}
+                        to={item.href}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                          active
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-muted'
+                        )}
+                      >
+                        <item.icon className="h-5 w-5" aria-hidden="true" />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
         </ScrollArea>
 
-        {/* Bottom Navigation */}
+        {/* Bottom Navigation - Settings */}
         <div className="border-t p-3">
+          {!sidebarCollapsed && (
+            <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Settings
+            </h4>
+          )}
           <nav className="space-y-1">
             {bottomNavItems.map((item) => {
               const active = isActive(item.href)

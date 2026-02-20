@@ -25,6 +25,7 @@ import { FolderKanban, LogOut, Settings, User, Building2, HelpCircle, Ticket, Me
 import { getInitials } from '@/lib/utils'
 import { authApi } from '@/services/api'
 import { SubmitTicketDialog } from '@/components/shared/SubmitTicketDialog'
+import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { MobileSidebar } from './MobileSidebar'
 
 export function TopNav() {
@@ -75,6 +76,11 @@ export function TopNav() {
             <FolderKanban className="h-6 w-6 text-primary" />
             <span className="font-semibold text-lg">LineUp</span>
           </Link>
+        </div>
+
+        {/* Center - Global Search */}
+        <div className="hidden md:flex flex-1 justify-center max-w-md mx-4">
+          <GlobalSearch />
         </div>
 
         {/* Right Section */}

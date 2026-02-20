@@ -26,7 +26,7 @@ const profileSchema = z.object({
 type ProfileForm = z.infer<typeof profileSchema>
 
 export function SettingsPage() {
-  const { profile, role } = useAuthStore()
+  const { user, profile, role } = useAuthStore()
   const { currentTenant } = useTenantStore()
 
   const form = useForm<ProfileForm>({
@@ -99,7 +99,7 @@ export function SettingsPage() {
 
               <div>
                 <FormLabel>Email</FormLabel>
-                <Input value={profile?.user_id} disabled className="mt-2 bg-muted" />
+                <Input value={user?.email || ''} disabled className="mt-2 bg-muted" />
                 <p className="text-xs text-muted-foreground mt-1">
                   Email cannot be changed
                 </p>
