@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { usePhaseMutations } from '@/hooks'
 import { useProjects } from '@/hooks'
 import { useTenantUsers } from '@/hooks/useTenant'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -100,6 +101,9 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
     }
   }, [defaultValues?.project_id, form])
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   const onSubmit = async (data: PhaseFormData) => {
     await createPhase.mutateAsync({
       project_id: data.project_id,
@@ -120,16 +124,14 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         {/* Project */}
         <FormField
           control={form.control}
           name="project_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                Project <span className="text-destructive">*</span>
-              </FormLabel>
+              <FormLabel required>Project</FormLabel>
               <FormControl>
                 <SearchableSelect
                   options={projectOptions}
@@ -149,9 +151,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                Phase Name <span className="text-destructive">*</span>
-              </FormLabel>
+              <FormLabel required>Phase Name</FormLabel>
               <FormControl>
                 <Input placeholder="e.g., Discovery, Design, Development" {...field} />
               </FormControl>

@@ -138,6 +138,16 @@ export const clientsApi = {
   ): Promise<Client> => {
     // IMPORTANT: Always include tenant_id for RLS visibility
     // Records without tenant_id will not be visible to users
+
+    // Log input parameters for debugging
+    console.log('[clientsApi.create] Starting client creation:', {
+      tenantId,
+      userId,
+      inputName: input.name,
+      inputStatus: input.status,
+      inputIndustry: input.industry,
+    })
+
     const { data, error } = await supabase
       .from('clients')
       .insert({
@@ -156,7 +166,21 @@ export const clientsApi = {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      // Detailed error logging for production debugging
+      console.error('[clientsApi.create] Failed to create client:', {
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorDetails: error.details,
+        errorHint: error.hint,
+        tenantId,
+        userId,
+        inputName: input.name,
+      })
+      throw new Error(`Failed to create client: ${error.message} (code: ${error.code})`)
+    }
+
+    console.log('[clientsApi.create] Client created successfully:', { clientId: data.id })
     return data
   },
 
@@ -211,11 +235,24 @@ export const clientsApi = {
   ): Promise<CreateClientWithContactResult> => {
     // Validate required parameters before RPC call
     if (!tenantId) {
+      console.error('[clientsApi.createWithContact] Missing tenantId')
       throw new Error('tenantId is required for createWithContact')
     }
     if (!userId) {
+      console.error('[clientsApi.createWithContact] Missing userId')
       throw new Error('userId is required for createWithContact')
     }
+
+    // Log input parameters for debugging
+    console.log('[clientsApi.createWithContact] Starting client+contact creation:', {
+      tenantId,
+      userId,
+      clientName: input.client.name,
+      clientStatus: input.client.status,
+      clientIndustry: input.client.industry,
+      contactFirstName: input.contact.first_name,
+      contactLastName: input.contact.last_name,
+    })
 
     const { data, error } = await supabase.rpc('create_client_with_contact', {
       p_tenant_id: tenantId,
@@ -225,8 +262,24 @@ export const clientsApi = {
     })
 
     if (error) {
-      throw new Error(`Failed to create client with contact: ${error.message}`)
+      // Detailed error logging for production debugging
+      console.error('[clientsApi.createWithContact] RPC failed:', {
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorDetails: error.details,
+        errorHint: error.hint,
+        tenantId,
+        userId,
+        clientData: input.client,
+        contactData: input.contact,
+      })
+      throw new Error(`Failed to create client with contact: ${error.message} (code: ${error.code}, details: ${error.details || 'none'})`)
     }
+
+    console.log('[clientsApi.createWithContact] Client+contact created successfully:', {
+      clientId: data?.client?.id,
+      contactId: data?.contact?.id,
+    })
 
     // Parse the returned JSONB - RPC returns { client: {...}, contact: {...} }
     return {

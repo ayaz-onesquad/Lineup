@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { useProjectMutations, useProjectTemplates } from '@/hooks/useProjects'
 import { useClients } from '@/hooks/useClients'
 import { useTenantUsers } from '@/hooks/useTenant'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -72,6 +73,9 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
     }
   }, [defaultValues?.client_id])
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   const onSubmit = async (data: ProjectFormData) => {
     if (selectedTemplateId) {
       // Create from template
@@ -96,15 +100,13 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         <FormField
           control={form.control}
           name="client_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                Client <span className="text-destructive">*</span>
-              </FormLabel>
+              <FormLabel required>Client</FormLabel>
               {clientsLoading ? (
                 <Skeleton className="h-10 w-full" />
               ) : !clients || clients.length === 0 ? (
@@ -166,7 +168,7 @@ export function ProjectForm({ defaultValues, onSuccess }: ProjectFormProps) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Project Name</FormLabel>
+              <FormLabel required>Project Name</FormLabel>
               <FormControl>
                 <Input placeholder="Website Redesign" {...field} />
               </FormControl>

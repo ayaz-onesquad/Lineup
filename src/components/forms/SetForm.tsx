@@ -6,6 +6,7 @@ import { useSetMutations } from '@/hooks/useSets'
 import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
 import { useTenantUsers } from '@/hooks/useTenant'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -111,6 +112,9 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
     }
   }, [defaultValues?.project_id, defaultValues?.client_id, allProjects, form])
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   const onSubmit = async (data: SetFormData) => {
     // Client is now a required field that gets persisted
     await createSet.mutateAsync({
@@ -158,7 +162,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         {/* Client (required) and Project (optional) */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -166,7 +170,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
             name="client_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Client *</FormLabel>
+                <FormLabel required>Client</FormLabel>
                 <FormControl>
                   <SearchableSelect
                     options={clientOptions}
@@ -210,7 +214,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Set Name *</FormLabel>
+              <FormLabel required>Set Name</FormLabel>
               <FormControl>
                 <Input placeholder="Create Mockups" {...field} />
               </FormControl>

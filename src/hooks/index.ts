@@ -103,3 +103,6 @@ export {
   useTicketStats,
   useSupportTicketMutations,
 } from './useSupportTickets'
+
+// Form utilities
+export { useScrollToError, createScrollableSubmit } from './useScrollToError'

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useCreateClientWithContact, useCreateClient } from '@/hooks/useClients'
 import { useAllContacts, useLinkContactToClient } from '@/hooks/useContacts'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -33,8 +34,8 @@ const clientSchema = z.object({
   portal_enabled: z.boolean(),
   referral_source: z.string().optional(),
 
-  // Contact mode: 'existing' or 'new'
-  contact_mode: z.enum(['existing', 'new']),
+  // Contact mode: 'none' (skip), 'existing', or 'new'
+  contact_mode: z.enum(['none', 'existing', 'new']),
 
   // Existing contact selection
   existing_contact_id: z.string().optional(),
@@ -97,6 +98,9 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
   const watchIndustry = form.watch('industry')
   const watchContactMode = form.watch('contact_mode')
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   // Build contact options for dropdown
   const contactOptions = useMemo(() =>
     contacts?.map((c) => ({
@@ -134,7 +138,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
           role: data.contact_role as ContactRole || undefined,
         },
       })
-    } else {
+    } else if (data.contact_mode === 'existing') {
       // Create client first, then link existing contact
       const client = await createClient.mutateAsync({
         name: data.name,
@@ -153,6 +157,18 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
         contact_id: data.existing_contact_id!,
         is_primary: true,
       })
+    } else {
+      // Skip contact - create client without primary contact
+      await createClient.mutateAsync({
+        name: data.name,
+        company_name: data.name,
+        status: data.status as ClientStatus,
+        industry: finalIndustry as IndustryType,
+        location: data.location,
+        overview: data.overview,
+        portal_enabled: data.portal_enabled,
+        referral_source: data.referral_source as ReferralSource || undefined,
+      })
     }
 
     form.reset()
@@ -168,7 +184,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-6">
         {/* Client Information Section */}
         <div className="space-y-4">
           {/* Top Row: Name and Status */}
@@ -178,7 +194,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Client Name *</FormLabel>
+                  <FormLabel required>Client Name</FormLabel>
                   <FormControl>
                     <Input placeholder="Acme Corporation" {...field} />
                   </FormControl>
@@ -192,7 +208,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
               name="status"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Status *</FormLabel>
+                  <FormLabel required>Status</FormLabel>
                   <FormControl>
                     <SearchableSelect
                       options={CLIENT_STATUS_OPTIONS.map((o) => ({
@@ -218,7 +234,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
               name="industry"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Industry *</FormLabel>
+                  <FormLabel required>Industry</FormLabel>
                   <FormControl>
                     <SearchableSelect
                       options={industryOptions}
@@ -283,7 +299,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
               name="industry_other"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Specify Industry *</FormLabel>
+                  <FormLabel required>Specify Industry</FormLabel>
                   <FormControl>
                     <Input placeholder="Enter custom industry" {...field} />
                   </FormControl>
@@ -341,6 +357,15 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
           <div className="flex gap-2">
             <Button
               type="button"
+              variant={watchContactMode === 'none' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => form.setValue('contact_mode', 'none')}
+              className="flex-1"
+            >
+              Skip
+            </Button>
+            <Button
+              type="button"
               variant={watchContactMode === 'existing' ? 'default' : 'outline'}
               size="sm"
               onClick={() => form.setValue('contact_mode', 'existing')}
@@ -368,7 +393,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
               name="existing_contact_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Select Contact *</FormLabel>
+                  <FormLabel required>Select Contact</FormLabel>
                   <FormControl>
                     <SearchableSelect
                       options={contactOptions}
@@ -397,7 +422,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
                   name="contact_first_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>First Name *</FormLabel>
+                      <FormLabel required>First Name</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="John" />
                       </FormControl>
@@ -411,7 +436,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
                   name="contact_last_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Last Name *</FormLabel>
+                      <FormLabel required>Last Name</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="Doe" />
                       </FormControl>

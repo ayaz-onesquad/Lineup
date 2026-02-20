@@ -7,6 +7,7 @@ import { useSets } from '@/hooks/useSets'
 import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
 import { useTenantUsers } from '@/hooks/useTenant'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -134,6 +135,9 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
     }
   }, [defaultValues?.set_id, allSets, form])
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   const onSubmit = async (data: PitchFormData) => {
     await createPitch.mutateAsync({
       set_id: data.set_id,
@@ -191,7 +195,7 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         {/* Filter dropdowns to help find the right set */}
         <div className="grid grid-cols-3 gap-4">
           <FormField
@@ -243,7 +247,7 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
             name="set_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Set *</FormLabel>
+                <FormLabel required>Set</FormLabel>
                 <FormControl>
                   <SearchableSelect
                     options={setOptions}
@@ -265,7 +269,7 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Pitch Name *</FormLabel>
+              <FormLabel required>Pitch Name</FormLabel>
               <FormControl>
                 <Input placeholder="MVP Features" {...field} />
               </FormControl>

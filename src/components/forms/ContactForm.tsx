@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useCreateContact } from '@/hooks/useContacts'
 import { useClients } from '@/hooks/useClients'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -51,6 +52,9 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
     },
   })
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   const onSubmit = async (data: ContactFormValues) => {
     await createContact.mutateAsync({
       first_name: data.first_name,
@@ -71,14 +75,14 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="first_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>First Name *</FormLabel>
+                <FormLabel required>First Name</FormLabel>
                 <FormControl>
                   <Input placeholder="John" {...field} />
                 </FormControl>
@@ -91,7 +95,7 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
             name="last_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Last Name *</FormLabel>
+                <FormLabel required>Last Name</FormLabel>
                 <FormControl>
                   <Input placeholder="Doe" {...field} />
                 </FormControl>

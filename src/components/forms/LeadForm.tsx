@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { useLeadMutations } from '@/hooks/useLeads'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useAllContacts, useCreateContact } from '@/hooks/useContacts'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -122,6 +123,9 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
 
   const watchContactMode = form.watch('contact_mode')
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   // Build user options
   const userOptions = useMemo(
     () =>
@@ -199,7 +203,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-6">
         {/* Basic Info */}
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">Lead Information</h3>
@@ -210,7 +214,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
               name="lead_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Lead Name *</FormLabel>
+                  <FormLabel required>Lead Name</FormLabel>
                   <FormControl>
                     <Input placeholder="Company or person name" {...field} />
                   </FormControl>
@@ -516,7 +520,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
               name="existing_contact_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Select Contact *</FormLabel>
+                  <FormLabel required>Select Contact</FormLabel>
                   <FormControl>
                     <SearchableSelect
                       options={contactOptions}
@@ -545,7 +549,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
                   name="contact_first_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>First Name *</FormLabel>
+                      <FormLabel required>First Name</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="John" />
                       </FormControl>
@@ -559,7 +563,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
                   name="contact_last_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Last Name *</FormLabel>
+                      <FormLabel required>Last Name</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="Doe" />
                       </FormControl>

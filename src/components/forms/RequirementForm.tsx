@@ -7,6 +7,7 @@ import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
 import { useSets, useSetsByProject } from '@/hooks/useSets'
 import { useTenantUsers } from '@/hooks/useTenant'
+import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -184,6 +185,9 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     }
   }, [defaultValues?.set_id, allSets, allProjects, form])
 
+  // Scroll to first error on validation failure
+  const { scrollToFirstError } = useScrollToError(form.formState.errors)
+
   const onSubmit = async (data: RequirementFormData) => {
     // Validate client_id is required (even though it's just a filter field)
     if (!data.client_id) {
@@ -238,7 +242,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         {/* Cascading Filters - Client is required, Set/Project are optional */}
         <div className="grid grid-cols-3 gap-4">
           <FormField
@@ -246,7 +250,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
             name="client_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Client *</FormLabel>
+                <FormLabel required>Client</FormLabel>
                 <FormControl>
                   <SearchableSelect
                     options={clientOptions}
@@ -313,7 +317,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Title *</FormLabel>
+              <FormLabel required>Title</FormLabel>
               <FormControl>
                 <Input placeholder="Create homepage mockup" {...field} />
               </FormControl>
