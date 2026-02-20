@@ -44,6 +44,11 @@ export function useAuth() {
   const signIn = useMutation({
     mutationFn: authApi.signIn,
     onSuccess: (data) => {
+      // SECURITY: Clear all cached data from previous session before setting new user
+      // This prevents data leakage between accounts/tenants
+      queryClient.clear()
+      clearTenant()
+
       setUser(data.user)
       toast({
         title: 'Welcome back!',

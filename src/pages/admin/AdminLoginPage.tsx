@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/services/api'
-import { useAuthStore } from '@/stores'
+import { useAuthStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -28,7 +29,9 @@ type LoginForm = z.infer<typeof loginSchema>
 
 export function AdminLoginPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { setUser, setProfile, setRole } = useAuthStore()
+  const { clearTenant } = useTenantStore()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
@@ -45,6 +48,10 @@ export function AdminLoginPage() {
     try {
       const { user } = await authApi.signIn(data)
       if (user) {
+        // SECURITY: Clear all cached data from previous session before setting new user
+        queryClient.clear()
+        clearTenant()
+
         setUser(user)
         const profile = await authApi.getUserProfile(user.id)
         setProfile(profile)

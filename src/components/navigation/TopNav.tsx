@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { useUserRole } from '@/hooks/useUserRole'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ import { MobileSidebar } from './MobileSidebar'
 
 export function TopNav() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { profile, logout } = useAuthStore()
   const { currentTenant, tenants, switchTenant, clearTenant } = useTenantStore()
   const { role } = useUserRole()
@@ -39,11 +41,15 @@ export function TopNav() {
     await authApi.signOut()
     logout()
     clearTenant()
+    // SECURITY: Clear all cached data to prevent data leakage to next user
+    queryClient.clear()
     navigate('/login')
   }
 
   const handleTenantChange = (tenantId: string) => {
     switchTenant(tenantId)
+    // SECURITY: Clear all cached data when switching tenants to prevent cross-tenant data leakage
+    queryClient.clear()
   }
 
   return (

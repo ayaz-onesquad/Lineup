@@ -48,9 +48,9 @@ export const useTenantStore = create<TenantState>()(
     }),
     {
       name: 'tenant-storage',
-      partialize: (state) => ({
-        currentTenant: state.currentTenant,
-      }),
+      // SECURITY: Do NOT persist currentTenant - it must be re-validated on each login
+      // Persisting tenant data can leak between different users on the same browser
+      partialize: () => ({}),
     }
   )
 )
