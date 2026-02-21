@@ -84,82 +84,132 @@ export function GlobalSearch() {
 
   const { tableFilter, selectedTable, searchText } = useMemo(() => parseQuery(query), [query])
 
-  // Global search query
+  // Global search query - parallel searches for all tables
   const { data: results, isLoading } = useQuery({
     queryKey: ['global-search', currentTenant?.id, selectedTable || scopedTable, searchText],
     queryFn: async () => {
       if (!currentTenant?.id || searchText.length < 2) return []
 
-      const searchResults: SearchResult[] = []
       const tablesToSearch = selectedTable || scopedTable
         ? [selectedTable || scopedTable]
         : SEARCHABLE_TABLES.map(t => t.key)
 
-      for (const table of tablesToSearch) {
-        if (!table) continue
+      // Build query for each table
+      const searchPromises = tablesToSearch
+        .filter((table): table is string => !!table)
+        .map(async (table) => {
+          try {
+            // Escape special characters for ilike pattern
+            const escapedSearch = searchText.replace(/[%_]/g, '\\$&')
+            const pattern = `%${escapedSearch}%`
 
-        try {
-          let queryBuilder
+            let query
 
-          // Different tables have different name columns
-          if (table === 'requirements') {
-            queryBuilder = supabase
-              .from(table)
-              .select('id, title, status, display_id')
-              .eq('tenant_id', currentTenant.id)
-              .is('deleted_at', null)
-              .ilike('title', `%${searchText}%`)
-              .limit(5)
-          } else if (table === 'contacts') {
-            queryBuilder = supabase
-              .from(table)
-              .select('id, first_name, last_name, email, company')
-              .eq('tenant_id', currentTenant.id)
-              .is('deleted_at', null)
-              .or(`first_name.ilike.%${searchText}%,last_name.ilike.%${searchText}%,email.ilike.%${searchText}%`)
-              .limit(5)
-          } else {
-            queryBuilder = supabase
-              .from(table)
-              .select('id, name, status, display_id')
-              .eq('tenant_id', currentTenant.id)
-              .is('deleted_at', null)
-              .ilike('name', `%${searchText}%`)
-              .limit(5)
-          }
+            switch (table) {
+              case 'requirements':
+                query = supabase
+                  .from(table)
+                  .select('id, title, status, display_id')
+                  .eq('tenant_id', currentTenant.id)
+                  .is('deleted_at', null)
+                  .ilike('title', pattern)
+                  .limit(5)
+                break
 
-          const { data, error } = await queryBuilder
+              case 'contacts':
+                // Search across first_name, last_name, and email using OR
+                query = supabase
+                  .from(table)
+                  .select('id, first_name, last_name, email')
+                  .eq('tenant_id', currentTenant.id)
+                  .is('deleted_at', null)
+                  .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+                  .limit(5)
+                break
 
-          if (!error && data) {
-            data.forEach((item: Record<string, unknown>) => {
+              case 'leads':
+                // Leads use lead_name, not name
+                query = supabase
+                  .from(table)
+                  .select('id, lead_name, status, email')
+                  .eq('tenant_id', currentTenant.id)
+                  .is('deleted_at', null)
+                  .or(`lead_name.ilike.${pattern},email.ilike.${pattern}`)
+                  .limit(5)
+                break
+
+              case 'documents':
+                // Documents use name field
+                query = supabase
+                  .from(table)
+                  .select('id, name, entity_type')
+                  .eq('tenant_id', currentTenant.id)
+                  .is('deleted_at', null)
+                  .ilike('name', pattern)
+                  .limit(5)
+                break
+
+              default:
+                // Most tables use name field
+                query = supabase
+                  .from(table)
+                  .select('id, name, status, display_id')
+                  .eq('tenant_id', currentTenant.id)
+                  .is('deleted_at', null)
+                  .ilike('name', pattern)
+                  .limit(5)
+            }
+
+            const { data, error } = await query
+
+            if (error) {
+              console.error(`[GlobalSearch] Error searching ${table}:`, error.message)
+              return []
+            }
+
+            // Transform results to SearchResult format
+            return (data || []).map((item: Record<string, unknown>) => {
               let name = ''
               let subtitle = ''
 
-              if (table === 'contacts') {
-                name = `${item.first_name || ''} ${item.last_name || ''}`.trim()
-                subtitle = (item.email as string) || (item.company as string) || ''
-              } else if (table === 'requirements') {
-                name = (item.title as string) || 'Untitled'
-              } else {
-                name = (item.name as string) || 'Untitled'
+              switch (table) {
+                case 'contacts':
+                  name = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Unnamed Contact'
+                  subtitle = (item.email as string) || ''
+                  break
+                case 'requirements':
+                  name = (item.title as string) || 'Untitled'
+                  break
+                case 'leads':
+                  name = (item.lead_name as string) || 'Untitled Lead'
+                  subtitle = (item.email as string) || ''
+                  break
+                case 'documents':
+                  name = (item.name as string) || 'Untitled Document'
+                  subtitle = `Attached to: ${item.entity_type || 'unknown'}`
+                  break
+                default:
+                  name = (item.name as string) || 'Untitled'
               }
 
-              searchResults.push({
+              return {
                 id: item.id as string,
                 type: table,
                 name,
                 subtitle,
                 status: item.status as string | undefined,
                 display_id: item.display_id as number | undefined,
-              })
+              } as SearchResult
             })
+          } catch (err) {
+            console.error(`[GlobalSearch] Exception searching ${table}:`, err)
+            return []
           }
-        } catch {
-          console.error(`Error searching ${table}`)
-        }
-      }
+        })
 
-      return searchResults
+      // Execute all searches in parallel
+      const resultsArrays = await Promise.all(searchPromises)
+      return resultsArrays.flat()
     },
     enabled: !!currentTenant?.id && searchText.length >= 2,
     staleTime: 30000,

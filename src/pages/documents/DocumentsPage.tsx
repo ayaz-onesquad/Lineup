@@ -1,5 +1,17 @@
-import { useState, useCallback, useRef } from 'react'
-import { useDocuments, useDocumentMutations, useClients, useProjects } from '@/hooks'
+import { useState, useCallback, useRef, useMemo } from 'react'
+import {
+  useDocuments,
+  useDocumentMutations,
+  useClients,
+  useProjectsByClient,
+  usePhasesByProject,
+  useSetsByPhase,
+  useSetsByProject,
+  usePitchesBySet,
+  useRequirementsBySet,
+  useRequirementsByPitch,
+} from '@/hooks'
+import { useLeads } from '@/hooks/useLeads'
 import { useTenantStore, useAuthStore } from '@/stores'
 import { documentsApi, StoragePermissionError, StorageBucketNotFoundError } from '@/services/api'
 import { Button } from '@/components/ui/button'
@@ -129,10 +141,6 @@ const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'pitch', label: 'Pitches' },
 ]
 
-const UPLOAD_ENTITY_OPTIONS: { value: EntityType; label: string }[] = [
-  { value: 'client', label: 'Client' },
-  { value: 'project', label: 'Project' },
-]
 
 const FILE_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'All Types' },
@@ -181,14 +189,22 @@ export function DocumentsPage() {
   const [uploadQueue, setUploadQueue] = useState<FileUploadState[]>([])
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [showUploadDialog, setShowUploadDialog] = useState(false)
-  const [uploadEntityType, setUploadEntityType] = useState<EntityType>('client')
-  const [uploadEntityId, setUploadEntityId] = useState('')
   const [documentCategory, setDocumentCategory] = useState('')
   const [showInPortal, setShowInPortal] = useState(false)
   const [uploadMode, setUploadMode] = useState<'file' | 'link'>('file')
   const [linkName, setLinkName] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [linkDescription, setLinkDescription] = useState('')
+
+  // Cascading parent selection state
+  const [rootEntityType, setRootEntityType] = useState<'lead' | 'client'>('client')
+  const [selectedLeadId, setSelectedLeadId] = useState('')
+  const [selectedClientId, setSelectedClientId] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [selectedPhaseId, setSelectedPhaseId] = useState('')
+  const [selectedSetId, setSelectedSetId] = useState('')
+  const [selectedPitchId, setSelectedPitchId] = useState('')
+  const [selectedRequirementId, setSelectedRequirementId] = useState('')
 
   // Edit state
   const [editingDoc, setEditingDoc] = useState<DocumentWithUploader | null>(null)
@@ -197,19 +213,94 @@ export function DocumentsPage() {
   // Fetch data
   const { data: documents, isLoading } = useDocuments()
   const { data: clients } = useClients()
-  const { data: projects } = useProjects()
+  const { data: leads } = useLeads()
   const { deleteDocument, updateDocument } = useDocumentMutations()
 
-  // Get entity options based on selected type
-  const getEntityOptions = () => {
-    if (uploadEntityType === 'client') {
-      return clients?.map((c) => ({ value: c.id, label: c.name })) || []
+  // Cascading data hooks - fetch based on parent selection
+  const { data: projectsForClient } = useProjectsByClient(selectedClientId)
+  const { data: phasesForProject } = usePhasesByProject(selectedProjectId)
+  const { data: setsForPhase } = useSetsByPhase(selectedPhaseId)
+  const { data: setsForProject } = useSetsByProject(selectedProjectId)
+  const { data: pitchesForSet } = usePitchesBySet(selectedSetId)
+  const { data: requirementsForSet } = useRequirementsBySet(selectedSetId)
+  const { data: requirementsForPitch } = useRequirementsByPitch(selectedPitchId)
+
+  // Determine available sets - either from phase or directly from project
+  const availableSets = useMemo(() => {
+    if (selectedPhaseId && setsForPhase) return setsForPhase
+    if (selectedProjectId && setsForProject && !selectedPhaseId) return setsForProject
+    return []
+  }, [selectedPhaseId, selectedProjectId, setsForPhase, setsForProject])
+
+  // Compute final entity type and ID for upload
+  const uploadEntityType: EntityType = useMemo(() => {
+    if (selectedRequirementId) return 'requirement'
+    if (selectedPitchId) return 'pitch'
+    if (selectedSetId) return 'set'
+    if (selectedPhaseId) return 'phase'
+    if (selectedProjectId) return 'project'
+    if (rootEntityType === 'lead' && selectedLeadId) return 'lead'
+    if (rootEntityType === 'client' && selectedClientId) return 'client'
+    return 'client'
+  }, [rootEntityType, selectedLeadId, selectedClientId, selectedProjectId, selectedPhaseId, selectedSetId, selectedPitchId, selectedRequirementId])
+
+  const uploadEntityId = useMemo(() => {
+    if (selectedRequirementId) return selectedRequirementId
+    if (selectedPitchId) return selectedPitchId
+    if (selectedSetId) return selectedSetId
+    if (selectedPhaseId) return selectedPhaseId
+    if (selectedProjectId) return selectedProjectId
+    if (rootEntityType === 'lead') return selectedLeadId
+    return selectedClientId
+  }, [rootEntityType, selectedLeadId, selectedClientId, selectedProjectId, selectedPhaseId, selectedSetId, selectedPitchId, selectedRequirementId])
+
+  // Helper to reset cascading selections from a given level down
+  const resetFromLevel = useCallback((level: 'root' | 'project' | 'phase' | 'set' | 'pitch') => {
+    switch (level) {
+      case 'root':
+        setSelectedLeadId('')
+        setSelectedClientId('')
+        setSelectedProjectId('')
+        setSelectedPhaseId('')
+        setSelectedSetId('')
+        setSelectedPitchId('')
+        setSelectedRequirementId('')
+        break
+      case 'project':
+        setSelectedProjectId('')
+        setSelectedPhaseId('')
+        setSelectedSetId('')
+        setSelectedPitchId('')
+        setSelectedRequirementId('')
+        break
+      case 'phase':
+        setSelectedPhaseId('')
+        setSelectedSetId('')
+        setSelectedPitchId('')
+        setSelectedRequirementId('')
+        break
+      case 'set':
+        setSelectedSetId('')
+        setSelectedPitchId('')
+        setSelectedRequirementId('')
+        break
+      case 'pitch':
+        setSelectedPitchId('')
+        setSelectedRequirementId('')
+        break
     }
-    if (uploadEntityType === 'project') {
-      return projects?.map((p) => ({ value: p.id, label: p.name })) || []
+  }, [])
+
+  // Get combined requirements (from set or pitch)
+  const requirementOptions = useMemo(() => {
+    if (selectedPitchId && requirementsForPitch) {
+      return requirementsForPitch.map(r => ({ value: r.id, label: r.title || `Requirement #${r.display_id}` }))
+    }
+    if (selectedSetId && requirementsForSet) {
+      return requirementsForSet.map(r => ({ value: r.id, label: r.title || `Requirement #${r.display_id}` }))
     }
     return []
-  }
+  }, [selectedSetId, selectedPitchId, requirementsForSet, requirementsForPitch])
 
   // Filter documents
   const filteredDocuments = documents?.filter((doc) => {
@@ -408,8 +499,6 @@ export function DocumentsPage() {
   const removeFromQueue = (index: number) => {
     setUploadQueue((prev) => prev.filter((_, i) => i !== index))
   }
-
-  const entityOptions = getEntityOptions()
 
   return (
     <div className="space-y-6">
@@ -791,6 +880,9 @@ export function DocumentsPage() {
           setLinkUrl('')
           setLinkDescription('')
           setDocumentCategory('')
+          // Reset cascading selections
+          setRootEntityType('client')
+          resetFromLevel('root')
         }
       }}>
         <DialogContent className="sm:max-w-[500px]">
@@ -888,44 +980,177 @@ export function DocumentsPage() {
               />
             </div>
 
-            {/* Entity Type Selection */}
-            <div className="space-y-2">
-              <Label>Attach to <span className="text-destructive">*</span></Label>
-              <Select
-                value={uploadEntityType}
-                onValueChange={(v) => {
-                  setUploadEntityType(v as EntityType)
-                  setUploadEntityId('')
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select entity type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {UPLOAD_ENTITY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Cascading Parent Selection */}
+            <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+              <Label className="text-sm font-medium">Attach to Parent <span className="text-destructive">*</span></Label>
 
-            {/* Entity Selection */}
-            <div className="space-y-2">
-              <Label>Select {uploadEntityType === 'client' ? 'Client' : 'Project'}</Label>
-              <Select value={uploadEntityId} onValueChange={setUploadEntityId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Select ${uploadEntityType}...`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {entityOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Root Type Toggle (Lead or Client) */}
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground w-20 shrink-0">Type:</Label>
+                <Tabs
+                  value={rootEntityType}
+                  onValueChange={(v) => {
+                    setRootEntityType(v as 'lead' | 'client')
+                    resetFromLevel('root')
+                  }}
+                  className="flex-1"
+                >
+                  <TabsList className="w-full">
+                    <TabsTrigger value="client" className="flex-1">Client</TabsTrigger>
+                    <TabsTrigger value="lead" className="flex-1">Lead</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              {/* Lead Selection (if root is lead) */}
+              {rootEntityType === 'lead' && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground w-20 shrink-0">Lead: <span className="text-destructive">*</span></Label>
+                  <div className="flex-1">
+                    <SearchableSelect
+                      options={leads?.map(l => ({ value: l.id, label: l.lead_name })) || []}
+                      value={selectedLeadId}
+                      onValueChange={(v) => setSelectedLeadId(v || '')}
+                      placeholder="Select lead..."
+                      searchPlaceholder="Search leads..."
+                      emptyMessage="No leads found."
+                      clearable
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Client Selection (if root is client) */}
+              {rootEntityType === 'client' && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground w-20 shrink-0">Client: <span className="text-destructive">*</span></Label>
+                    <div className="flex-1">
+                      <SearchableSelect
+                        options={clients?.map(c => ({ value: c.id, label: c.name })) || []}
+                        value={selectedClientId}
+                        onValueChange={(v) => {
+                          setSelectedClientId(v || '')
+                          resetFromLevel('project')
+                        }}
+                        placeholder="Select client..."
+                        searchPlaceholder="Search clients..."
+                        emptyMessage="No clients found."
+                        clearable
+                      />
+                    </div>
+                  </div>
+
+                  {/* Project Selection */}
+                  {selectedClientId && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground w-20 shrink-0">Project:</Label>
+                      <div className="flex-1">
+                        <SearchableSelect
+                          options={projectsForClient?.map(p => ({ value: p.id, label: p.name })) || []}
+                          value={selectedProjectId}
+                          onValueChange={(v) => {
+                            setSelectedProjectId(v || '')
+                            resetFromLevel('phase')
+                          }}
+                          placeholder="Select project (optional)..."
+                          searchPlaceholder="Search projects..."
+                          emptyMessage="No projects found."
+                          clearable
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Phase Selection */}
+                  {selectedProjectId && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground w-20 shrink-0">Phase:</Label>
+                      <div className="flex-1">
+                        <SearchableSelect
+                          options={phasesForProject?.map(p => ({ value: p.id, label: p.name })) || []}
+                          value={selectedPhaseId}
+                          onValueChange={(v) => {
+                            setSelectedPhaseId(v || '')
+                            resetFromLevel('set')
+                          }}
+                          placeholder="Select phase (optional)..."
+                          searchPlaceholder="Search phases..."
+                          emptyMessage="No phases found."
+                          clearable
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Set Selection - Available after Project (with or without Phase) */}
+                  {selectedProjectId && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground w-20 shrink-0">Set:</Label>
+                      <div className="flex-1">
+                        <SearchableSelect
+                          options={availableSets?.map(s => ({ value: s.id, label: s.name })) || []}
+                          value={selectedSetId}
+                          onValueChange={(v) => {
+                            setSelectedSetId(v || '')
+                            resetFromLevel('pitch')
+                          }}
+                          placeholder="Select set (optional)..."
+                          searchPlaceholder="Search sets..."
+                          emptyMessage={selectedPhaseId ? "No sets in this phase." : "No sets in this project."}
+                          clearable
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pitch Selection */}
+                  {selectedSetId && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground w-20 shrink-0">Pitch:</Label>
+                      <div className="flex-1">
+                        <SearchableSelect
+                          options={pitchesForSet?.map(p => ({ value: p.id, label: p.name })) || []}
+                          value={selectedPitchId}
+                          onValueChange={(v) => {
+                            setSelectedPitchId(v || '')
+                            setSelectedRequirementId('')
+                          }}
+                          placeholder="Select pitch (optional)..."
+                          searchPlaceholder="Search pitches..."
+                          emptyMessage="No pitches found."
+                          clearable
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Requirement Selection (from Set or Pitch) */}
+                  {(selectedSetId || selectedPitchId) && requirementOptions.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground w-20 shrink-0">Requirement:</Label>
+                      <div className="flex-1">
+                        <SearchableSelect
+                          options={requirementOptions}
+                          value={selectedRequirementId}
+                          onValueChange={(v) => setSelectedRequirementId(v || '')}
+                          placeholder="Select requirement (optional)..."
+                          searchPlaceholder="Search requirements..."
+                          emptyMessage="No requirements found."
+                          clearable
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Show current attachment target */}
+              {uploadEntityId && (
+                <div className="text-xs text-muted-foreground pt-1 border-t">
+                  Attaching to: <Badge variant="secondary" className="ml-1">{getEntityTypeLabel(uploadEntityType)}</Badge>
+                </div>
+              )}
             </div>
 
             {/* Portal visibility toggle */}
@@ -953,6 +1178,9 @@ export function DocumentsPage() {
                 setLinkUrl('')
                 setLinkDescription('')
                 setDocumentCategory('')
+                // Reset cascading selections
+                setRootEntityType('client')
+                resetFromLevel('root')
               }}
             >
               Cancel

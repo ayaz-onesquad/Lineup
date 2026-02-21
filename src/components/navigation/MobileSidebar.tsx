@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { SheetClose, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FolderKanban, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { navGroups, bottomNavItems } from './navItems'
+import { navGroups, settingsMainItem, settingsChildItems } from './navItems'
 
 export function MobileSidebar() {
   const location = useLocation()
@@ -81,30 +81,46 @@ export function MobileSidebar() {
 
       {/* Bottom Navigation - Settings */}
       <div className="border-t p-3">
-        <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Settings
-        </h4>
         <nav className="space-y-1">
-          {bottomNavItems.map((item) => {
-            const active = isActive(item.href)
-            return (
-              <SheetClose key={item.href} asChild>
-                <Link
-                  to={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" aria-hidden="true" />
-                  {item.label}
-                </Link>
-              </SheetClose>
-            )
-          })}
+          {/* Settings Main */}
+          <SheetClose asChild>
+            <Link
+              to={settingsMainItem.href}
+              aria-current={isActive(settingsMainItem.href) ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
+                location.pathname === settingsMainItem.href
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-muted'
+              )}
+            >
+              <settingsMainItem.icon className="h-5 w-5" aria-hidden="true" />
+              {settingsMainItem.label}
+            </Link>
+          </SheetClose>
+          {/* Settings Children - indented */}
+          <div className="ml-4 border-l pl-2 space-y-1">
+            {settingsChildItems.map((item) => {
+              const active = isActive(item.href)
+              return (
+                <SheetClose key={item.href} asChild>
+                  <Link
+                    to={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
+                      active
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" aria-hidden="true" />
+                    {item.label}
+                  </Link>
+                </SheetClose>
+              )
+            })}
+          </div>
         </nav>
       </div>
     </div>

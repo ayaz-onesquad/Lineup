@@ -14,6 +14,7 @@ interface DetailPanelState {
 interface UIState {
   sidebarOpen: boolean
   sidebarCollapsed: boolean
+  settingsExpanded: boolean
   detailPanel: DetailPanelState
   createModalOpen: boolean
   createModalType: EntityType | null
@@ -26,6 +27,7 @@ interface UIState {
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setSidebarCollapsed: (collapsed: boolean) => void
+  setSettingsExpanded: (expanded: boolean) => void
 
   // Detail panel actions
   openDetailPanel: (entityType: EntityType, entityId: string, entityData?: unknown) => void
@@ -45,6 +47,7 @@ export const useUIStore = create<UIState>()(
     (set) => ({
       sidebarOpen: true,
       sidebarCollapsed: false,
+      settingsExpanded: true,
       detailPanel: {
         isOpen: false,
         entityType: null,
@@ -63,6 +66,8 @@ export const useUIStore = create<UIState>()(
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+
+  setSettingsExpanded: (expanded) => set({ settingsExpanded: expanded }),
 
   openDetailPanel: (entityType, entityId, entityData = null) =>
     set({
@@ -110,7 +115,10 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'lineup-ui-preferences',
-      partialize: (state) => ({ leadsViewMode: state.leadsViewMode }),
+      partialize: (state) => ({
+        leadsViewMode: state.leadsViewMode,
+        settingsExpanded: state.settingsExpanded,
+      }),
     }
   )
 )

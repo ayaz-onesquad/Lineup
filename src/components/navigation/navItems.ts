@@ -52,11 +52,19 @@ export const assetItems: NavItem[] = [
   { href: '/notes', label: 'Notes', icon: StickyNote },
 ]
 
-// Settings - Account and team management
-export const settingsItems: NavItem[] = [
-  { href: '/settings', label: 'Settings', icon: Settings },
+// Settings - Main settings item
+export const settingsMainItem: NavItem = { href: '/settings', label: 'Settings', icon: Settings }
+
+// Settings - Child items (grouped inside collapsible)
+export const settingsChildItems: NavItem[] = [
   { href: '/settings/team', label: 'Team', icon: UsersRound },
   { href: '/settings/security', label: 'Security', icon: Shield },
+]
+
+// Settings - All items (legacy - for backwards compatibility)
+export const settingsItems: NavItem[] = [
+  settingsMainItem,
+  ...settingsChildItems,
 ]
 
 // Grouped navigation

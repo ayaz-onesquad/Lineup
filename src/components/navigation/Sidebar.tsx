@@ -8,13 +8,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { navGroups, bottomNavItems } from './navItems'
+import { navGroups, settingsChildItems } from './navItems'
 
 export function Sidebar() {
   const location = useLocation()
-  const { sidebarCollapsed, setSidebarCollapsed, openCreateModal } = useUIStore()
+  const { sidebarCollapsed, setSidebarCollapsed, settingsExpanded, setSettingsExpanded, openCreateModal } = useUIStore()
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
@@ -116,53 +121,112 @@ export function Sidebar() {
           </nav>
         </ScrollArea>
 
-        {/* Bottom Navigation - Settings */}
+        {/* Bottom Navigation - Collapsible Settings */}
         <div className="border-t p-3">
-          {!sidebarCollapsed && (
-            <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Settings
-            </h4>
-          )}
-          <nav className="space-y-1">
-            {bottomNavItems.map((item) => {
-              const active = isActive(item.href)
-              return sidebarCollapsed ? (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>
+          {sidebarCollapsed ? (
+            /* Collapsed sidebar - show icons only */
+            <nav className="space-y-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    to="/settings"
+                    aria-label="Settings"
+                    aria-current={isActive('/settings') ? 'page' : undefined}
+                    className={cn(
+                      'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+                      isActive('/settings')
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    )}
+                  >
+                    <Settings className="h-5 w-5" aria-hidden="true" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Settings</TooltipContent>
+              </Tooltip>
+              {settingsChildItems.map((item) => {
+                const active = isActive(item.href)
+                return (
+                  <Tooltip key={item.href}>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to={item.href}
+                        aria-label={item.label}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+                          active
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-muted'
+                        )}
+                      >
+                        <item.icon className="h-5 w-5" aria-hidden="true" />
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{item.label}</TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </nav>
+          ) : (
+            /* Expanded sidebar - collapsible settings group */
+            <Collapsible open={settingsExpanded} onOpenChange={setSettingsExpanded}>
+              <div className="flex items-center gap-1">
+                {/* Settings Header - Clickable to navigate */}
+                <Link
+                  to="/settings"
+                  aria-current={location.pathname === '/settings' ? 'page' : undefined}
+                  className={cn(
+                    'flex-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    location.pathname === '/settings'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted'
+                  )}
+                >
+                  <Settings className="h-5 w-5" aria-hidden="true" />
+                  Settings
+                </Link>
+                {/* Collapse/Expand Toggle */}
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label={settingsExpanded ? 'Collapse settings' : 'Expand settings'}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'h-4 w-4 transition-transform duration-200',
+                        settingsExpanded ? '' : '-rotate-90'
+                      )}
+                      aria-hidden="true"
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent className="space-y-1 mt-1 ml-4 border-l pl-2">
+                {settingsChildItems.map((item) => {
+                  const active = isActive(item.href)
+                  return (
                     <Link
+                      key={item.href}
                       to={item.href}
-                      aria-label={item.label}
                       aria-current={active ? 'page' : undefined}
                       className={cn(
-                        'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+                        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                         active
                           ? 'bg-primary text-primary-foreground'
                           : 'hover:bg-muted'
                       )}
                     >
                       <item.icon className="h-5 w-5" aria-hidden="true" />
+                      {item.label}
                     </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" aria-hidden="true" />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
+                  )
+                })}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           {/* Collapse Toggle */}
           <Button
