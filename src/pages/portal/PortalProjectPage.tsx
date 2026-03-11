@@ -26,7 +26,7 @@ import {
   MessageSquare,
   Calendar,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 import type { StatusUpdateWithAuthor } from '@/types/database'
 
 export function PortalProjectPage() {
@@ -72,7 +72,7 @@ export function PortalProjectPage() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-            <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+            <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>{project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}</Badge>
             <Badge variant="outline" className={getHealthColor(project.health)}>
               {project.health.replace('_', ' ')}
             </Badge>

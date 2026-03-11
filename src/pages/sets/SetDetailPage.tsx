@@ -870,8 +870,8 @@ export function SetDetailPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(pitch.status)} variant="outline">
-                            {pitch.status.replace('_', ' ')}
+                          <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)} variant="outline">
+                            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
                           </Badge>
                         </TableCell>
                         <TableCell>

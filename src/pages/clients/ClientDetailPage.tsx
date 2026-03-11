@@ -90,7 +90,7 @@ import {
   Presentation,
   MessageSquare,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -949,8 +949,8 @@ export function ClientDetailPage() {
                         </TableCell>
                         <TableCell className="font-mono text-sm">{project.project_code}</TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(project.status)} variant="outline">
-                            {project.status}
+                          <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)} variant="outline">
+                            {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -1083,8 +1083,8 @@ export function ClientDetailPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(set.status)} variant="outline">
-                            {set.status}
+                          <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)} variant="outline">
+                            {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -1258,8 +1258,8 @@ export function ClientDetailPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(pitch.status)} variant="outline">
-                            {pitch.status.replace('_', ' ')}
+                          <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)} variant="outline">
+                            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
                           </Badge>
                         </TableCell>
                         <TableCell>

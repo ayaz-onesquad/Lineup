@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FolderKanban, Calendar, User } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 
 interface ProjectDetailProps {
   id: string
@@ -36,7 +36,7 @@ export function ProjectDetail({ id }: ProjectDetailProps) {
           <h3 className="text-lg font-semibold">{project.name}</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+          <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>{project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}</Badge>
           <Badge variant="outline" className={getHealthColor(project.health)}>
             {project.health.replace('_', ' ')}
           </Badge>

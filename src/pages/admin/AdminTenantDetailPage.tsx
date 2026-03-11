@@ -56,7 +56,7 @@ import {
   AlertTriangle,
   Key,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import { isValidEmail } from '@/lib/security'
 import { useState } from 'react'
@@ -742,8 +742,8 @@ export function AdminTenantDetailPage() {
                       </TableCell>
                       <TableCell>{project.clients?.name || '-'}</TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(project.status)}>
-                          {project.status}
+                        <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
+                          {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
                         </Badge>
                       </TableCell>
                       <TableCell>

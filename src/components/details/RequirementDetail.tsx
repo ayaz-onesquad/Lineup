@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CheckSquare, Calendar, User, Clock } from 'lucide-react'
-import { formatDate, getStatusColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 
 interface RequirementDetailProps {
   id: string
@@ -35,8 +35,8 @@ export function RequirementDetail({ id }: RequirementDetailProps) {
           <h3 className="text-lg font-semibold">{requirement.title}</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(requirement.status)}>
-            {requirement.status.replace('_', ' ')}
+          <Badge className={requirement.computed_status ? getComputedStatusColor(requirement.computed_status) : getStatusColor(requirement.status)}>
+            {requirement.computed_status ? getComputedStatusLabel(requirement.computed_status) : requirement.status.replace('_', ' ')}
           </Badge>
           <Badge variant="outline">{requirement.requirement_type.replace('_', ' ')}</Badge>
         </div>

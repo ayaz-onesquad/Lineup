@@ -49,7 +49,7 @@ import {
   Users,
   Presentation,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -57,13 +57,13 @@ import { DocumentUpload, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline } f
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
 import { DraggablePhasesTable } from '@/components/phases/DraggablePhasesTable'
-import type { ProjectStatus, ProjectHealth } from '@/types/database'
+import type { ProjectHealth } from '@/types/database'
 
-// Project form schema
+// Project form schema - status removed since it's now computed/read-only
 const projectFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  status: z.enum(['planning', 'active', 'on_hold', 'completed', 'cancelled']),
+  // Status is now computed from dates, not editable
   health: z.enum(['on_track', 'at_risk', 'delayed']),
   expected_start_date: z.string().optional(),
   expected_end_date: z.string().optional(),
@@ -106,13 +106,12 @@ export function ProjectDetailPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
-  // Project form
+  // Project form - status is computed and not editable
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(projectFormSchema),
     defaultValues: {
       name: project?.name || '',
       description: project?.description || '',
-      status: project?.status || 'planning',
       health: project?.health || 'on_track',
       expected_start_date: project?.expected_start_date?.split('T')[0] || '',
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
@@ -124,13 +123,12 @@ export function ProjectDetailPage() {
     },
   })
 
-  // Reset form when project data loads
+  // Reset form when project data loads - status is computed
   useEffect(() => {
     if (project && !isEditing) {
       form.reset({
         name: project.name,
         description: project.description || '',
-        status: project.status,
         health: project.health,
         expected_start_date: project.expected_start_date?.split('T')[0] || '',
         expected_end_date: project.expected_end_date?.split('T')[0] || '',
@@ -176,11 +174,11 @@ export function ProjectDetailPage() {
     if (!projectId) return
     setIsSaving(true)
     try {
+      // Status is computed from dates, not editable
       await updateProject.mutateAsync({
         id: projectId,
         name: data.name,
         description: data.description,
-        status: data.status as ProjectStatus,
         health: data.health as ProjectHealth,
         expected_start_date: data.expected_start_date || undefined,
         expected_end_date: data.expected_end_date || undefined,
@@ -200,7 +198,6 @@ export function ProjectDetailPage() {
     form.reset({
       name: project?.name || '',
       description: project?.description || '',
-      status: project?.status || 'planning',
       health: project?.health || 'on_track',
       expected_start_date: project?.expected_start_date?.split('T')[0] || '',
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
@@ -258,7 +255,9 @@ export function ProjectDetailPage() {
               {isEditing ? form.watch('name') : project.name}
               {project.display_id && <span className="text-muted-foreground"> | ID: {project.display_id}</span>}
             </h1>
-            <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+            <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
+              {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
+            </Badge>
             <Badge variant="outline" className={getHealthColor(project.health)}>
               {project.health.replace('_', ' ')}
             </Badge>
@@ -351,20 +350,17 @@ export function ProjectDetailPage() {
               onChange={(v) => form.setValue('name', v)}
               error={form.formState.errors.name?.message}
             />
-            <ViewEditField
-              type="badge"
-              label="Status"
-              isEditing={isEditing}
-              value={form.watch('status')}
-              onChange={(v) => form.setValue('status', v as ProjectStatus)}
-              options={[
-                { value: 'planning', label: 'Planning', variant: 'secondary' },
-                { value: 'active', label: 'Active', variant: 'default' },
-                { value: 'on_hold', label: 'On Hold', variant: 'outline' },
-                { value: 'completed', label: 'Completed', variant: 'default' },
-                { value: 'cancelled', label: 'Cancelled', variant: 'secondary' },
-              ]}
-            />
+            {/* Status is now computed and read-only */}
+            <div className="min-h-[52px]">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Status <span className="text-xs normal-case">(Auto)</span>
+              </label>
+              <div className="h-9 flex items-center">
+                <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
+                  {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
+                </Badge>
+              </div>
+            </div>
             <ViewEditField
               type="badge"
               label="Health"
@@ -530,8 +526,8 @@ export function ProjectDetailPage() {
                         <TableCell className="font-medium">{set.name}</TableCell>
                         <TableCell>{set.project_phases?.name || '—'}</TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(set.status)} variant="outline">
-                            {set.status}
+                          <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)} variant="outline">
+                            {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -843,8 +839,8 @@ export function ProjectDetailPage() {
                           <Badge variant="outline">{req.requirement_type}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(req.status)} variant="outline">
-                            {req.status}
+                          <Badge className={req.computed_status ? getComputedStatusColor(req.computed_status) : getStatusColor(req.status)} variant="outline">
+                            {req.computed_status ? getComputedStatusLabel(req.computed_status) : req.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -977,8 +973,8 @@ export function ProjectDetailPage() {
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(pitch.status)} variant="outline">
-                            {pitch.status.replace('_', ' ')}
+                          <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)} variant="outline">
+                            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
                           </Badge>
                         </TableCell>
                         <TableCell>

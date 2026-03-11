@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Layers, Calendar, User } from 'lucide-react'
-import { formatDate, getStatusColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 
 interface SetDetailProps {
   id: string
@@ -35,7 +35,7 @@ export function SetDetail({ id }: SetDetailProps) {
           <h3 className="text-lg font-semibold">{set.name}</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(set.status)}>{set.status}</Badge>
+          <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)}>{set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}</Badge>
           <Badge variant="outline">
             U: {set.urgency} / I: {set.importance}
           </Badge>

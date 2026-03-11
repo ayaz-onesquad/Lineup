@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Building2, Calendar, Star } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 
 interface ClientDetailProps {
   id: string
@@ -157,8 +157,8 @@ export function ClientDetail({ id }: ClientDetailProps) {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-medium text-sm">{project.name}</span>
-                    <Badge className={`${getStatusColor(project.status)} text-xs`}>
-                      {project.status}
+                    <Badge className={`${project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)} text-xs`}>
+                      {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">

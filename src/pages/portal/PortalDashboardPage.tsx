@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FolderKanban, Clock, CheckCircle } from 'lucide-react'
-import { getStatusColor, getHealthColor, formatDate } from '@/lib/utils'
+import { getStatusColor, getHealthColor, formatDate, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 
 export function PortalDashboardPage() {
   const { data: projects, isLoading } = useProjects()
@@ -82,8 +82,8 @@ export function PortalDashboardPage() {
                 <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
                   <CardHeader>
                     <div className="flex items-center justify-between mb-2">
-                      <Badge className={getStatusColor(project.status)}>
-                        {project.status}
+                      <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
+                        {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
                       </Badge>
                       <Badge variant="outline" className={getHealthColor(project.health)}>
                         {project.health.replace('_', ' ')}

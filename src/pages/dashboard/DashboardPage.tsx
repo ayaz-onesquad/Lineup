@@ -339,6 +339,7 @@ function TaskItem({
     id: string
     title: string
     status: string
+    computed_status?: string | null
     priority?: number
     expected_due_date?: string | null
     sets?: { clients?: { name?: string } }
@@ -380,9 +381,9 @@ function TaskItem({
       </div>
       <Badge
         variant="outline"
-        className={cn('text-xs shrink-0', getStatusColor(task.status))}
+        className={cn('text-xs shrink-0', task.computed_status ? getComputedStatusColor(task.computed_status) : getStatusColor(task.status))}
       >
-        {task.status.replace('_', ' ')}
+        {task.computed_status ? getComputedStatusLabel(task.computed_status) : task.status.replace('_', ' ')}
       </Badge>
     </Link>
   )
@@ -449,8 +450,8 @@ function ExpandableSet({
               {formatDate(set.expected_due_date)}
             </span>
           )}
-          <Badge variant="outline" className={cn('text-xs', getStatusColor(set.status))}>
-            {set.status.replace('_', ' ')}
+          <Badge variant="outline" className={cn('text-xs', set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status))}>
+            {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status.replace('_', ' ')}
           </Badge>
           {hasChildren && (
             <Badge variant="secondary" className="text-xs">
@@ -539,8 +540,8 @@ function ExpandablePitch({
               {formatDate(pitch.expected_due_date)}
             </span>
           )}
-          <Badge variant="outline" className={cn('text-xs', getStatusColor(pitch.status))}>
-            {pitch.status.replace('_', ' ')}
+          <Badge variant="outline" className={cn('text-xs', pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status))}>
+            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
           </Badge>
           {hasChildren && (
             <Badge variant="secondary" className="text-xs">
@@ -606,8 +607,8 @@ function RequirementRow({
             {formatDate(requirement.expected_due_date)}
           </span>
         )}
-        <Badge variant="outline" className={cn('text-xs', getStatusColor(requirement.status))}>
-          {requirement.status.replace('_', ' ')}
+        <Badge variant="outline" className={cn('text-xs', requirement.computed_status ? getComputedStatusColor(requirement.computed_status) : getStatusColor(requirement.status))}>
+          {requirement.computed_status ? getComputedStatusLabel(requirement.computed_status) : requirement.status.replace('_', ' ')}
         </Badge>
       </div>
     </Link>

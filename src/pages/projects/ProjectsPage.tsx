@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Search, FolderKanban, Grid, List, MoreVertical, ExternalLink, Edit, Building2, User } from 'lucide-react'
-import { getStatusColor, getHealthColor, formatDate } from '@/lib/utils'
+import { getStatusColor, getComputedStatusColor, getComputedStatusLabel, getHealthColor, formatDate } from '@/lib/utils'
 
 export function ProjectsPage() {
   const [search, setSearch] = useState('')
@@ -135,7 +135,9 @@ export function ProjectsPage() {
             >
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between mb-2">
-                    <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+                    <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
+                      {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
+                    </Badge>
                     <Badge variant="outline" className={getHealthColor(project.health)}>
                       {project.health.replace('_', ' ')}
                     </Badge>
@@ -216,8 +218,8 @@ export function ProjectsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(project.status)} variant="outline">
-                        {project.status}
+                      <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)} variant="outline">
+                        {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
                       </Badge>
                     </TableCell>
                     <TableCell>

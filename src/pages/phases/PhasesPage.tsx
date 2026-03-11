@@ -13,7 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Search, Calendar } from 'lucide-react'
-import { getStatusColor } from '@/lib/utils'
+import { getStatusColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 import { format } from 'date-fns'
 import type { EnhancedProjectPhase } from '@/types/database'
 
@@ -113,8 +113,8 @@ export function PhasesPage() {
                     </TableCell>
                     <TableCell className="font-medium">{phase.name}</TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(phase.status)} variant="outline">
-                        {phase.status.replace(/_/g, ' ')}
+                      <Badge className={phase.computed_status ? getComputedStatusColor(phase.computed_status) : getStatusColor(phase.status)} variant="outline">
+                        {phase.computed_status ? getComputedStatusLabel(phase.computed_status) : phase.status.replace(/_/g, ' ')}
                       </Badge>
                     </TableCell>
                     <TableCell>{phase.lead?.full_name || '-'}</TableCell>

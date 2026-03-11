@@ -44,20 +44,20 @@ import {
   FileText,
   MessageSquare,
 } from 'lucide-react'
-import { getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, getPriorityLabel, getPriorityColor, formatDate, type PriorityScore } from '@/lib/utils'
+import { getStatusColor, getComputedStatusColor, getComputedStatusLabel, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, getPriorityLabel, getPriorityColor, formatDate, type PriorityScore } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import type { PhaseStatus, UrgencyLevel, ImportanceLevel } from '@/types/database'
+import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
 
-// Phase form schema
+// Phase form schema - status removed since it's now computed/read-only
 const phaseFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   project_id: z.string().min(1, 'Project is required'),
-  status: z.enum(['not_started', 'in_progress', 'completed', 'blocked']),
+  // Status is now computed from dates, not editable
   urgency: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   importance: z.enum(['low', 'medium', 'high']).optional(),
   expected_start_date: z.string().optional(),
@@ -70,13 +70,6 @@ const phaseFormSchema = z.object({
 })
 
 type PhaseFormValues = z.infer<typeof phaseFormSchema>
-
-const PHASE_STATUS_OPTIONS = [
-  { value: 'not_started', label: 'Not Started' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'blocked', label: 'Blocked' },
-]
 
 export function PhaseDetailPage() {
   const { phaseId } = useParams<{ phaseId: string }>()
@@ -94,14 +87,13 @@ export function PhaseDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Phase form
+  // Phase form - status is computed and not editable
   const form = useForm<PhaseFormValues>({
     resolver: zodResolver(phaseFormSchema),
     defaultValues: {
       name: phase?.name || '',
       description: phase?.description || '',
       project_id: phase?.project_id || '',
-      status: phase?.status || 'not_started',
       urgency: phase?.urgency || 'medium',
       importance: phase?.importance || 'medium',
       expected_start_date: phase?.expected_start_date?.split('T')[0] || '',
@@ -123,14 +115,13 @@ export function PhaseDetailPage() {
     [users]
   )
 
-  // Reset form when phase data loads
+  // Reset form when phase data loads - status is computed
   useEffect(() => {
     if (phase && !isEditing) {
       form.reset({
         name: phase.name,
         description: phase.description || '',
         project_id: phase.project_id,
-        status: phase.status,
         urgency: phase.urgency || 'medium',
         importance: phase.importance || 'medium',
         expected_start_date: phase.expected_start_date?.split('T')[0] || '',
@@ -157,13 +148,13 @@ export function PhaseDetailPage() {
     if (!phaseId) return
     setIsSaving(true)
     try {
+      // Status is computed from dates, not editable
       await updatePhase.mutateAsync({
         id: phaseId,
         data: {
           name: data.name,
           description: data.description,
           project_id: data.project_id,
-          status: data.status,
           urgency: data.urgency as UrgencyLevel,
           importance: data.importance as ImportanceLevel,
           expected_start_date: data.expected_start_date || undefined,
@@ -254,7 +245,9 @@ export function PhaseDetailPage() {
               {isEditing ? form.watch('name') : phase.name}
               {phase.display_id && <span className="text-muted-foreground"> | ID: {phase.display_id}</span>}
             </h1>
-            <Badge className={getStatusColor(phase.status)}>{phase.status.replace(/_/g, ' ')}</Badge>
+            <Badge className={phase.computed_status ? getComputedStatusColor(phase.computed_status) : getStatusColor(phase.status)}>
+              {phase.computed_status ? getComputedStatusLabel(phase.computed_status) : phase.status.replace(/_/g, ' ')}
+            </Badge>
             {phase.priority && (
               <Badge variant="outline" className={getPriorityColor(phase.priority as PriorityScore)}>
                 {getPriorityLabel(phase.priority as PriorityScore)}
@@ -344,18 +337,17 @@ export function PhaseDetailPage() {
               onChange={(v) => form.setValue('name', v)}
               error={form.formState.errors.name?.message}
             />
-            <ViewEditField
-              type="badge"
-              label="Status"
-              isEditing={isEditing}
-              value={form.watch('status')}
-              onChange={(v) => form.setValue('status', v as PhaseStatus)}
-              options={PHASE_STATUS_OPTIONS.map(opt => ({
-                value: opt.value,
-                label: opt.label,
-                variant: opt.value === 'completed' ? 'default' : opt.value === 'blocked' ? 'outline' : 'secondary'
-              }))}
-            />
+            {/* Status is now computed and read-only */}
+            <div className="min-h-[52px]">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Status <span className="text-xs normal-case">(Auto)</span>
+              </label>
+              <div className="h-9 flex items-center">
+                <Badge className={phase.computed_status ? getComputedStatusColor(phase.computed_status) : getStatusColor(phase.status)}>
+                  {phase.computed_status ? getComputedStatusLabel(phase.computed_status) : phase.status.replace(/_/g, ' ')}
+                </Badge>
+              </div>
+            </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-1">Client</p>
               <Link
@@ -674,8 +666,8 @@ export function PhaseDetailPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(set.status)} variant="outline">
-                            {set.status}
+                          <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)} variant="outline">
+                            {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
