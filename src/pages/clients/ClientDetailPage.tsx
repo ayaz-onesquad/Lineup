@@ -94,7 +94,7 @@ import { formatDate, getStatusColor, getHealthColor, INDUSTRY_OPTIONS, CONTACT_R
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -1143,149 +1143,16 @@ export function ClientDetailPage() {
           )}
         </TabsContent>
 
-        {/* Requirements Tab */}
+        {/* Requirements Tab - Split into Open/Completed */}
         <TabsContent value="requirements" className="mt-6">
-          <div className="flex justify-end mb-4">
-            <Button onClick={() => openCreateModal('requirement', { client_id: safeClientId })}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Requirement
-            </Button>
-          </div>
-          {requirementsLoading ? (
-            <Card className="card-carbon">
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Set</TableHead>
-                      <TableHead>Project</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[1, 2, 3].map((i) => (
-                      <TableRow key={i}>
-                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ) : !clientRequirements || clientRequirements.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No requirements yet</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Create projects and sets to add requirements
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="card-carbon">
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Set</TableHead>
-                      <TableHead>Project</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clientRequirements.map((req) => (
-                      <TableRow
-                        key={req.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/requirements/${req.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {req.title}
-                            {req.display_id && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                #{req.display_id}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            to={`/sets/${req.set_id}`}
-                            className="hover:underline flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Layers className="h-3 w-3 text-muted-foreground" />
-                            {req.sets?.name || '—'}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            to={`/projects/${req.sets?.project_id}`}
-                            className="hover:underline flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                            {req.sets?.projects?.name || '—'}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{req.requirement_type}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(req.status)} variant="outline">
-                            {req.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              req.urgency === 'high' && req.importance === 'high'
-                                ? 'border-red-500 text-red-700'
-                                : ''
-                            }
-                          >
-                            U:{req.urgency[0].toUpperCase()} I:{req.importance[0].toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}`)}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+          <RequirementsTabbedPanel
+            requirements={clientRequirements}
+            isLoading={requirementsLoading}
+            createContext={{ client_id: safeClientId }}
+            showSetColumn={true}
+            showProjectColumn={true}
+            emptyMessage="No requirements yet. Create projects and sets to add requirements."
+          />
         </TabsContent>
 
         {/* Pitches Tab */}

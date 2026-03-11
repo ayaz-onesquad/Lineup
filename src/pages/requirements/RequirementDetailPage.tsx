@@ -26,13 +26,12 @@ import {
   Users,
   Clock,
 } from 'lucide-react'
-import { formatDate, getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getComputedStatusLabel, getComputedStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DiscussionsPanel, DocumentUpload, NotesPanel } from '@/components/shared'
 import type {
-  RequirementStatus,
   RequirementType,
   ReviewStatus,
   UrgencyLevel,
@@ -56,11 +55,11 @@ const REVIEW_STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ]
 
-// Requirement form schema - using new date field names
+// Requirement form schema - status is now computed and read-only
 const requirementFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  status: z.enum(['open', 'in_progress', 'blocked', 'completed', 'cancelled']),
+  // Status is computed from dates, not editable
   requirement_type: z.enum(['task', 'open_item', 'technical', 'support', 'internal_deliverable', 'client_deliverable']),
   is_task: z.boolean(), // When true, appears in Global Tasks view
   urgency: z.enum(['low', 'medium', 'high', 'critical']),
@@ -96,13 +95,12 @@ export function RequirementDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Requirement form
+  // Requirement form - status is computed and not editable
   const form = useForm<RequirementFormValues>({
     resolver: zodResolver(requirementFormSchema),
     defaultValues: {
       title: requirement?.title || '',
       description: requirement?.description || '',
-      status: requirement?.status || 'open',
       requirement_type: requirement?.requirement_type || 'task',
       is_task: requirement?.is_task || false,
       urgency: requirement?.urgency || 'medium',
@@ -121,13 +119,12 @@ export function RequirementDetailPage() {
     },
   })
 
-  // Reset form when requirement data loads
+  // Reset form when requirement data loads - status is computed
   useEffect(() => {
     if (requirement && !isEditing) {
       form.reset({
         title: requirement.title,
         description: requirement.description || '',
-        status: requirement.status,
         requirement_type: requirement.requirement_type,
         is_task: requirement.is_task || false,
         urgency: requirement.urgency,
@@ -159,11 +156,11 @@ export function RequirementDetailPage() {
     if (!requirementId) return
     setIsSaving(true)
     try {
+      // Status is computed from dates, not editable
       await updateRequirement.mutateAsync({
         id: requirementId,
         title: data.title,
         description: data.description,
-        status: data.status as RequirementStatus,
         requirement_type: data.requirement_type as RequirementType,
         is_task: data.is_task,
         urgency: data.urgency as UrgencyLevel,
@@ -190,7 +187,6 @@ export function RequirementDetailPage() {
     form.reset({
       title: requirement?.title || '',
       description: requirement?.description || '',
-      status: requirement?.status || 'open',
       requirement_type: requirement?.requirement_type || 'task',
       is_task: requirement?.is_task || false,
       urgency: requirement?.urgency || 'medium',
@@ -272,7 +268,9 @@ export function RequirementDetailPage() {
                 <span className="text-muted-foreground"> | ID: {requirement.display_id}</span>
               )}
             </h1>
-            <Badge className={getStatusColor(requirement.status)}>{requirement.status}</Badge>
+            <Badge className={requirement.computed_status ? getComputedStatusColor(requirement.computed_status) : getStatusColor(requirement.status)}>
+              {requirement.computed_status ? getComputedStatusLabel(requirement.computed_status) : requirement.status}
+            </Badge>
             <Badge variant="outline">{requirement.requirement_type}</Badge>
           </div>
           <p className="text-muted-foreground">
@@ -345,20 +343,17 @@ export function RequirementDetailPage() {
               value={form.watch('is_task')}
               onChange={(v) => form.setValue('is_task', v)}
             />
-            <ViewEditField
-              type="badge"
-              label="Status"
-              isEditing={isEditing}
-              value={form.watch('status')}
-              onChange={(v) => form.setValue('status', v as RequirementStatus)}
-              options={[
-                { value: 'open', label: 'Open', variant: 'secondary' },
-                { value: 'in_progress', label: 'In Progress', variant: 'default' },
-                { value: 'blocked', label: 'Blocked', variant: 'outline' },
-                { value: 'completed', label: 'Completed', variant: 'default' },
-                { value: 'cancelled', label: 'Cancelled', variant: 'secondary' },
-              ]}
-            />
+            {/* Status is now computed and read-only */}
+            <div className="min-h-[52px]">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Status <span className="text-xs normal-case">(Auto)</span>
+              </label>
+              <div className="h-9 flex items-center">
+                <Badge className={requirement.computed_status ? getComputedStatusColor(requirement.computed_status) : getStatusColor(requirement.status)}>
+                  {requirement.computed_status ? getComputedStatusLabel(requirement.computed_status) : requirement.status}
+                </Badge>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

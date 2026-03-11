@@ -291,6 +291,7 @@ export function useMyTasksByAllPriorities(limit: number = 100) {
 
 /**
  * Get items for KPI drill-down by type and status (active vs past due)
+ * Now uses computed_status for filtering when available
  */
 export function useKpiDrillDownItems(type: 'sets' | 'pitches' | 'tasks' | 'requirements', filter: 'active' | 'past_due' | 'all' = 'all') {
   const { currentTenant } = useTenantStore()
@@ -299,74 +300,75 @@ export function useKpiDrillDownItems(type: 'sets' | 'pitches' | 'tasks' | 'requi
   return useQuery({
     queryKey: ['kpi-drill-down', currentTenant?.id, userProfileId, type, filter],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0]
       let query
 
       if (type === 'sets') {
         query = supabase
           .from('sets')
-          .select(`*, clients:client_id (id, name), projects:project_id (id, name)`)
+          .select(`*, clients:client_id (id, name), projects:project_id (id, name), key_start_date, key_end_date, computed_status`)
           .eq('tenant_id', currentTenant!.id)
           .is('deleted_at', null)
           .eq('is_template', false)
-          .not('status', 'in', '("completed","cancelled")')
+          .not('computed_status', 'eq', 'completed')
           .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId},pm_id.eq.${userProfileId}`)
 
         if (filter === 'past_due') {
-          query = query.lt('expected_end_date', today)
+          query = query.eq('computed_status', 'past_due')
         } else if (filter === 'active') {
-          query = query.or(`expected_end_date.is.null,expected_end_date.gte.${today}`)
+          query = query.in('computed_status', ['active', 'on_deck', 'future'])
         }
       } else if (type === 'pitches') {
         query = supabase
           .from('pitches')
-          .select(`*, sets:set_id (id, name, clients:client_id (id, name))`)
+          .select(`*, sets:set_id (id, name, clients:client_id (id, name)), key_start_date, key_end_date, computed_status`)
           .eq('tenant_id', currentTenant!.id)
           .is('deleted_at', null)
           .eq('is_template', false)
-          .not('status', 'in', '("completed","cancelled")')
+          .not('computed_status', 'eq', 'completed')
           .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId}`)
 
         if (filter === 'past_due') {
-          query = query.lt('expected_end_date', today)
+          query = query.eq('computed_status', 'past_due')
         } else if (filter === 'active') {
-          query = query.or(`expected_end_date.is.null,expected_end_date.gte.${today}`)
+          query = query.in('computed_status', ['active', 'on_deck', 'future'])
         }
       } else if (type === 'tasks') {
         query = supabase
           .from('requirements')
-          .select(`*, sets:set_id (id, name, clients:client_id (id, name))`)
+          .select(`*, sets:set_id (id, name, clients:client_id (id, name)), key_due_date, computed_status`)
           .eq('tenant_id', currentTenant!.id)
           .eq('is_task', true)
           .eq('assigned_to_id', userProfileId!)
           .is('deleted_at', null)
           .eq('is_template', false)
-          .not('status', 'in', '("completed","cancelled")')
+          .not('computed_status', 'eq', 'completed')
 
         if (filter === 'past_due') {
-          query = query.lt('expected_due_date', today)
+          query = query.eq('computed_status', 'past_due')
         } else if (filter === 'active') {
-          query = query.or(`expected_due_date.is.null,expected_due_date.gte.${today}`)
+          query = query.in('computed_status', ['active', 'on_deck', 'future'])
         }
       } else {
         // requirements
         query = supabase
           .from('requirements')
-          .select(`*, sets:set_id (id, name, clients:client_id (id, name))`)
+          .select(`*, sets:set_id (id, name, clients:client_id (id, name)), key_due_date, computed_status`)
           .eq('tenant_id', currentTenant!.id)
           .eq('assigned_to_id', userProfileId!)
           .is('deleted_at', null)
           .eq('is_template', false)
-          .not('status', 'in', '("completed","cancelled")')
+          .not('computed_status', 'eq', 'completed')
 
         if (filter === 'past_due') {
-          query = query.lt('expected_due_date', today)
+          query = query.eq('computed_status', 'past_due')
         } else if (filter === 'active') {
-          query = query.or(`expected_due_date.is.null,expected_due_date.gte.${today}`)
+          query = query.in('computed_status', ['active', 'on_deck', 'future'])
         }
       }
 
-      const { data, error } = await query.order('expected_end_date', { ascending: true, nullsFirst: false }).limit(50)
+      // Order by key dates when available, fallback to expected dates
+      const orderField = type === 'sets' || type === 'pitches' ? 'key_end_date' : 'key_due_date'
+      const { data, error } = await query.order(orderField, { ascending: true, nullsFirst: false }).limit(50)
 
       if (error) throw error
       return data || []

@@ -176,6 +176,9 @@ export type PriorityScore = 1 | 2 | 3 | 4 | 5 | 6
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled'
 export type ProjectHealth = 'on_track' | 'at_risk' | 'delayed'
 
+// Computed status values (consistent across all entities)
+export type ComputedStatus = 'completed' | 'past_due' | 'active' | 'on_deck' | 'future'
+
 export interface Project {
   id: string
   tenant_id: string
@@ -195,6 +198,10 @@ export interface Project {
   actual_start_date?: string
   actual_end_date?: string
   completion_date?: string
+  // Key dates (rippled from children)
+  key_start_date?: string
+  key_end_date?: string
+  computed_status?: ComputedStatus
   show_in_client_portal: boolean
   created_by: string
   updated_by?: string
@@ -230,6 +237,10 @@ export interface ProjectPhase {
   expected_end_date?: string
   actual_start_date?: string
   actual_end_date?: string
+  // Key dates (rippled from children)
+  key_start_date?: string
+  key_end_date?: string
+  computed_status?: ComputedStatus
   owner_id?: string
   show_in_client_portal: boolean
   created_by: string
@@ -271,6 +282,10 @@ export interface Set {
   actual_start_date?: string
   actual_end_date?: string
   completion_date?: string
+  // Key dates (rippled from children)
+  key_start_date?: string
+  key_end_date?: string
+  computed_status?: ComputedStatus
   owner_id?: string
   lead_id?: string
   secondary_lead_id?: string
@@ -278,6 +293,7 @@ export interface Set {
   budget_days?: number
   budget_hours?: number
   show_in_client_portal: boolean
+  is_template?: boolean
   created_by: string
   updated_by?: string
   created_at: string
@@ -337,6 +353,9 @@ export interface Requirement {
   actual_start_date?: string
   actual_due_date?: string
   completed_date?: string
+  // Key dates (computed)
+  key_due_date?: string
+  computed_status?: ComputedStatus
   estimated_hours?: number
   actual_hours?: number
   assigned_to_id?: string
@@ -743,6 +762,10 @@ export interface Pitch {
   expected_end_date?: string
   actual_start_date?: string
   actual_end_date?: string
+  // Key dates (rippled from children)
+  key_start_date?: string
+  key_end_date?: string
+  computed_status?: ComputedStatus
   urgency: UrgencyLevel
   importance: ImportanceLevel
   priority: number
@@ -1017,10 +1040,14 @@ export interface MyWorkItem {
   tenant_id: string
   name: string
   description?: string
-  status: string
+  status: string // Now contains computed_status from database
+  computed_status?: ComputedStatus
   priority: number
   expected_start_date?: string
   expected_due_date?: string
+  key_start_date?: string
+  key_end_date?: string
+  key_due_date?: string
   completion_percentage: number
   lead_id?: string
   secondary_lead_id?: string

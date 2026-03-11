@@ -76,8 +76,53 @@ export function getStatusColor(status: string): string {
     in_progress: 'bg-blue-100 text-blue-800',
     blocked: 'bg-red-100 text-red-800',
     open: 'bg-gray-100 text-gray-800',
+    // Computed status values
+    past_due: 'bg-red-500 text-white',
+    on_deck: 'bg-amber-100 text-amber-800',
+    future: 'bg-gray-100 text-gray-600',
   }
   return colors[status] || 'bg-gray-100 text-gray-800'
+}
+
+/**
+ * Computed status types and labels
+ * Computed status is automatically calculated from dates and child entity states
+ */
+export type ComputedStatusType = 'completed' | 'past_due' | 'active' | 'on_deck' | 'future'
+
+export function getComputedStatusLabel(status: ComputedStatusType | string): string {
+  const labels: Record<string, string> = {
+    completed: 'Completed',
+    past_due: 'Past Due',
+    active: 'Active',
+    on_deck: 'On Deck',
+    future: 'Future',
+  }
+  return labels[status] || status.replace('_', ' ')
+}
+
+export function getComputedStatusColor(status: ComputedStatusType | string): string {
+  const colors: Record<string, string> = {
+    completed: 'bg-green-100 text-green-800',
+    past_due: 'bg-red-500 text-white',
+    active: 'bg-blue-100 text-blue-800',
+    on_deck: 'bg-amber-100 text-amber-800',
+    future: 'bg-gray-100 text-gray-600',
+  }
+  return colors[status] || 'bg-gray-100 text-gray-800'
+}
+
+/**
+ * Get the display status - prefers computed_status if available, falls back to manual status
+ */
+export function getDisplayStatus(
+  computedStatus: string | null | undefined,
+  manualStatus: string
+): { status: string; isComputed: boolean } {
+  if (computedStatus) {
+    return { status: computedStatus, isComputed: true }
+  }
+  return { status: manualStatus, isComputed: false }
 }
 
 export function getHealthColor(health: string): string {

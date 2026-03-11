@@ -50,21 +50,21 @@ import {
   Wallet,
   Presentation,
 } from 'lucide-react'
-import { formatDate, getStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getComputedStatusLabel, getComputedStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import type { SetStatus, UrgencyLevel, ImportanceLevel } from '@/types/database'
+import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
 
-// Set form schema
+// Set form schema - status removed since it's now computed/read-only
 const setFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   client_id: z.string().min(1, 'Client is required'),
   project_id: z.string().optional(),
-  status: z.enum(['open', 'in_progress', 'completed', 'cancelled']),
+  // Status is now computed and read-only - removed from form
   urgency: z.enum(['low', 'medium', 'high', 'critical']),
   importance: z.enum(['low', 'medium', 'high']),
   expected_start_date: z.string().optional(),
@@ -95,7 +95,7 @@ export function SetDetailPage() {
   const { data: allProjects } = useProjects()
   const { data: users } = useTenantUsers()
   const { updateSet } = useSetMutations()
-  const { openDetailPanel, openCreateModal } = useUIStore()
+  const { openCreateModal } = useUIStore()
 
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
@@ -103,7 +103,7 @@ export function SetDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Set form
+  // Set form - status is computed and not editable
   const form = useForm<SetFormValues>({
     resolver: zodResolver(setFormSchema),
     defaultValues: {
@@ -111,7 +111,6 @@ export function SetDetailPage() {
       description: set?.description || '',
       client_id: set?.client_id || set?.projects?.client_id || '',
       project_id: set?.project_id || '',
-      status: set?.status || 'open',
       urgency: set?.urgency || 'medium',
       importance: set?.importance || 'medium',
       expected_start_date: set?.expected_start_date?.split('T')[0] || '',
@@ -161,7 +160,7 @@ export function SetDetailPage() {
     [users]
   )
 
-  // Reset form when set data loads
+  // Reset form when set data loads - status is computed, not in form
   useEffect(() => {
     if (set && !isEditing) {
       form.reset({
@@ -169,7 +168,6 @@ export function SetDetailPage() {
         description: set.description || '',
         client_id: set.client_id || set.projects?.client_id || '',
         project_id: set.project_id || '',
-        status: set.status,
         urgency: set.urgency,
         importance: set.importance,
         expected_start_date: set.expected_start_date?.split('T')[0] || '',
@@ -199,13 +197,13 @@ export function SetDetailPage() {
     if (!setId) return
     setIsSaving(true)
     try {
+      // Status is computed from dates, not editable
       await updateSet.mutateAsync({
         id: setId,
         name: data.name,
         description: data.description,
         client_id: data.client_id,
         project_id: data.project_id || undefined,
-        status: data.status as SetStatus,
         urgency: data.urgency as UrgencyLevel,
         importance: data.importance as ImportanceLevel,
         expected_start_date: data.expected_start_date || undefined,
@@ -231,7 +229,6 @@ export function SetDetailPage() {
       description: set?.description || '',
       client_id: set?.client_id || set?.projects?.client_id || '',
       project_id: set?.project_id || '',
-      status: set?.status || 'open',
       urgency: set?.urgency || 'medium',
       importance: set?.importance || 'medium',
       expected_start_date: set?.expected_start_date?.split('T')[0] || '',
@@ -312,7 +309,9 @@ export function SetDetailPage() {
               {isEditing ? form.watch('name') : set.name}
               {set.display_id && <span className="text-muted-foreground"> | ID: {set.display_id}</span>}
             </h1>
-            <Badge className={getStatusColor(set.status)}>{set.status}</Badge>
+            <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)}>
+              {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
+            </Badge>
             <Badge
               variant="outline"
               className={
@@ -400,19 +399,17 @@ export function SetDetailPage() {
               onChange={(v) => form.setValue('name', v)}
               error={form.formState.errors.name?.message}
             />
-            <ViewEditField
-              type="badge"
-              label="Status"
-              isEditing={isEditing}
-              value={form.watch('status')}
-              onChange={(v) => form.setValue('status', v as SetStatus)}
-              options={[
-                { value: 'open', label: 'Open', variant: 'secondary' },
-                { value: 'in_progress', label: 'In Progress', variant: 'default' },
-                { value: 'completed', label: 'Completed', variant: 'default' },
-                { value: 'cancelled', label: 'Cancelled', variant: 'secondary' },
-              ]}
-            />
+            {/* Status is now computed and read-only */}
+            <div className="min-h-[52px]">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Status <span className="text-xs normal-case">(Auto)</span>
+              </label>
+              <div className="h-9 flex items-center">
+                <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)}>
+                  {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
+                </Badge>
+              </div>
+            </div>
             <ViewEditField
               type="select"
               label="Urgency"
@@ -785,112 +782,15 @@ export function SetDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Requirements Tab */}
+        {/* Requirements Tab - Split into Open/Completed */}
         <TabsContent value="requirements" className="mt-6">
-          <div className="flex justify-end mb-4">
-            <Button
-              variant="outline"
-              onClick={() => openCreateModal('requirement', { set_id: set.id })}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Requirement
-            </Button>
-          </div>
-          {requirementsLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : !requirements || requirements.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No requirements yet</p>
-                <Button
-                  className="mt-4"
-                  onClick={() => openCreateModal('requirement', { set_id: set.id })}
-                >
-                  Create First Requirement
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="card-carbon">
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Assigned To</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {requirements.map((req) => (
-                      <TableRow
-                        key={req.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/requirements/${req.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {req.title}
-                            {req.display_id && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                #{req.display_id}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{req.requirement_type}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(req.status)} variant="outline">
-                            {req.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              req.urgency === 'high' && req.importance === 'high'
-                                ? 'border-red-500 text-red-700'
-                                : ''
-                            }
-                          >
-                            U:{req.urgency[0].toUpperCase()} I:{req.importance[0].toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {req.assigned_to?.full_name || '—'}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openDetailPanel('requirement', req.id)}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+          <RequirementsTabbedPanel
+            requirements={requirements}
+            isLoading={requirementsLoading}
+            createContext={{ set_id: set.id, client_id: set.client_id || set.projects?.client_id }}
+            showSetColumn={false}
+            showProjectColumn={false}
+          />
         </TabsContent>
 
         {/* Pitches Tab */}

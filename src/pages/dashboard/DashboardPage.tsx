@@ -46,7 +46,7 @@ import {
   ArrowRight,
   Timer,
 } from 'lucide-react'
-import { formatDate, getStatusColor } from '@/lib/utils'
+import { formatDate, getStatusColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import type { MyWorkItem } from '@/types/database'
@@ -143,10 +143,13 @@ function KpiDrillDownModal({
                         : type === 'pitches'
                         ? setsClientsData?.name as string
                         : setsClientsData?.name as string
+                      // Use key dates when available, fallback to expected dates
                       const dueDate = type === 'sets' || type === 'pitches'
-                        ? item.expected_end_date as string
-                        : item.expected_due_date as string
-                      const isPastDue = dueDate && new Date(dueDate) < new Date()
+                        ? (item.key_end_date || item.expected_end_date) as string
+                        : (item.key_due_date || item.expected_due_date) as string
+                      // Use computed status for past due indicator
+                      const computedStatus = item.computed_status as string
+                      const isPastDue = computedStatus === 'past_due' || (dueDate && new Date(dueDate) < new Date())
 
                       return (
                         <TableRow
@@ -160,9 +163,15 @@ function KpiDrillDownModal({
                           <TableCell className="font-medium">{name || 'Untitled'}</TableCell>
                           <TableCell>{clientName || '-'}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={getStatusColor(item.status as string)}>
-                              {(item.status as string)?.replace('_', ' ')}
-                            </Badge>
+                            {computedStatus ? (
+                              <Badge variant="outline" className={getComputedStatusColor(computedStatus)}>
+                                {getComputedStatusLabel(computedStatus)}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className={getStatusColor(item.status as string)}>
+                                {(item.status as string)?.replace('_', ' ')}
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell>
                             {dueDate ? (

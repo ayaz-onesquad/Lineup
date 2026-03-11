@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -16,20 +16,6 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -50,13 +36,12 @@ import {
   MessageSquare,
   Calendar,
   Users,
-  MoreVertical,
-  ExternalLink,
-  Plus,
 } from 'lucide-react'
 import {
   formatDate,
   getStatusColor,
+  getComputedStatusLabel,
+  getComputedStatusColor,
   URGENCY_OPTIONS,
   IMPORTANCE_OPTIONS,
   calculateEisenhowerPriority,
@@ -66,18 +51,18 @@ import {
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { DocumentUpload, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import type { PitchStatus, UrgencyLevel, ImportanceLevel, RequirementType } from '@/types/database'
+import type { UrgencyLevel, ImportanceLevel, RequirementType } from '@/types/database'
 
-// Pitch form schema
+// Pitch form schema - status is now computed and read-only
 const pitchFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  status: z.enum(['not_started', 'in_progress', 'completed', 'blocked', 'on_hold']),
+  // Status is computed from dates, not editable
   urgency: z.enum(['low', 'medium', 'high', 'critical']),
   importance: z.enum(['low', 'medium', 'high']),
   expected_start_date: z.string().optional(),
@@ -92,14 +77,6 @@ const pitchFormSchema = z.object({
 })
 
 type PitchFormValues = z.infer<typeof pitchFormSchema>
-
-const STATUS_OPTIONS = [
-  { value: 'not_started', label: 'Not Started', variant: 'secondary' as const },
-  { value: 'in_progress', label: 'In Progress', variant: 'default' as const },
-  { value: 'completed', label: 'Completed', variant: 'default' as const },
-  { value: 'blocked', label: 'Blocked', variant: 'outline' as const },
-  { value: 'on_hold', label: 'On Hold', variant: 'secondary' as const },
-]
 
 // Requirement type options for dropdown
 const REQUIREMENT_TYPE_OPTIONS = [
@@ -156,7 +133,6 @@ export function PitchDetailPage() {
     defaultValues: {
       name: pitch?.name || '',
       description: pitch?.description || '',
-      status: pitch?.status || 'not_started',
       urgency: pitch?.urgency || 'medium',
       importance: pitch?.importance || 'medium',
       expected_start_date: pitch?.expected_start_date?.split('T')[0] || '',
@@ -183,13 +159,12 @@ export function PitchDetailPage() {
     [users]
   )
 
-  // Reset form and parent selections when pitch data loads
+  // Reset form and parent selections when pitch data loads - status is computed
   useEffect(() => {
     if (pitch && !isEditing) {
       form.reset({
         name: pitch.name,
         description: pitch.description || '',
-        status: pitch.status,
         urgency: pitch.urgency,
         importance: pitch.importance,
         expected_start_date: pitch.expected_start_date?.split('T')[0] || '',
@@ -224,11 +199,11 @@ export function PitchDetailPage() {
     if (!pitchId) return
     setIsSaving(true)
     try {
+      // Status is computed from dates, not editable
       await updatePitch.mutateAsync({
         id: pitchId,
         name: data.name,
         description: data.description,
-        status: data.status as PitchStatus,
         urgency: data.urgency as UrgencyLevel,
         importance: data.importance as ImportanceLevel,
         expected_start_date: data.expected_start_date || undefined,
@@ -252,7 +227,6 @@ export function PitchDetailPage() {
       form.reset({
         name: pitch.name,
         description: pitch.description || '',
-        status: pitch.status,
         urgency: pitch.urgency,
         importance: pitch.importance,
         expected_start_date: pitch.expected_start_date?.split('T')[0] || '',
@@ -371,7 +345,9 @@ export function PitchDetailPage() {
                 <span className="text-muted-foreground"> | {pitch.pitch_id_display}</span>
               )}
             </h1>
-            <Badge className={getStatusColor(pitch.status)}>{pitch.status.replace('_', ' ')}</Badge>
+            <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)}>
+              {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+            </Badge>
           </div>
           {/* Parent selection dropdowns - only shown in edit mode */}
           {isEditing && (
@@ -478,14 +454,17 @@ export function PitchDetailPage() {
               onChange={(v) => form.setValue('name', v)}
               error={form.formState.errors.name?.message}
             />
-            <ViewEditField
-              type="badge"
-              label="Status"
-              isEditing={isEditing}
-              value={form.watch('status')}
-              onChange={(v) => form.setValue('status', v as PitchStatus)}
-              options={STATUS_OPTIONS}
-            />
+            {/* Status is now computed and read-only */}
+            <div className="min-h-[52px]">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Status <span className="text-xs normal-case">(Auto)</span>
+              </label>
+              <div className="h-9 flex items-center">
+                <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)}>
+                  {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+                </Badge>
+              </div>
+            </div>
             <ViewEditField
               type="select"
               label="Urgency"
@@ -728,87 +707,16 @@ export function PitchDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Requirements Tab */}
+        {/* Requirements Tab - Split into Open/Completed */}
         <TabsContent value="requirements" className="mt-6">
-          <div className="flex justify-end mb-4">
-            <Button onClick={() => setCreateRequirementDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Requirement
-            </Button>
-          </div>
-          {pitchRequirements.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No requirements linked to this pitch</p>
-                <Button className="mt-4" onClick={() => setCreateRequirementDialogOpen(true)}>
-                  Create First Requirement
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="card-carbon">
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Assigned To</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pitchRequirements.map((req) => (
-                      <TableRow
-                        key={req.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/requirements/${req.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {req.title}
-                            {req.display_id && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                #{req.display_id}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{req.requirement_type}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(req.status)} variant="outline">
-                            {req.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{req.assigned_to?.full_name || '—'}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link to={`/requirements/${req.id}`}>
-                                  <ExternalLink className="mr-2 h-4 w-4" />
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+          <RequirementsTabbedPanel
+            requirements={pitchRequirements}
+            isLoading={false}
+            onCreateClick={() => setCreateRequirementDialogOpen(true)}
+            showSetColumn={false}
+            showProjectColumn={false}
+            emptyMessage="No requirements linked to this pitch"
+          />
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
