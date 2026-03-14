@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { usePitch, usePitchMutations } from '@/hooks/usePitches'
@@ -39,15 +39,13 @@ import {
 } from 'lucide-react'
 import {
   formatDate,
-  getStatusColor,
-  getComputedStatusLabel,
-  getComputedStatusColor,
   URGENCY_OPTIONS,
   IMPORTANCE_OPTIONS,
   calculateEisenhowerPriority,
   getPriorityLabel,
   getPriorityColor,
 } from '@/lib/utils'
+import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -69,6 +67,8 @@ const pitchFormSchema = z.object({
   expected_end_date: z.string().optional(),
   actual_start_date: z.string().optional(),
   actual_end_date: z.string().optional(),
+  // Completion tracking - sets completed_date to mark as "Completed"
+  completed_date: z.string().optional(),
   lead_id: z.string().optional(),
   secondary_lead_id: z.string().optional(),
   notes: z.string().optional(),
@@ -139,6 +139,7 @@ export function PitchDetailPage() {
       expected_end_date: pitch?.expected_end_date?.split('T')[0] || '',
       actual_start_date: pitch?.actual_start_date?.split('T')[0] || '',
       actual_end_date: pitch?.actual_end_date?.split('T')[0] || '',
+      completed_date: pitch?.completed_date?.split('T')[0] || '',
       lead_id: pitch?.lead_id || '',
       secondary_lead_id: pitch?.secondary_lead_id || '',
       notes: pitch?.notes || '',
@@ -159,6 +160,76 @@ export function PitchDetailPage() {
     [users]
   )
 
+  // Watch date fields for real-time reactive status calculation
+  const watchedActualStartDate = useWatch({ control: form.control, name: 'actual_start_date' })
+  const watchedExpectedStartDate = useWatch({ control: form.control, name: 'expected_start_date' })
+  const watchedActualEndDate = useWatch({ control: form.control, name: 'actual_end_date' })
+  const watchedExpectedEndDate = useWatch({ control: form.control, name: 'expected_end_date' })
+  const watchedCompletedDate = useWatch({ control: form.control, name: 'completed_date' })
+
+  // Calculate real-time status based on current form values (reactive before save)
+  // ON_CHANGE: This fires whenever date fields change in edit mode
+  // Uses centralized computeDisplayStatus for BOTH view and edit modes
+  const reactiveStatus = useMemo(() => {
+    if (isEditing) {
+      // EDIT MODE: Compute from form values for immediate feedback
+      return computeDisplayStatus({
+        completed_date: watchedCompletedDate || null,
+        actual_start_date: watchedActualStartDate || null,
+        expected_start_date: watchedExpectedStartDate || null,
+        actual_end_date: watchedActualEndDate || null,
+        expected_end_date: watchedExpectedEndDate || null,
+      })
+    }
+    // VIEW MODE: Compute from stored record (same function, same logic)
+    return computeDisplayStatus({
+      completed_date: pitch?.completed_date || null,
+      actual_start_date: pitch?.actual_start_date || null,
+      expected_start_date: pitch?.expected_start_date || null,
+      actual_end_date: pitch?.actual_end_date || null,
+      expected_end_date: pitch?.expected_end_date || null,
+    })
+  }, [
+    isEditing,
+    watchedCompletedDate,
+    watchedActualStartDate,
+    watchedExpectedStartDate,
+    watchedActualEndDate,
+    watchedExpectedEndDate,
+    pitch?.completed_date,
+    pitch?.actual_start_date,
+    pitch?.expected_start_date,
+    pitch?.actual_end_date,
+    pitch?.expected_end_date,
+  ])
+
+  // ON_CHANGE: Compute reactive key dates from form values in edit mode
+  const reactiveKeyStartDate = useMemo(() => {
+    if (isEditing) {
+      return computeKeyStartDate({
+        actual_start_date: watchedActualStartDate || null,
+        expected_start_date: watchedExpectedStartDate || null,
+      })
+    }
+    return computeKeyStartDate({
+      actual_start_date: pitch?.actual_start_date || null,
+      expected_start_date: pitch?.expected_start_date || null,
+    })
+  }, [isEditing, watchedActualStartDate, watchedExpectedStartDate, pitch?.actual_start_date, pitch?.expected_start_date])
+
+  const reactiveKeyEndDate = useMemo(() => {
+    if (isEditing) {
+      return computeKeyEndDate({
+        actual_end_date: watchedActualEndDate || null,
+        expected_end_date: watchedExpectedEndDate || null,
+      })
+    }
+    return computeKeyEndDate({
+      actual_end_date: pitch?.actual_end_date || null,
+      expected_end_date: pitch?.expected_end_date || null,
+    })
+  }, [isEditing, watchedActualEndDate, watchedExpectedEndDate, pitch?.actual_end_date, pitch?.expected_end_date])
+
   // Reset form and parent selections when pitch data loads - status is computed
   useEffect(() => {
     if (pitch && !isEditing) {
@@ -171,6 +242,7 @@ export function PitchDetailPage() {
         expected_end_date: pitch.expected_end_date?.split('T')[0] || '',
         actual_start_date: pitch.actual_start_date?.split('T')[0] || '',
         actual_end_date: pitch.actual_end_date?.split('T')[0] || '',
+        completed_date: pitch.completed_date?.split('T')[0] || '',
         lead_id: pitch.lead_id || '',
         secondary_lead_id: pitch.secondary_lead_id || '',
         notes: pitch.notes || '',
@@ -185,7 +257,7 @@ export function PitchDetailPage() {
       setSelectedProjectId(project?.id || '')
       setSelectedSetId(pitch.set_id || '')
     }
-  }, [pitch?.id, isEditing])
+  }, [pitch?.id, pitch?.updated_at, isEditing])
 
   // Auto-enter edit mode
   useEffect(() => {
@@ -194,6 +266,12 @@ export function PitchDetailPage() {
       setSearchParams({}, { replace: true })
     }
   }, [shouldEditOnLoad, pitch])
+
+  // BEFORE_COMMIT: Supabase DATE columns reject empty strings silently.
+  // Must convert '' to null so the DB column is actually cleared.
+  // Type assertion needed because mutation types expect undefined, but Supabase needs null.
+  const toNullableDate = (val: string | undefined | null): string | undefined =>
+    val?.trim() ? val.trim() : (null as unknown as undefined)
 
   const handleSave = async (data: PitchFormValues) => {
     if (!pitchId) return
@@ -206,16 +284,19 @@ export function PitchDetailPage() {
         description: data.description,
         urgency: data.urgency as UrgencyLevel,
         importance: data.importance as ImportanceLevel,
-        expected_start_date: data.expected_start_date || undefined,
-        expected_end_date: data.expected_end_date || undefined,
-        actual_start_date: data.actual_start_date || undefined,
-        actual_end_date: data.actual_end_date || undefined,
+        expected_start_date: toNullableDate(data.expected_start_date),
+        expected_end_date: toNullableDate(data.expected_end_date),
+        actual_start_date: toNullableDate(data.actual_start_date),
+        actual_end_date: toNullableDate(data.actual_end_date),
+        completed_date: toNullableDate(data.completed_date),
         lead_id: data.lead_id || undefined,
         secondary_lead_id: data.secondary_lead_id || undefined,
         notes: data.notes,
         show_in_client_portal: data.show_in_client_portal,
         order_manual: data.order_manual,
       })
+      // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
+      // record?.updated_at handle form reset when fresh data arrives from query cache
       setIsEditing(false)
     } finally {
       setIsSaving(false)
@@ -233,6 +314,7 @@ export function PitchDetailPage() {
         expected_end_date: pitch.expected_end_date?.split('T')[0] || '',
         actual_start_date: pitch.actual_start_date?.split('T')[0] || '',
         actual_end_date: pitch.actual_end_date?.split('T')[0] || '',
+        completed_date: pitch.completed_date?.split('T')[0] || '',
         lead_id: pitch.lead_id || '',
         secondary_lead_id: pitch.secondary_lead_id || '',
         notes: pitch.notes || '',
@@ -345,8 +427,8 @@ export function PitchDetailPage() {
                 <span className="text-muted-foreground"> | {pitch.pitch_id_display}</span>
               )}
             </h1>
-            <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)}>
-              {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+            <Badge className={getStatusColor(reactiveStatus)}>
+              {getStatusLabel(reactiveStatus)}
             </Badge>
           </div>
           {/* Parent selection dropdowns - only shown in edit mode */}
@@ -426,19 +508,24 @@ export function PitchDetailPage() {
             )}
           </div>
 
-          {/* Progress section */}
+          {/* Progress section with Key Dates */}
           <div className="space-y-3 mb-6 p-4 rounded-lg bg-muted/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Completion</p>
                 <p className="text-2xl font-bold">{pitch.completion_percentage}%</p>
               </div>
-              {pitch.expected_end_date && (
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Expected End</p>
-                  <p className="font-medium">{formatDate(pitch.expected_end_date)}</p>
+              {/* Key Dates Display - Computed from actual/expected dates, reactive in edit mode */}
+              <div className="flex gap-6">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Key Start</p>
+                  <p className="font-medium">{reactiveKeyStartDate ? formatDate(reactiveKeyStartDate.toISOString()) : '—'}</p>
                 </div>
-              )}
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Key End</p>
+                  <p className="font-medium">{reactiveKeyEndDate ? formatDate(reactiveKeyEndDate.toISOString()) : '—'}</p>
+                </div>
+              </div>
             </div>
             <Progress value={pitch.completion_percentage} className="h-3" />
           </div>
@@ -454,14 +541,14 @@ export function PitchDetailPage() {
               onChange={(v) => form.setValue('name', v)}
               error={form.formState.errors.name?.message}
             />
-            {/* Status is now computed and read-only */}
+            {/* Status is now computed and read-only - shows reactive status during editing */}
             <div className="min-h-[52px]">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Status <span className="text-xs normal-case">(Auto)</span>
               </label>
               <div className="h-9 flex items-center">
-                <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)}>
-                  {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+                <Badge className={getStatusColor(reactiveStatus)}>
+                  {getStatusLabel(reactiveStatus)}
                 </Badge>
               </div>
             </div>
@@ -564,34 +651,41 @@ export function PitchDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                 <ViewEditField
                   type="date"
-                  label="Expected Start"
+                  label="Expected Start Date"
                   isEditing={isEditing}
                   value={form.watch('expected_start_date') || ''}
                   onChange={(v) => form.setValue('expected_start_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Expected End"
+                  label="Expected Due Date"
                   isEditing={isEditing}
                   value={form.watch('expected_end_date') || ''}
                   onChange={(v) => form.setValue('expected_end_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Actual Start"
+                  label="Actual Start Date"
                   isEditing={isEditing}
                   value={form.watch('actual_start_date') || ''}
                   onChange={(v) => form.setValue('actual_start_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Actual End"
+                  label="Actual Due Date"
                   isEditing={isEditing}
                   value={form.watch('actual_end_date') || ''}
                   onChange={(v) => form.setValue('actual_end_date', v)}
+                />
+                <ViewEditField
+                  type="date"
+                  label="Completed Date"
+                  isEditing={isEditing}
+                  value={form.watch('completed_date') || ''}
+                  onChange={(v) => form.setValue('completed_date', v)}
                 />
               </div>
             </CardContent>

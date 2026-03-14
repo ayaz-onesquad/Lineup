@@ -30,7 +30,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Search, FolderKanban, Grid, List, MoreVertical, ExternalLink, Edit, Building2, User } from 'lucide-react'
-import { getStatusColor, getComputedStatusColor, getComputedStatusLabel, getHealthColor, formatDate } from '@/lib/utils'
+import { getHealthColor, formatDate } from '@/lib/utils'
+import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 
 export function ProjectsPage() {
   const [search, setSearch] = useState('')
@@ -135,8 +136,8 @@ export function ProjectsPage() {
             >
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between mb-2">
-                    <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
-                      {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
+                    <Badge className={getStatusColor(computeDisplayStatus(project))}>
+                      {getStatusLabel(computeDisplayStatus(project))}
                     </Badge>
                     <Badge variant="outline" className={getHealthColor(project.health)}>
                       {project.health.replace('_', ' ')}
@@ -218,8 +219,8 @@ export function ProjectsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)} variant="outline">
-                        {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
+                      <Badge className={getStatusColor(computeDisplayStatus(project))} variant="outline">
+                        {getStatusLabel(computeDisplayStatus(project))}
                       </Badge>
                     </TableCell>
                     <TableCell>

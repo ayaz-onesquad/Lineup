@@ -28,7 +28,7 @@ import {
   Layers,
   FolderKanban,
 } from 'lucide-react'
-import { getStatusColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
+import { computeRequirementStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { useUIStore } from '@/stores'
 import type { RequirementWithRelations } from '@/types/database'
 
@@ -64,16 +64,14 @@ export function RequirementsTabbedPanel({
   const { openDetailPanel, openCreateModal } = useUIStore()
   const [activeTab, setActiveTab] = useState<'open' | 'completed'>('open')
 
-  // Split requirements into open and completed
+  // Split requirements into open and completed based on completed_date (actual_end_date)
+  // Per status engine: 'Open' = completed_date IS NULL, 'Completed' = completed_date IS NOT NULL
   const { openRequirements, completedRequirements } = useMemo(() => {
     if (!requirements) return { openRequirements: [], completedRequirements: [] }
 
-    const open = requirements.filter(
-      (r) => r.computed_status !== 'completed' && r.status !== 'completed'
-    )
-    const completed = requirements.filter(
-      (r) => r.computed_status === 'completed' || r.status === 'completed'
-    )
+    // Filter by completed_date (requirements use completed_date as their actual_end_date)
+    const open = requirements.filter((r) => !r.completed_date)
+    const completed = requirements.filter((r) => !!r.completed_date)
 
     return { openRequirements: open, completedRequirements: completed }
   }, [requirements])
@@ -127,12 +125,9 @@ export function RequirementsTabbedPanel({
             </TableHeader>
             <TableBody>
               {reqs.map((req) => {
-                const statusColor = req.computed_status
-                  ? getComputedStatusColor(req.computed_status)
-                  : getStatusColor(req.status)
-                const statusLabel = req.computed_status
-                  ? getComputedStatusLabel(req.computed_status)
-                  : req.status
+                const status = computeRequirementStatus(req)
+                const statusColor = getStatusColor(status)
+                const statusLabel = getStatusLabel(status)
 
                 return (
                   <TableRow

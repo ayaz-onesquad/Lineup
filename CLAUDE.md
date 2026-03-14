@@ -147,6 +147,33 @@ JSON
 { "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
 Environment: Use VITE_ prefix for client-side vars. SUPABASE_SERVICE_ROLE_KEY is server-side ONLY.
 
+The Key Date & Status Engine
+Hierarchy Ripple: Requirements ➔ Pitches ➔ Sets ➔ Phases ➔ Projects.
+
+Key Start Date Logic: - If actual_start_date exists, use it.
+
+Else if child records exist, use the earliest key_start_date of children.
+
+Else use expected_start_date.
+
+Key End/Due Date Logic: - If actual_end_date exists, use it.
+
+Else if child records exist, use the latest key_end_date of children.
+
+Else use expected_end_date.
+
+Automated Status: Status is Read-Only and derived from:
+
+Completed: If completed_date is present.
+
+Past Due: If Key_End_Date < Today AND not completed.
+
+Active: If Key_Start_Date ≤ Today AND no child "Past Due" flags.
+
+On-Deck: If Key_Start_Date is within the next 10 days.
+
+Future: If Key_Start_Date > 10 days from today.
+
 ⌨️ Critical CLI Commands
 Deploy Edge Function: npx supabase functions deploy admin-reset-password --no-verify-jwt
 

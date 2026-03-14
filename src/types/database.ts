@@ -176,8 +176,18 @@ export type PriorityScore = 1 | 2 | 3 | 4 | 5 | 6
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled'
 export type ProjectHealth = 'on_track' | 'at_risk' | 'delayed'
 
-// Computed status values (consistent across all entities)
-export type ComputedStatus = 'completed' | 'past_due' | 'active' | 'on_deck' | 'future'
+// Computed status values (7-option system with "Past Due [Child]" variants)
+// Status is READ-ONLY - automatically calculated from dates and child entity states
+export type ComputedStatus =
+  | 'completed'           // Has actual_end_date
+  | 'past_due'            // Own key_end_date has passed
+  | 'past_due_phases'     // Project has past due phases
+  | 'past_due_sets'       // Project/Phase has past due sets
+  | 'past_due_pitches'    // Project/Phase/Set has past due pitches
+  | 'past_due_requirements' // Any parent has past due requirements
+  | 'active'              // key_start_date <= today
+  | 'on_deck'             // key_start_date within 10 days
+  | 'future'              // key_start_date > 10 days
 
 export interface Project {
   id: string
@@ -197,7 +207,9 @@ export interface Project {
   expected_end_date?: string
   actual_start_date?: string
   actual_end_date?: string
-  completion_date?: string
+  // Completion tracking
+  completed_date?: string
+  completed_by?: string
   // Key dates (rippled from children)
   key_start_date?: string
   key_end_date?: string
@@ -237,6 +249,9 @@ export interface ProjectPhase {
   expected_end_date?: string
   actual_start_date?: string
   actual_end_date?: string
+  // Completion tracking
+  completed_date?: string
+  completed_by?: string
   // Key dates (rippled from children)
   key_start_date?: string
   key_end_date?: string
@@ -281,7 +296,9 @@ export interface Set {
   expected_end_date?: string
   actual_start_date?: string
   actual_end_date?: string
+  // Completion tracking (Sets use completion_date instead of completed_date)
   completion_date?: string
+  completed_by?: string
   // Key dates (rippled from children)
   key_start_date?: string
   key_end_date?: string
@@ -569,7 +586,8 @@ export interface UpdateProjectInput extends Partial<CreateProjectInput> {
   health?: ProjectHealth
   actual_start_date?: string
   actual_end_date?: string
-  completion_date?: string
+  completion_date?: string // Deprecated - use completed_date
+  completed_date?: string
 }
 
 export interface CreatePhaseInput {
@@ -594,6 +612,7 @@ export interface CreatePhaseInput {
 export interface UpdatePhaseInput extends Partial<CreatePhaseInput> {
   actual_start_date?: string
   actual_end_date?: string
+  completed_date?: string
 }
 
 export interface CreateSetInput {
@@ -615,11 +634,20 @@ export interface CreateSetInput {
   show_in_client_portal?: boolean
 }
 
-export interface UpdateSetInput extends Partial<CreateSetInput> {
+export interface UpdateSetInput extends Omit<Partial<CreateSetInput>, 'project_id' | 'phase_id' | 'lead_id' | 'secondary_lead_id' | 'pm_id' | 'expected_start_date' | 'expected_end_date'> {
   status?: SetStatus
-  actual_start_date?: string
-  actual_end_date?: string
-  completion_date?: string
+  // Date fields allow null to explicitly clear the database column
+  actual_start_date?: string | null
+  actual_end_date?: string | null
+  completion_date?: string | null
+  expected_start_date?: string | null
+  expected_end_date?: string | null
+  // UUID fields allow null to explicitly clear the database column
+  project_id?: string | null
+  phase_id?: string | null
+  lead_id?: string | null
+  secondary_lead_id?: string | null
+  pm_id?: string | null
 }
 
 export interface CreateRequirementInput {
@@ -762,6 +790,9 @@ export interface Pitch {
   expected_end_date?: string
   actual_start_date?: string
   actual_end_date?: string
+  // Completion tracking
+  completed_date?: string
+  completed_by?: string
   // Key dates (rippled from children)
   key_start_date?: string
   key_end_date?: string
@@ -812,6 +843,7 @@ export interface UpdatePitchInput extends Partial<Omit<CreatePitchInput, 'set_id
   status?: PitchStatus
   actual_start_date?: string
   actual_end_date?: string
+  completed_date?: string
 }
 
 // Enhanced Phase types (with new fields)

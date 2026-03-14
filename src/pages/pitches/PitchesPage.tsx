@@ -33,7 +33,8 @@ import {
   CheckCircle,
   PlayCircle,
 } from 'lucide-react'
-import { getStatusColor, getComputedStatusColor, getComputedStatusLabel, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { PriorityScore } from '@/types/database'
 
@@ -248,8 +249,8 @@ export function PitchesPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)} variant="outline">
-                          {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+                        <Badge className={getStatusColor(computeDisplayStatus(pitch))} variant="outline">
+                          {getStatusLabel(computeDisplayStatus(pitch))}
                         </Badge>
                       </TableCell>
                       <TableCell>

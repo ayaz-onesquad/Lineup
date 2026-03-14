@@ -8,6 +8,7 @@ import { useRequirementsBySet } from '@/hooks/useRequirements'
 import { usePitchesBySet } from '@/hooks/usePitches'
 import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
+import { usePhasesByProject } from '@/hooks/usePhases'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,8 @@ import {
   Wallet,
   Presentation,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getComputedStatusLabel, getComputedStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { formatDate, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -64,6 +66,7 @@ const setFormSchema = z.object({
   description: z.string().optional(),
   client_id: z.string().min(1, 'Client is required'),
   project_id: z.string().optional(),
+  phase_id: z.string().optional(), // Phase within the project
   // Status is now computed and read-only - removed from form
   urgency: z.enum(['low', 'medium', 'high', 'critical']),
   importance: z.enum(['low', 'medium', 'high']),
@@ -71,6 +74,8 @@ const setFormSchema = z.object({
   expected_end_date: z.string().optional(),
   actual_start_date: z.string().optional(),
   actual_end_date: z.string().optional(),
+  // Completion tracking - sets completed_date to mark as "Completed"
+  completed_date: z.string().optional(),
   // Team fields - editable in detail page
   lead_id: z.string().optional(),
   secondary_lead_id: z.string().optional(),
@@ -111,12 +116,14 @@ export function SetDetailPage() {
       description: set?.description || '',
       client_id: set?.client_id || set?.projects?.client_id || '',
       project_id: set?.project_id || '',
+      phase_id: set?.phase_id || '',
       urgency: set?.urgency || 'medium',
       importance: set?.importance || 'medium',
       expected_start_date: set?.expected_start_date?.split('T')[0] || '',
       expected_end_date: set?.expected_end_date?.split('T')[0] || '',
       actual_start_date: set?.actual_start_date?.split('T')[0] || '',
       actual_end_date: set?.actual_end_date?.split('T')[0] || '',
+      completed_date: set?.completion_date?.split('T')[0] || '',
       lead_id: set?.lead_id || '',
       secondary_lead_id: set?.secondary_lead_id || '',
       pm_id: set?.pm_id || '',
@@ -126,8 +133,90 @@ export function SetDetailPage() {
     },
   })
 
-  // Watch client_id for cascading project filter
+  // Watch client_id and project_id for cascading filters
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' })
+  const selectedProjectId = useWatch({ control: form.control, name: 'project_id' })
+
+  // Watch date fields for real-time reactive status calculation
+  const watchedActualStartDate = useWatch({ control: form.control, name: 'actual_start_date' })
+  const watchedExpectedStartDate = useWatch({ control: form.control, name: 'expected_start_date' })
+  const watchedActualEndDate = useWatch({ control: form.control, name: 'actual_end_date' })
+  const watchedExpectedEndDate = useWatch({ control: form.control, name: 'expected_end_date' })
+  const watchedCompletedDate = useWatch({ control: form.control, name: 'completed_date' })
+
+  // Calculate real-time status based on current form values (reactive before save)
+  // ON_CHANGE: This fires whenever date fields change in edit mode
+  // Uses centralized computeDisplayStatus for BOTH view and edit modes
+  const reactiveStatus = useMemo(() => {
+    if (isEditing) {
+      // EDIT MODE: Compute from form values for immediate feedback
+      // Note: Sets use completion_date (not completed_date)
+      return computeDisplayStatus({
+        completion_date: watchedCompletedDate || null,
+        actual_start_date: watchedActualStartDate || null,
+        expected_start_date: watchedExpectedStartDate || null,
+        actual_end_date: watchedActualEndDate || null,
+        expected_end_date: watchedExpectedEndDate || null,
+        key_start_date: set?.key_start_date || null,
+        key_end_date: set?.key_end_date || null,
+      })
+    }
+    // VIEW MODE: Compute from stored record (same function, same logic)
+    // AFTER_COMMIT: Query cache refresh triggers this recomputation
+    return computeDisplayStatus({
+      completion_date: set?.completion_date || null,
+      actual_start_date: set?.actual_start_date || null,
+      expected_start_date: set?.expected_start_date || null,
+      actual_end_date: set?.actual_end_date || null,
+      expected_end_date: set?.expected_end_date || null,
+      key_start_date: set?.key_start_date || null,
+      key_end_date: set?.key_end_date || null,
+    })
+  }, [
+    isEditing,
+    watchedCompletedDate,
+    watchedActualStartDate,
+    watchedExpectedStartDate,
+    watchedActualEndDate,
+    watchedExpectedEndDate,
+    set?.completion_date,
+    set?.actual_start_date,
+    set?.expected_start_date,
+    set?.actual_end_date,
+    set?.expected_end_date,
+    set?.key_start_date,
+    set?.key_end_date,
+  ])
+
+  // ON_CHANGE: Compute reactive key dates from form values in edit mode
+  const reactiveKeyStartDate = useMemo(() => {
+    if (isEditing) {
+      return computeKeyStartDate({
+        actual_start_date: watchedActualStartDate || null,
+        expected_start_date: watchedExpectedStartDate || null,
+      })
+    }
+    return computeKeyStartDate({
+      actual_start_date: set?.actual_start_date || null,
+      expected_start_date: set?.expected_start_date || null,
+    })
+  }, [isEditing, watchedActualStartDate, watchedExpectedStartDate, set?.actual_start_date, set?.expected_start_date])
+
+  const reactiveKeyEndDate = useMemo(() => {
+    if (isEditing) {
+      return computeKeyEndDate({
+        actual_end_date: watchedActualEndDate || null,
+        expected_end_date: watchedExpectedEndDate || null,
+      })
+    }
+    return computeKeyEndDate({
+      actual_end_date: set?.actual_end_date || null,
+      expected_end_date: set?.expected_end_date || null,
+    })
+  }, [isEditing, watchedActualEndDate, watchedExpectedEndDate, set?.actual_end_date, set?.expected_end_date])
+
+  // Fetch phases for the selected project
+  const { data: projectPhases } = usePhasesByProject(selectedProjectId || '')
 
   // Filter projects by selected client
   const filteredProjects = useMemo(() => {
@@ -151,6 +240,16 @@ export function SetDetailPage() {
     [filteredProjects]
   )
 
+  // Phase options for the selected project
+  const phaseOptions = useMemo(() =>
+    projectPhases?.map((p) => ({
+      value: p.id,
+      label: p.name,
+      description: `Order: ${p.phase_order}`,
+    })) || [],
+    [projectPhases]
+  )
+
   // User options for team member dropdowns - use user_profiles.id
   const userOptions = useMemo(() =>
     users?.filter((u) => u.user_profiles?.id).map((u) => ({
@@ -168,12 +267,14 @@ export function SetDetailPage() {
         description: set.description || '',
         client_id: set.client_id || set.projects?.client_id || '',
         project_id: set.project_id || '',
+        phase_id: set.phase_id || '',
         urgency: set.urgency,
         importance: set.importance,
         expected_start_date: set.expected_start_date?.split('T')[0] || '',
         expected_end_date: set.expected_end_date?.split('T')[0] || '',
         actual_start_date: set.actual_start_date?.split('T')[0] || '',
         actual_end_date: set.actual_end_date?.split('T')[0] || '',
+        completed_date: set.completion_date?.split('T')[0] || '',
         lead_id: set.lead_id || '',
         secondary_lead_id: set.secondary_lead_id || '',
         pm_id: set.pm_id || '',
@@ -182,7 +283,7 @@ export function SetDetailPage() {
         set_order: set.set_order ?? undefined,
       })
     }
-  }, [set?.id, isEditing])
+  }, [set?.id, set?.updated_at, isEditing])
 
   // Auto-enter edit mode when ?edit=true is in URL
   useEffect(() => {
@@ -198,21 +299,26 @@ export function SetDetailPage() {
     setIsSaving(true)
     try {
       // Status is computed from dates, not editable
+      // completed_date triggers auto-fill of completed_by via database trigger
+      // BEFORE_COMMIT: normalize empty date strings to null so DB column is cleared
+      // Using `null` (not `undefined`) ensures Supabase updates the column to NULL
       await updateSet.mutateAsync({
         id: setId,
         name: data.name,
         description: data.description,
         client_id: data.client_id,
-        project_id: data.project_id || undefined,
+        project_id: data.project_id || null,
+        phase_id: data.phase_id || null,
         urgency: data.urgency as UrgencyLevel,
         importance: data.importance as ImportanceLevel,
-        expected_start_date: data.expected_start_date || undefined,
-        expected_end_date: data.expected_end_date || undefined,
-        actual_start_date: data.actual_start_date || undefined,
-        actual_end_date: data.actual_end_date || undefined,
-        lead_id: data.lead_id || undefined,
-        secondary_lead_id: data.secondary_lead_id || undefined,
-        pm_id: data.pm_id || undefined,
+        expected_start_date: data.expected_start_date?.trim() || null,
+        expected_end_date: data.expected_end_date?.trim() || null,
+        actual_start_date: data.actual_start_date?.trim() || null,
+        actual_end_date: data.actual_end_date?.trim() || null,
+        completion_date: data.completed_date?.trim() || null, // Sets use completion_date column
+        lead_id: data.lead_id || null,
+        secondary_lead_id: data.secondary_lead_id || null,
+        pm_id: data.pm_id || null,
         budget_days: data.budget_days,
         budget_hours: data.budget_hours,
         set_order: data.set_order,
@@ -229,12 +335,14 @@ export function SetDetailPage() {
       description: set?.description || '',
       client_id: set?.client_id || set?.projects?.client_id || '',
       project_id: set?.project_id || '',
+      phase_id: set?.phase_id || '',
       urgency: set?.urgency || 'medium',
       importance: set?.importance || 'medium',
       expected_start_date: set?.expected_start_date?.split('T')[0] || '',
       expected_end_date: set?.expected_end_date?.split('T')[0] || '',
       actual_start_date: set?.actual_start_date?.split('T')[0] || '',
       actual_end_date: set?.actual_end_date?.split('T')[0] || '',
+      completed_date: set?.completion_date?.split('T')[0] || '',
       lead_id: set?.lead_id || '',
       secondary_lead_id: set?.secondary_lead_id || '',
       pm_id: set?.pm_id || '',
@@ -309,8 +417,8 @@ export function SetDetailPage() {
               {isEditing ? form.watch('name') : set.name}
               {set.display_id && <span className="text-muted-foreground"> | ID: {set.display_id}</span>}
             </h1>
-            <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)}>
-              {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
+            <Badge className={getStatusColor(reactiveStatus)}>
+              {getStatusLabel(reactiveStatus)}
             </Badge>
             <Badge
               variant="outline"
@@ -371,19 +479,24 @@ export function SetDetailPage() {
             )}
           </div>
 
-          {/* Progress section - always visible */}
+          {/* Progress section with Key Dates - always visible */}
           <div className="space-y-3 mb-6 p-4 rounded-lg bg-muted/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Overall Progress</p>
                 <p className="text-2xl font-bold">{set.completion_percentage}%</p>
               </div>
-              {set.expected_end_date && (
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Expected End</p>
-                  <p className="font-medium">{formatDate(set.expected_end_date)}</p>
+              {/* Key Dates Display - Computed from actual/expected dates, reactive in edit mode */}
+              <div className="flex gap-6">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Key Start</p>
+                  <p className="font-medium">{reactiveKeyStartDate ? formatDate(reactiveKeyStartDate.toISOString()) : '—'}</p>
                 </div>
-              )}
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Key End</p>
+                  <p className="font-medium">{reactiveKeyEndDate ? formatDate(reactiveKeyEndDate.toISOString()) : '—'}</p>
+                </div>
+              </div>
             </div>
             <Progress value={set.completion_percentage} className="h-3" />
           </div>
@@ -399,14 +512,14 @@ export function SetDetailPage() {
               onChange={(v) => form.setValue('name', v)}
               error={form.formState.errors.name?.message}
             />
-            {/* Status is now computed and read-only */}
+            {/* Status is now computed and read-only - shows reactive status during editing */}
             <div className="min-h-[52px]">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Status <span className="text-xs normal-case">(Auto)</span>
               </label>
               <div className="h-9 flex items-center">
-                <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)}>
-                  {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
+                <Badge className={getStatusColor(reactiveStatus)}>
+                  {getStatusLabel(reactiveStatus)}
                 </Badge>
               </div>
             </div>
@@ -554,12 +667,32 @@ export function SetDetailPage() {
                     <p className="text-muted-foreground">—</p>
                   )}
                 </div>
-                {set.project_phases && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Phase</p>
-                    <p>{set.project_phases.name}</p>
-                  </div>
-                )}
+                {/* Phase - Editable dropdown (only when project is selected) */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Phase</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={phaseOptions}
+                      value={form.watch('phase_id') || ''}
+                      onValueChange={(value) => form.setValue('phase_id', value || '')}
+                      placeholder="Select phase (optional)..."
+                      searchPlaceholder="Search phases..."
+                      emptyMessage={selectedProjectId ? "No phases found for this project." : "Select a project first."}
+                      clearable
+                      disabled={!selectedProjectId}
+                    />
+                  ) : set.project_phases ? (
+                    <Link
+                      to={`/phases/${set.phase_id}`}
+                      className="font-medium hover:underline flex items-center gap-1"
+                    >
+                      <Calendar className="h-3 w-3" />
+                      {set.project_phases.name}
+                    </Link>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
+                </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Completion</p>
                   <p>{set.completion_percentage}%</p>
@@ -602,34 +735,41 @@ export function SetDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                 <ViewEditField
                   type="date"
-                  label="Expected Start"
+                  label="Expected Start Date"
                   isEditing={isEditing}
                   value={form.watch('expected_start_date') || ''}
                   onChange={(v) => form.setValue('expected_start_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Expected End"
+                  label="Expected Due Date"
                   isEditing={isEditing}
                   value={form.watch('expected_end_date') || ''}
                   onChange={(v) => form.setValue('expected_end_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Actual Start"
+                  label="Actual Start Date"
                   isEditing={isEditing}
                   value={form.watch('actual_start_date') || ''}
                   onChange={(v) => form.setValue('actual_start_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Actual End"
+                  label="Actual Due Date"
                   isEditing={isEditing}
                   value={form.watch('actual_end_date') || ''}
                   onChange={(v) => form.setValue('actual_end_date', v)}
+                />
+                <ViewEditField
+                  type="date"
+                  label="Completed Date"
+                  isEditing={isEditing}
+                  value={form.watch('completed_date') || ''}
+                  onChange={(v) => form.setValue('completed_date', v)}
                 />
               </div>
             </CardContent>
@@ -870,8 +1010,8 @@ export function SetDetailPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)} variant="outline">
-                            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+                          <Badge className={getStatusColor(computeDisplayStatus(pitch))} variant="outline">
+                            {getStatusLabel(computeDisplayStatus(pitch))}
                           </Badge>
                         </TableCell>
                         <TableCell>

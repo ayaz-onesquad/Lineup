@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useProjectWithHierarchy, useProjectMutations } from '@/hooks/useProjects'
@@ -49,7 +49,8 @@ import {
   Users,
   Presentation,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
+import { formatDate, getHealthColor } from '@/lib/utils'
+import { computeDisplayStatus, computeRequirementStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -69,6 +70,8 @@ const projectFormSchema = z.object({
   expected_end_date: z.string().optional(),
   actual_start_date: z.string().optional(),
   actual_end_date: z.string().optional(),
+  // Completion tracking - sets completed_date to mark as "Completed"
+  completed_date: z.string().optional(),
   lead_id: z.string().optional(),
   secondary_lead_id: z.string().optional(),
   pm_id: z.string().optional(),
@@ -117,11 +120,90 @@ export function ProjectDetailPage() {
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
       actual_start_date: project?.actual_start_date?.split('T')[0] || '',
       actual_end_date: project?.actual_end_date?.split('T')[0] || '',
+      completed_date: project?.completed_date?.split('T')[0] || '',
       lead_id: project?.lead_id || '',
       secondary_lead_id: project?.secondary_lead_id || '',
       pm_id: project?.pm_id || '',
     },
   })
+
+  // Watch date fields for real-time reactive status calculation
+  const watchedActualStartDate = useWatch({ control: form.control, name: 'actual_start_date' })
+  const watchedExpectedStartDate = useWatch({ control: form.control, name: 'expected_start_date' })
+  const watchedActualEndDate = useWatch({ control: form.control, name: 'actual_end_date' })
+  const watchedExpectedEndDate = useWatch({ control: form.control, name: 'expected_end_date' })
+  const watchedCompletedDate = useWatch({ control: form.control, name: 'completed_date' })
+
+  // Calculate real-time status based on current form values (reactive before save)
+  // ON_CHANGE: This fires whenever date fields change in edit mode
+  // Uses centralized computeDisplayStatus for BOTH view and edit modes
+  const reactiveStatus = useMemo(() => {
+    if (isEditing) {
+      // EDIT MODE: Compute from form values for immediate feedback
+      return computeDisplayStatus({
+        completed_date: watchedCompletedDate || null,
+        actual_start_date: watchedActualStartDate || null,
+        expected_start_date: watchedExpectedStartDate || null,
+        actual_end_date: watchedActualEndDate || null,
+        expected_end_date: watchedExpectedEndDate || null,
+        key_start_date: project?.key_start_date || null,
+        key_end_date: project?.key_end_date || null,
+      })
+    }
+    // VIEW MODE: Compute from stored record (same function, same logic)
+    // AFTER_COMMIT: Query cache refresh triggers this recomputation
+    return computeDisplayStatus({
+      completed_date: project?.completed_date || null,
+      actual_start_date: project?.actual_start_date || null,
+      expected_start_date: project?.expected_start_date || null,
+      actual_end_date: project?.actual_end_date || null,
+      expected_end_date: project?.expected_end_date || null,
+      key_start_date: project?.key_start_date || null,
+      key_end_date: project?.key_end_date || null,
+    })
+  }, [
+    isEditing,
+    watchedCompletedDate,
+    watchedActualStartDate,
+    watchedExpectedStartDate,
+    watchedActualEndDate,
+    watchedExpectedEndDate,
+    project?.completed_date,
+    project?.actual_start_date,
+    project?.expected_start_date,
+    project?.actual_end_date,
+    project?.expected_end_date,
+    project?.key_start_date,
+    project?.key_end_date,
+  ])
+
+  // ON_CHANGE: Compute reactive key dates from form values in edit mode
+  // Uses computeKeyStartDate/computeKeyEndDate for consistent logic
+  const reactiveKeyStartDate = useMemo(() => {
+    if (isEditing) {
+      return computeKeyStartDate({
+        actual_start_date: watchedActualStartDate || null,
+        expected_start_date: watchedExpectedStartDate || null,
+      })
+    }
+    return computeKeyStartDate({
+      actual_start_date: project?.actual_start_date || null,
+      expected_start_date: project?.expected_start_date || null,
+    })
+  }, [isEditing, watchedActualStartDate, watchedExpectedStartDate, project?.actual_start_date, project?.expected_start_date])
+
+  const reactiveKeyEndDate = useMemo(() => {
+    if (isEditing) {
+      return computeKeyEndDate({
+        actual_end_date: watchedActualEndDate || null,
+        expected_end_date: watchedExpectedEndDate || null,
+      })
+    }
+    return computeKeyEndDate({
+      actual_end_date: project?.actual_end_date || null,
+      expected_end_date: project?.expected_end_date || null,
+    })
+  }, [isEditing, watchedActualEndDate, watchedExpectedEndDate, project?.actual_end_date, project?.expected_end_date])
 
   // Reset form when project data loads - status is computed
   useEffect(() => {
@@ -134,12 +216,13 @@ export function ProjectDetailPage() {
         expected_end_date: project.expected_end_date?.split('T')[0] || '',
         actual_start_date: project.actual_start_date?.split('T')[0] || '',
         actual_end_date: project.actual_end_date?.split('T')[0] || '',
+        completed_date: project.completed_date?.split('T')[0] || '',
         lead_id: project.lead_id || '',
         secondary_lead_id: project.secondary_lead_id || '',
         pm_id: project.pm_id || '',
       })
     }
-  }, [project?.id, isEditing])
+  }, [project?.id, project?.updated_at, isEditing])
 
   // Auto-enter edit mode when ?edit=true is in URL
   useEffect(() => {
@@ -170,24 +253,34 @@ export function ProjectDetailPage() {
     setExpandedSets(newExpanded)
   }
 
+  // BEFORE_COMMIT: Supabase DATE columns reject empty strings silently.
+  // Must convert '' to null so the DB column is actually cleared.
+  // Type assertion needed because mutation types expect undefined, but Supabase needs null.
+  const toNullableDate = (val: string | undefined | null): string | undefined =>
+    val?.trim() ? val.trim() : (null as unknown as undefined)
+
   const handleSaveProject = async (data: ProjectFormValues) => {
     if (!projectId) return
     setIsSaving(true)
     try {
       // Status is computed from dates, not editable
+      // completed_date triggers auto-fill of completed_by via database trigger
       await updateProject.mutateAsync({
         id: projectId,
         name: data.name,
         description: data.description,
         health: data.health as ProjectHealth,
-        expected_start_date: data.expected_start_date || undefined,
-        expected_end_date: data.expected_end_date || undefined,
-        actual_start_date: data.actual_start_date || undefined,
-        actual_end_date: data.actual_end_date || undefined,
+        expected_start_date: toNullableDate(data.expected_start_date),
+        expected_end_date: toNullableDate(data.expected_end_date),
+        actual_start_date: toNullableDate(data.actual_start_date),
+        actual_end_date: toNullableDate(data.actual_end_date),
+        completed_date: toNullableDate(data.completed_date),
         lead_id: data.lead_id || undefined,
         secondary_lead_id: data.secondary_lead_id || undefined,
         pm_id: data.pm_id || undefined,
       })
+      // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
+      // record?.updated_at handle form reset when fresh data arrives from query cache
       setIsEditing(false)
     } finally {
       setIsSaving(false)
@@ -203,6 +296,7 @@ export function ProjectDetailPage() {
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
       actual_start_date: project?.actual_start_date?.split('T')[0] || '',
       actual_end_date: project?.actual_end_date?.split('T')[0] || '',
+      completed_date: project?.completed_date?.split('T')[0] || '',
       lead_id: project?.lead_id || '',
       secondary_lead_id: project?.secondary_lead_id || '',
       pm_id: project?.pm_id || '',
@@ -255,8 +349,8 @@ export function ProjectDetailPage() {
               {isEditing ? form.watch('name') : project.name}
               {project.display_id && <span className="text-muted-foreground"> | ID: {project.display_id}</span>}
             </h1>
-            <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
-              {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
+            <Badge className={getStatusColor(reactiveStatus)}>
+              {getStatusLabel(reactiveStatus)}
             </Badge>
             <Badge variant="outline" className={getHealthColor(project.health)}>
               {project.health.replace('_', ' ')}
@@ -350,14 +444,14 @@ export function ProjectDetailPage() {
               onChange={(v) => form.setValue('name', v)}
               error={form.formState.errors.name?.message}
             />
-            {/* Status is now computed and read-only */}
+            {/* Status is now computed and read-only - shows reactive status during editing */}
             <div className="min-h-[52px]">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Status <span className="text-xs normal-case">(Auto)</span>
               </label>
               <div className="h-9 flex items-center">
-                <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>
-                  {project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}
+                <Badge className={getStatusColor(reactiveStatus)}>
+                  {getStatusLabel(reactiveStatus)}
                 </Badge>
               </div>
             </div>
@@ -526,8 +620,8 @@ export function ProjectDetailPage() {
                         <TableCell className="font-medium">{set.name}</TableCell>
                         <TableCell>{set.project_phases?.name || '—'}</TableCell>
                         <TableCell>
-                          <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)} variant="outline">
-                            {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
+                          <Badge className={getStatusColor(computeDisplayStatus(set))} variant="outline">
+                            {getStatusLabel(computeDisplayStatus(set))}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -588,12 +682,17 @@ export function ProjectDetailPage() {
                     <p className="text-sm text-muted-foreground">Overall Completion</p>
                     <p className="text-2xl font-bold">{project.completion_percentage}%</p>
                   </div>
-                  {project.expected_end_date && (
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Due Date</p>
-                      <p className="font-medium">{formatDate(project.expected_end_date)}</p>
+                  {/* Key Dates Display - Computed from actual/expected dates, reactive in edit mode */}
+                  <div className="flex gap-6">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Key Start</p>
+                      <p className="font-medium">{reactiveKeyStartDate ? formatDate(reactiveKeyStartDate.toISOString()) : '—'}</p>
                     </div>
-                  )}
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Key End</p>
+                      <p className="font-medium">{reactiveKeyEndDate ? formatDate(reactiveKeyEndDate.toISOString()) : '—'}</p>
+                    </div>
+                  </div>
                 </div>
                 <Progress value={project.completion_percentage} className="h-3" />
               </div>
@@ -626,34 +725,41 @@ export function ProjectDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                 <ViewEditField
                   type="date"
-                  label="Expected Start"
+                  label="Expected Start Date"
                   isEditing={isEditing}
                   value={form.watch('expected_start_date') || ''}
                   onChange={(v) => form.setValue('expected_start_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Expected End"
+                  label="Expected Due Date"
                   isEditing={isEditing}
                   value={form.watch('expected_end_date') || ''}
                   onChange={(v) => form.setValue('expected_end_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Actual Start"
+                  label="Actual Start Date"
                   isEditing={isEditing}
                   value={form.watch('actual_start_date') || ''}
                   onChange={(v) => form.setValue('actual_start_date', v)}
                 />
                 <ViewEditField
                   type="date"
-                  label="Actual End"
+                  label="Actual Due Date"
                   isEditing={isEditing}
                   value={form.watch('actual_end_date') || ''}
                   onChange={(v) => form.setValue('actual_end_date', v)}
+                />
+                <ViewEditField
+                  type="date"
+                  label="Completed Date"
+                  isEditing={isEditing}
+                  value={form.watch('completed_date') || ''}
+                  onChange={(v) => form.setValue('completed_date', v)}
                 />
               </div>
             </CardContent>
@@ -839,8 +945,8 @@ export function ProjectDetailPage() {
                           <Badge variant="outline">{req.requirement_type}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge className={req.computed_status ? getComputedStatusColor(req.computed_status) : getStatusColor(req.status)} variant="outline">
-                            {req.computed_status ? getComputedStatusLabel(req.computed_status) : req.status}
+                          <Badge className={getStatusColor(computeRequirementStatus(req))} variant="outline">
+                            {getStatusLabel(computeRequirementStatus(req))}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -973,8 +1079,8 @@ export function ProjectDetailPage() {
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)} variant="outline">
-                            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+                          <Badge className={getStatusColor(computeDisplayStatus(pitch))} variant="outline">
+                            {getStatusLabel(computeDisplayStatus(pitch))}
                           </Badge>
                         </TableCell>
                         <TableCell>

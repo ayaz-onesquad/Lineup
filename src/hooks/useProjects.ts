@@ -77,9 +77,12 @@ export function useProjectMutations() {
   const updateProject = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateProjectInput) =>
       projectsApi.update(id, user!.id, input),
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
+      // Force immediate refetch for instant UI update
+      await queryClient.refetchQueries({ queryKey: ['project', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['projects'] })
-      queryClient.invalidateQueries({ queryKey: ['project', variables.id] })
+      // Also invalidate hierarchy view
+      queryClient.invalidateQueries({ queryKey: ['project', variables.id, 'hierarchy'] })
       toast({
         title: 'Project updated',
         description: 'The project has been updated successfully.',

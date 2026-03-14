@@ -75,9 +75,12 @@ export function getStatusColor(status: string): string {
     not_started: 'bg-gray-100 text-gray-800',
     in_progress: 'bg-blue-100 text-blue-800',
     blocked: 'bg-red-100 text-red-800',
-    open: 'bg-gray-100 text-gray-800',
-    // Computed status values
+    // Computed status values (7-option system)
     past_due: 'bg-red-500 text-white',
+    past_due_phases: 'bg-red-400 text-white',
+    past_due_sets: 'bg-red-400 text-white',
+    past_due_pitches: 'bg-red-400 text-white',
+    past_due_requirements: 'bg-red-400 text-white',
     on_deck: 'bg-amber-100 text-amber-800',
     future: 'bg-gray-100 text-gray-600',
   }
@@ -87,29 +90,56 @@ export function getStatusColor(status: string): string {
 /**
  * Computed status types and labels
  * Computed status is automatically calculated from dates and child entity states
+ * Status is READ-ONLY - 7-option system with "Past Due [Child]" variants
  */
-export type ComputedStatusType = 'completed' | 'past_due' | 'active' | 'on_deck' | 'future'
+export type ComputedStatusType =
+  | 'completed'
+  | 'past_due'
+  | 'past_due_phases'
+  | 'past_due_sets'
+  | 'past_due_pitches'
+  | 'past_due_requirements'
+  | 'active'
+  | 'on_deck'
+  | 'future'
 
 export function getComputedStatusLabel(status: ComputedStatusType | string): string {
   const labels: Record<string, string> = {
     completed: 'Completed',
     past_due: 'Past Due',
+    past_due_phases: 'Past Due Phases',
+    past_due_sets: 'Past Due Sets',
+    past_due_pitches: 'Past Due Pitches',
+    past_due_requirements: 'Past Due Requirements',
     active: 'Active',
     on_deck: 'On Deck',
     future: 'Future',
   }
-  return labels[status] || status.replace('_', ' ')
+  return labels[status] || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 export function getComputedStatusColor(status: ComputedStatusType | string): string {
   const colors: Record<string, string> = {
     completed: 'bg-green-100 text-green-800',
     past_due: 'bg-red-500 text-white',
+    // Past Due [Child] variants - slightly different red shades to indicate inherited status
+    past_due_phases: 'bg-red-400 text-white',
+    past_due_sets: 'bg-red-400 text-white',
+    past_due_pitches: 'bg-red-400 text-white',
+    past_due_requirements: 'bg-red-400 text-white',
     active: 'bg-blue-100 text-blue-800',
     on_deck: 'bg-amber-100 text-amber-800',
     future: 'bg-gray-100 text-gray-600',
   }
   return colors[status] || 'bg-gray-100 text-gray-800'
+}
+
+/**
+ * Check if a status is any variant of "past due"
+ */
+export function isPastDueStatus(status: string | null | undefined): boolean {
+  if (!status) return false
+  return status.startsWith('past_due')
 }
 
 /**
@@ -123,6 +153,88 @@ export function getDisplayStatus(
     return { status: computedStatus, isComputed: true }
   }
   return { status: manualStatus, isComputed: false }
+}
+
+/**
+ * Parse a date string in a timezone-agnostic way
+ * Handles YYYY-MM-DD format by treating it as local midnight, not UTC
+ * This prevents off-by-one errors when comparing dates across timezones
+ */
+function parseLocalDate(dateStr: string): Date {
+  // If it's a date-only string (YYYY-MM-DD), parse as local time
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const d = new Date(year, month - 1, day)
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  // Otherwise use standard parsing for full timestamps
+  const d = new Date(dateStr)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/**
+ * Get today's date at local midnight for comparison
+ */
+function getLocalToday(): Date {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return today
+}
+
+/**
+ * Calculate local computed status for real-time reactive UI
+ * Follows the 6-level priority tree:
+ * Priority 1: IF completed_date IS NOT NULL → 'Completed'
+ * Priority 2: ELSE IF actual_end_date < TODAY (fallback to expected_end_date) → 'Past Due'
+ * Priority 3: (Child past due - handled at parent level, not here)
+ * Priority 4: ELSE IF key_start_date <= TODAY → 'Active' (TAKES PRECEDENCE over On-Deck)
+ * Priority 5: ELSE IF key_start_date <= (TODAY + 10 days) → 'On-Deck'
+ * Priority 6: ELSE → 'Future'
+ *
+ * IMPORTANT: Uses timezone-agnostic date parsing to prevent off-by-one errors
+ */
+export function calculateLocalComputedStatus(params: {
+  completedDate?: string | null
+  actualEndDate?: string | null
+  expectedEndDate?: string | null
+  keyStartDate?: string | null
+  keyEndDate?: string | null
+}): ComputedStatusType {
+  const today = getLocalToday()
+
+  // Priority 1: Completed (takes absolute precedence)
+  if (params.completedDate) {
+    return 'completed'
+  }
+
+  // Priority 2: Own Past Due (actual_end_date < TODAY, fallback to expected_end_date)
+  const effectiveEndDate = params.actualEndDate || params.expectedEndDate
+  if (effectiveEndDate) {
+    const endDate = parseLocalDate(effectiveEndDate)
+    if (endDate < today) {
+      return 'past_due'
+    }
+  }
+
+  // Priority 4: Active (key_start_date <= today) - TAKES PRECEDENCE over On-Deck
+  if (params.keyStartDate) {
+    const startDate = parseLocalDate(params.keyStartDate)
+    if (startDate <= today) {
+      return 'active'
+    }
+
+    // Priority 5: On-Deck (key_start_date within 10 days from today)
+    const tenDaysFromNow = new Date(today)
+    tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10)
+    if (startDate <= tenDaysFromNow) {
+      return 'on_deck'
+    }
+  }
+
+  // Priority 6: Future
+  return 'future'
 }
 
 export function getHealthColor(health: string): string {

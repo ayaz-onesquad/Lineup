@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useRequirements, useRequirementMutations } from '@/hooks/useRequirements'
+import { useRequirements } from '@/hooks/useRequirements'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,13 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -31,13 +25,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Plus, Search, CheckSquare, Kanban, List, GripVertical, MoreVertical, ExternalLink, Edit, Info } from 'lucide-react'
 import { formatDate, getInitials, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
-import type { RequirementWithRelations, RequirementStatus } from '@/types/database'
+import { computeRequirementStatus, getStatusLabel, getStatusColor, isPastDueStatus } from '@/utils/statusUtils'
+import type { RequirementWithRelations, ComputedStatus } from '@/types/database'
 
-const statusColumns: { status: RequirementStatus; label: string; color: string }[] = [
-  { status: 'open', label: 'Open', color: 'bg-gray-100' },
-  { status: 'in_progress', label: 'In Progress', color: 'bg-blue-100' },
-  { status: 'blocked', label: 'Blocked', color: 'bg-red-100' },
-  { status: 'completed', label: 'Completed', color: 'bg-green-100' },
+// Computed status columns for Kanban (status is now READ-ONLY)
+const statusColumns: { status: ComputedStatus | 'past_due'; label: string; color: string; borderColor: string }[] = [
+  { status: 'active', label: 'Active', color: 'bg-blue-50', borderColor: 'border-t-blue-500' },
+  { status: 'on_deck', label: 'On Deck', color: 'bg-amber-50', borderColor: 'border-t-amber-500' },
+  { status: 'past_due', label: 'Past Due', color: 'bg-red-50', borderColor: 'border-t-red-500' },
+  { status: 'completed', label: 'Completed', color: 'bg-green-50', borderColor: 'border-t-green-500' },
 ]
 
 export function RequirementsPage() {
@@ -46,24 +42,27 @@ export function RequirementsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
   const { data: requirements, isLoading } = useRequirements()
-  const { updateStatus } = useRequirementMutations()
   const { openCreateModal, openDetailPanel } = useUIStore()
 
   const filteredRequirements = requirements?.filter((req) => {
     const matchesSearch =
       req.title.toLowerCase().includes(search.toLowerCase()) ||
-      req.sets?.name.toLowerCase().includes(search.toLowerCase()) ||
-      req.sets?.projects?.name.toLowerCase().includes(search.toLowerCase())
+      req.sets?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      req.sets?.projects?.name?.toLowerCase().includes(search.toLowerCase())
     const matchesType = typeFilter === 'all' || req.requirement_type === typeFilter
     return matchesSearch && matchesType
   })
 
-  const getRequirementsByStatus = (status: RequirementStatus) => {
-    return filteredRequirements?.filter((req) => req.status === status)
-  }
-
-  const handleStatusChange = (reqId: string, newStatus: RequirementStatus) => {
-    updateStatus.mutate({ id: reqId, status: newStatus })
+  // Get requirements by computed status (status is now READ-ONLY calculated from dates)
+  const getRequirementsByStatus = (status: ComputedStatus | 'past_due') => {
+    return filteredRequirements?.filter((req) => {
+      const computedStatus = req.computed_status || 'future'
+      // 'past_due' column should include all past_due variants
+      if (status === 'past_due') {
+        return isPastDueStatus(computedStatus)
+      }
+      return computedStatus === status
+    })
   }
 
   const renderRequirementCard = (req: RequirementWithRelations) => (
@@ -180,16 +179,11 @@ export function RequirementsPage() {
           ))}
         </div>
       ) : viewMode === 'kanban' ? (
-        /* Kanban Board */
+        /* Kanban Board - Status is READ-ONLY computed from dates */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto">
           {statusColumns.map((column) => (
             <div key={column.status} className="flex flex-col">
-              <Card className={`${column.color} border-t-4 ${
-                column.status === 'open' ? 'border-t-gray-400' :
-                column.status === 'in_progress' ? 'border-t-blue-500' :
-                column.status === 'blocked' ? 'border-t-red-500' :
-                'border-t-green-500'
-              }`}>
+              <Card className={`${column.color} border-t-4 ${column.borderColor}`}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center justify-between">
                     {column.label}
@@ -296,26 +290,10 @@ export function RequirementsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Select
-                          value={req.status}
-                          onValueChange={(value) =>
-                            handleStatusChange(req.id, value as RequirementStatus)
-                          }
-                        >
-                          <SelectTrigger
-                            className="w-[120px] h-8"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {statusColumns.map((col) => (
-                              <SelectItem key={col.status} value={col.status}>
-                                {col.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {/* Status is READ-ONLY - computed from dates */}
+                        <Badge className={getStatusColor(computeRequirementStatus(req))}>
+                          {getStatusLabel(computeRequirementStatus(req))}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>

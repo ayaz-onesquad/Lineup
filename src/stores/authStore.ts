@@ -9,10 +9,14 @@ interface AuthState {
   role: UserRole | null
   isLoading: boolean
   isAuthenticated: boolean
+  // isInitialized: true only AFTER first getSession() resolves in AuthProvider
+  // This prevents premature redirects from persisted localStorage values
+  isInitialized: boolean
   setUser: (user: User | null) => void
   setProfile: (profile: UserProfile | null) => void
   setRole: (role: UserRole | null) => void
   setLoading: (loading: boolean) => void
+  setInitialized: () => void
   logout: () => void
 }
 
@@ -24,6 +28,9 @@ export const useAuthStore = create<AuthState>()(
       role: null,
       isLoading: true,
       isAuthenticated: false,
+      // CRITICAL: isInitialized starts false and is set true only after getSession() resolves
+      // This MUST NOT be persisted - it must reset to false on every page load
+      isInitialized: false,
 
       setUser: (user) =>
         set({
@@ -36,6 +43,10 @@ export const useAuthStore = create<AuthState>()(
       setRole: (role) => set({ role }),
 
       setLoading: (isLoading) => set({ isLoading }),
+
+      // LIFECYCLE: Called AFTER getSession() resolves in AuthProvider
+      // Enables AuthGuard redirects only after live session is confirmed
+      setInitialized: () => set({ isInitialized: true }),
 
       logout: () =>
         set({

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
@@ -7,9 +7,14 @@ import { toast } from '@/hooks/use-toast'
 /**
  * Hook for authentication operations
  * Auth state is managed by AuthProvider, this hook provides mutations
+ *
+ * POST-LOGIN REDIRECT:
+ * After successful login, checks for ?returnTo= param and navigates there.
+ * Falls back to /onboarding if no returnTo param present.
  */
 export function useAuth() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const {
     user,
@@ -54,8 +59,27 @@ export function useAuth() {
         title: 'Welcome back!',
         description: 'You have been signed in.',
       })
-      // Navigate to onboarding - it will redirect based on role/tenants
-      navigate('/onboarding')
+
+      // POST-LOGIN REDIRECT: Check for returnTo param from AuthGuard redirect
+      const returnTo = searchParams.get('returnTo')
+      if (returnTo) {
+        const decoded = decodeURIComponent(returnTo)
+        // SECURITY: Validate returnTo to prevent open redirect attacks
+        // Must start with '/' (relative) and NOT be a protocol-relative URL ('//')
+        const isValidReturnTo =
+          decoded.startsWith('/') &&
+          !decoded.startsWith('//') &&
+          !decoded.toLowerCase().startsWith('/http')
+        if (isValidReturnTo) {
+          navigate(decoded, { replace: true })
+        } else {
+          // Invalid returnTo - fall back to safe default
+          navigate('/onboarding')
+        }
+      } else {
+        // Default: Navigate to onboarding - it will redirect based on role/tenants
+        navigate('/onboarding')
+      }
     },
     onError: (error: Error) => {
       toast({

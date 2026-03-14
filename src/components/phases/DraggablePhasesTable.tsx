@@ -39,7 +39,8 @@ import {
   Plus,
   Layers,
 } from 'lucide-react'
-import { getStatusColor, formatDate, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import type { ProjectPhase } from '@/types/database'
 import type { EntityType } from '@/stores/uiStore'
 
@@ -121,8 +122,8 @@ function SortablePhaseRow({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-lg">{phase.name}</CardTitle>
-                  <Badge className={phase.computed_status ? getComputedStatusColor(phase.computed_status) : getStatusColor(phase.status)}>
-                    {phase.computed_status ? getComputedStatusLabel(phase.computed_status) : phase.status.replace('_', ' ')}
+                  <Badge className={getStatusColor(computeDisplayStatus(phase))}>
+                    {getStatusLabel(computeDisplayStatus(phase))}
                   </Badge>
                 </div>
                 <CardDescription>

@@ -313,7 +313,8 @@ export function useKpiDrillDownItems(type: 'sets' | 'pitches' | 'tasks' | 'requi
           .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId},pm_id.eq.${userProfileId}`)
 
         if (filter === 'past_due') {
-          query = query.eq('computed_status', 'past_due')
+          // Use like to match all past_due variants (past_due, past_due_pitches, past_due_requirements)
+          query = query.like('computed_status', 'past_due%')
         } else if (filter === 'active') {
           query = query.in('computed_status', ['active', 'on_deck', 'future'])
         }
@@ -328,7 +329,8 @@ export function useKpiDrillDownItems(type: 'sets' | 'pitches' | 'tasks' | 'requi
           .or(`lead_id.eq.${userProfileId},secondary_lead_id.eq.${userProfileId}`)
 
         if (filter === 'past_due') {
-          query = query.eq('computed_status', 'past_due')
+          // Use like to match all past_due variants (past_due, past_due_requirements)
+          query = query.like('computed_status', 'past_due%')
         } else if (filter === 'active') {
           query = query.in('computed_status', ['active', 'on_deck', 'future'])
         }
@@ -344,6 +346,7 @@ export function useKpiDrillDownItems(type: 'sets' | 'pitches' | 'tasks' | 'requi
           .not('computed_status', 'eq', 'completed')
 
         if (filter === 'past_due') {
+          // Requirements only have simple past_due status (no children)
           query = query.eq('computed_status', 'past_due')
         } else if (filter === 'active') {
           query = query.in('computed_status', ['active', 'on_deck', 'future'])
@@ -360,6 +363,7 @@ export function useKpiDrillDownItems(type: 'sets' | 'pitches' | 'tasks' | 'requi
           .not('computed_status', 'eq', 'completed')
 
         if (filter === 'past_due') {
+          // Requirements only have simple past_due status (no children)
           query = query.eq('computed_status', 'past_due')
         } else if (filter === 'active') {
           query = query.in('computed_status', ['active', 'on_deck', 'future'])

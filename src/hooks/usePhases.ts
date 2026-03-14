@@ -103,13 +103,14 @@ export function usePhaseMutations() {
   const updatePhase = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdatePhaseInput }) =>
       phasesApi.update(id, user!.id, data),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // Force immediate refetch for instant UI update
+      await queryClient.refetchQueries({ queryKey: phaseKeys.detail(data.id) })
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: phaseKeys.detail(data.id) })
       queryClient.invalidateQueries({ queryKey: phaseKeys.byTenant(currentTenantId!) })
       if (data.project_id) {
         queryClient.invalidateQueries({ queryKey: phaseKeys.byProject(data.project_id) })
-        queryClient.invalidateQueries({ queryKey: ['projects', data.project_id] })
+        queryClient.invalidateQueries({ queryKey: ['project', data.project_id] })
       }
       toast({
         title: 'Phase updated',

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRequirement, useRequirementMutations } from '@/hooks/useRequirements'
@@ -26,7 +26,8 @@ import {
   Users,
   Clock,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getComputedStatusLabel, getComputedStatusColor, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { formatDate, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
+import { computeRequirementStatus, computeKeyDueDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -119,6 +120,63 @@ export function RequirementDetailPage() {
     },
   })
 
+  // Watch date fields for real-time reactive status calculation
+  const watchedActualDueDate = useWatch({ control: form.control, name: 'actual_due_date' })
+  const watchedExpectedDueDate = useWatch({ control: form.control, name: 'expected_due_date' })
+  const watchedCompletedDate = useWatch({ control: form.control, name: 'completed_date' })
+
+  // Calculate real-time status based on current form values (reactive before save)
+  // ON_CHANGE: This fires whenever date fields change in edit mode
+  // Uses centralized computeRequirementStatus for BOTH view and edit modes
+  const reactiveStatus = useMemo(() => {
+    if (isEditing) {
+      // EDIT MODE: Compute from form values for immediate feedback
+      return computeRequirementStatus({
+        completed_date: watchedCompletedDate || null,
+        actual_due_date: watchedActualDueDate || null,
+        expected_due_date: watchedExpectedDueDate || null,
+        key_due_date: requirement?.key_due_date || null,
+        actual_start_date: requirement?.actual_start_date || null,
+        expected_start_date: requirement?.expected_start_date || null,
+      })
+    }
+    // VIEW MODE: Compute from stored record (same function, same logic)
+    // AFTER_COMMIT: Query cache refresh triggers this recomputation
+    return computeRequirementStatus({
+      completed_date: requirement?.completed_date || null,
+      actual_due_date: requirement?.actual_due_date || null,
+      expected_due_date: requirement?.expected_due_date || null,
+      key_due_date: requirement?.key_due_date || null,
+      actual_start_date: requirement?.actual_start_date || null,
+      expected_start_date: requirement?.expected_start_date || null,
+    })
+  }, [
+    isEditing,
+    watchedCompletedDate,
+    watchedActualDueDate,
+    watchedExpectedDueDate,
+    requirement?.completed_date,
+    requirement?.actual_due_date,
+    requirement?.expected_due_date,
+    requirement?.key_due_date,
+    requirement?.actual_start_date,
+    requirement?.expected_start_date,
+  ])
+
+  // ON_CHANGE: Compute reactive key due date from form values in edit mode
+  const reactiveKeyDueDate = useMemo(() => {
+    if (isEditing) {
+      return computeKeyDueDate({
+        actual_due_date: watchedActualDueDate || null,
+        expected_due_date: watchedExpectedDueDate || null,
+      })
+    }
+    return computeKeyDueDate({
+      actual_due_date: requirement?.actual_due_date || null,
+      expected_due_date: requirement?.expected_due_date || null,
+    })
+  }, [isEditing, watchedActualDueDate, watchedExpectedDueDate, requirement?.actual_due_date, requirement?.expected_due_date])
+
   // Reset form when requirement data loads - status is computed
   useEffect(() => {
     if (requirement && !isEditing) {
@@ -142,7 +200,7 @@ export function RequirementDetailPage() {
         requirement_order: requirement.requirement_order ?? undefined,
       })
     }
-  }, [requirement?.id, isEditing])
+  }, [requirement?.id, requirement?.updated_at, isEditing])
 
   // Auto-enter edit mode when ?edit=true is in URL
   useEffect(() => {
@@ -151,6 +209,12 @@ export function RequirementDetailPage() {
       setSearchParams({}, { replace: true })
     }
   }, [shouldEditOnLoad, requirement])
+
+  // BEFORE_COMMIT: Supabase DATE columns reject empty strings silently.
+  // Must convert '' to null so the DB column is actually cleared.
+  // Type assertion needed because mutation types expect undefined, but Supabase needs null.
+  const toNullableDate = (val: string | undefined | null): string | undefined =>
+    val?.trim() ? val.trim() : (null as unknown as undefined)
 
   const handleSaveRequirement = async (data: RequirementFormValues) => {
     if (!requirementId) return
@@ -170,13 +234,15 @@ export function RequirementDetailPage() {
         review_status: data.review_status as ReviewStatus,
         assigned_to_id: data.assigned_to_id || undefined,
         reviewer_id: data.reviewer_id || undefined,
-        expected_due_date: data.expected_due_date || undefined,
-        actual_due_date: data.actual_due_date || undefined,
-        completed_date: data.completed_date || undefined,
+        expected_due_date: toNullableDate(data.expected_due_date),
+        actual_due_date: toNullableDate(data.actual_due_date),
+        completed_date: toNullableDate(data.completed_date),
         estimated_hours: data.estimated_hours,
         actual_hours: data.actual_hours,
         requirement_order: data.requirement_order,
       })
+      // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
+      // record?.updated_at handle form reset when fresh data arrives from query cache
       setIsEditing(false)
     } finally {
       setIsSaving(false)
@@ -268,8 +334,8 @@ export function RequirementDetailPage() {
                 <span className="text-muted-foreground"> | ID: {requirement.display_id}</span>
               )}
             </h1>
-            <Badge className={requirement.computed_status ? getComputedStatusColor(requirement.computed_status) : getStatusColor(requirement.status)}>
-              {requirement.computed_status ? getComputedStatusLabel(requirement.computed_status) : requirement.status}
+            <Badge className={getStatusColor(reactiveStatus)}>
+              {getStatusLabel(reactiveStatus)}
             </Badge>
             <Badge variant="outline">{requirement.requirement_type}</Badge>
           </div>
@@ -343,14 +409,14 @@ export function RequirementDetailPage() {
               value={form.watch('is_task')}
               onChange={(v) => form.setValue('is_task', v)}
             />
-            {/* Status is now computed and read-only */}
+            {/* Status is now computed and read-only - shows reactive status during editing */}
             <div className="min-h-[52px]">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Status <span className="text-xs normal-case">(Auto)</span>
               </label>
               <div className="h-9 flex items-center">
-                <Badge className={requirement.computed_status ? getComputedStatusColor(requirement.computed_status) : getStatusColor(requirement.status)}>
-                  {requirement.computed_status ? getComputedStatusLabel(requirement.computed_status) : requirement.status}
+                <Badge className={getStatusColor(reactiveStatus)}>
+                  {getStatusLabel(reactiveStatus)}
                 </Badge>
               </div>
             </div>
@@ -492,6 +558,18 @@ export function RequirementDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
+              {/* Key Due Date Display - Computed from actual/expected dates, reactive in edit mode */}
+              <div className="mb-4 p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Key Due Date</p>
+                    <p className="text-lg font-semibold">{reactiveKeyDueDate ? formatDate(reactiveKeyDueDate.toISOString()) : '—'}</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Auto-calculated from actual or expected dates
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-3 gap-6">
                 <ViewEditField
                   type="date"

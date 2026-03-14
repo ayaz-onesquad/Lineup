@@ -17,7 +17,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Plus, Search, Layers, Grid, LayoutGrid } from 'lucide-react'
-import { getStatusColor, getComputedStatusColor, getComputedStatusLabel, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
+import { getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
+import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import type { SetWithRelations } from '@/types/database'
 
 export function SetsPage() {
@@ -52,8 +53,8 @@ export function SetsPage() {
     >
       <div className="flex items-center justify-between mb-2">
         <span className="font-medium text-sm truncate">{set.name}</span>
-        <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)} variant="outline">
-          {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
+        <Badge className={getStatusColor(computeDisplayStatus(set))} variant="outline">
+          {getStatusLabel(computeDisplayStatus(set))}
         </Badge>
       </div>
       <p className="text-xs text-muted-foreground truncate mb-2">
@@ -268,8 +269,8 @@ export function SetsPage() {
                         })()}
                       </TableCell>
                       <TableCell>
-                        <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)} variant="outline">
-                          {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
+                        <Badge className={getStatusColor(computeDisplayStatus(set))} variant="outline">
+                          {getStatusLabel(computeDisplayStatus(set))}
                         </Badge>
                       </TableCell>
                       <TableCell>

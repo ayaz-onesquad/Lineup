@@ -118,9 +118,15 @@ export function usePitchMutations() {
   const updatePitch = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdatePitchInput) =>
       pitchesApi.update(id, user!.id, input),
-    onSuccess: async (_data, variables) => {
+    onSuccess: async (data, variables) => {
+      // Force immediate refetch for instant UI update
       await queryClient.refetchQueries({ queryKey: ['pitch', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['pitches'] })
+      // Invalidate parent set to refresh computed status
+      if (data?.set_id) {
+        queryClient.invalidateQueries({ queryKey: ['set', data.set_id] })
+        queryClient.invalidateQueries({ queryKey: ['sets'] })
+      }
       toast({
         title: 'Pitch updated',
         description: 'The pitch has been updated successfully.',

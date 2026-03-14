@@ -24,6 +24,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (mounted) {
           setUser(session?.user ?? null)
           setLoading(false)
+          // AFTER_SESSION_RESOLVE: mark auth as fully initialized — enables AuthGuard redirects
+          // This MUST come after setUser so the auth state is correct before guards run
+          useAuthStore.getState().setInitialized()
           setReady(true)
         }
       } catch {
@@ -31,6 +34,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (mounted) {
           setUser(null)
           setLoading(false)
+          // Also mark initialized on error so guards can handle unauthenticated state
+          useAuthStore.getState().setInitialized()
           setReady(true)
         }
       }

@@ -6,74 +6,97 @@ import { useTenant } from '@/hooks/useTenant'
 import { Loader2 } from 'lucide-react'
 import type { UserRole } from '@/types/database'
 
+/**
+ * LIFECYCLE:
+ * ON_MOUNT: Reads session from Supabase (async, ~300-600ms)
+ * DURING_LOAD: Render spinner — NEVER redirect
+ * AFTER_LOAD (authenticated): Render children at original URL
+ * AFTER_LOAD (unauthenticated): Redirect to /login?returnTo=<current>
+ * AFTER_LOGIN: Redirect to returnTo param or default dashboard
+ *
+ * AuthGuard - Base Authentication Guard
+ *
+ * This guard handles authentication and role-based routing:
+ *
+ * 1. Unauthenticated users → /login?returnTo=<current>
+ * 2. sys_admin users → /admin (Plane A - they don't belong in tenant space)
+ * 3. Users with no role AND no tenant → /onboarding
+ * 4. Users with requiredRole mismatch → appropriate redirect
+ *
+ * CRITICAL: All redirect logic is consolidated into a SINGLE useEffect
+ * to prevent race conditions during page refresh.
+ *
+ * useUserRole is the single source of truth for role-based decisions.
+ */
+
 interface AuthGuardProps {
   children: React.ReactNode
   requiredRole?: UserRole
 }
 
-/**
- * AuthGuard - Base Authentication Guard
- *
- * This guard handles authentication and role-based routing:
- *
- * 1. Unauthenticated users → /login
- * 2. sys_admin users → /admin (Plane A - they don't belong in tenant space)
- * 3. Users with no role AND no tenant → /onboarding
- * 4. Users with requiredRole mismatch → appropriate redirect
- *
- * useUserRole is the single source of truth for role-based decisions.
- */
 export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated, isLoading: authLoading } = useAuthStore()
+  const { isAuthenticated, isInitialized, isLoading: authLoading } = useAuthStore()
   const { role, isLoading: roleLoading } = useUserRole()
   const { tenants, isLoading: tenantsLoading } = useTenant()
 
+  // Combined loading state - ALL async operations must complete before any redirect
+  // CRITICAL: isInitialized MUST be checked separately (not in isLoading) because
+  // it gates whether we trust the other values at all
   const isLoading = authLoading || roleLoading || tenantsLoading
 
-  // Redirect unauthenticated users to login
+  // CONSOLIDATED REDIRECT LOGIC
+  // All redirect decisions are made in this single effect to prevent race conditions
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`, {
-        replace: true,
-      })
+    // GATE 1: Never redirect until session has been confirmed from Supabase at least once.
+    // This prevents the persisted localStorage value from triggering premature redirects
+    // on page refresh or dev server restart.
+    if (!isInitialized) {
+      return
     }
-  }, [authLoading, isAuthenticated, navigate, location])
 
-  // Handle sys_admin users - they belong in Plane A (Admin Portal)
-  useEffect(() => {
-    if (!isLoading && isAuthenticated && role === 'sys_admin') {
+    // GATE 2: Never redirect while ANY loading state is true
+    // This prevents the "refresh redirects to home" bug
+    if (isLoading) {
+      return
+    }
+
+    // Priority 1: Unauthenticated → /login with returnTo param
+    if (!isAuthenticated) {
+      const returnTo = encodeURIComponent(location.pathname + location.search)
+      navigate(`/login?returnTo=${returnTo}`, { replace: true })
+      return
+    }
+
+    // Priority 2: sys_admin → /admin (Plane A)
+    if (role === 'sys_admin') {
       navigate('/admin', { replace: true })
+      return
     }
-  }, [isLoading, isAuthenticated, role, navigate])
 
-  // Handle users with no role AND no tenant - send to onboarding
-  useEffect(() => {
-    if (!isLoading && isAuthenticated && role !== 'sys_admin') {
-      // User is authenticated but has no role and no tenants
-      if (!role && tenants.length === 0) {
-        navigate('/onboarding', { replace: true })
-      }
+    // Priority 3: No role AND no tenant → /onboarding
+    if (!role && tenants.length === 0) {
+      navigate('/onboarding', { replace: true })
+      return
     }
-  }, [isLoading, isAuthenticated, role, tenants.length, navigate])
 
-  // Handle requiredRole mismatch
-  useEffect(() => {
-    if (!isLoading && isAuthenticated && requiredRole && role && role !== requiredRole) {
-      // Redirect based on actual role
+    // Priority 4: requiredRole mismatch → redirect based on actual role
+    // Note: sys_admin already handled in Priority 2, so only client_user or org roles remain
+    if (requiredRole && role && role !== requiredRole) {
       if (role === 'client_user') {
         navigate('/portal', { replace: true })
-      } else if (role === 'sys_admin') {
-        navigate('/admin', { replace: true })
       } else {
         navigate('/dashboard', { replace: true })
       }
+      return
     }
-  }, [isLoading, isAuthenticated, requiredRole, role, navigate])
+  }, [isInitialized, isLoading, isAuthenticated, role, tenants.length, requiredRole, navigate, location.pathname, location.search])
 
-  // Show loading while checking auth, role, and tenants
-  if (isLoading) {
+  // Show loading spinner while session is initializing or checking auth, role, and tenants
+  // CRITICAL: This MUST return before any redirect logic runs
+  // Render spinner for entire time isInitialized === false (prevents flash of redirect)
+  if (!isInitialized || isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -81,15 +104,14 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     )
   }
 
-  // Show spinner during redirect transitions (prevents blank screen)
-  // Note: Don't show redirect spinner if we're already at the destination
+  // Determine if we're in a redirecting state (show spinner during navigation)
   const isOnOnboarding = location.pathname === '/onboarding'
   const needsOnboarding = !role && tenants.length === 0
 
   const isRedirecting =
     !isAuthenticated ||
     role === 'sys_admin' ||
-    (needsOnboarding && !isOnOnboarding) || // Only redirect if NOT already on onboarding
+    (needsOnboarding && !isOnOnboarding) ||
     (requiredRole && role !== requiredRole)
 
   if (isRedirecting) {
