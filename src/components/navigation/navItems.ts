@@ -14,6 +14,8 @@ import {
   ListOrdered,
   Shield,
   UsersRound,
+  Lock,
+  DollarSign,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -60,6 +62,12 @@ export const settingsChildItems: NavItem[] = [
   { href: '/settings/team', label: 'Team', icon: UsersRound },
   { href: '/settings/security', label: 'Security', icon: Shield },
 ]
+
+// Password Manager - org_admin only (filtered in Sidebar)
+export const passwordManagerItem: NavItem = { href: '/passwords', label: 'Password Manager', icon: Lock }
+
+// Financial Manager - org_admin only (filtered in Sidebar)
+export const financialManagerItem: NavItem = { href: '/financials', label: 'Financials', icon: DollarSign }
 
 // Settings - All items (legacy - for backwards compatibility)
 export const settingsItems: NavItem[] = [

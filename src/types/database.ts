@@ -1095,3 +1095,150 @@ export interface MyWorkItem {
   pitch_name?: string
   created_at: string
 }
+
+// ============================================================================
+// PASSWORD MANAGER TYPES
+// ============================================================================
+
+export interface Password {
+  id: string
+  display_id: number | null
+  tenant_id: string
+  application_name: string
+  url: string | null
+  username: string | null
+  email: string | null
+  password: string
+  category: string | null
+  notes: string | null
+  password_changed_at: string | null
+  created_at: string
+  created_by: string | null
+  updated_at: string
+  updated_by: string | null
+  deleted_at: string | null
+  // Joined profile data (from API select with creator/updater joins)
+  creator?: { full_name: string | null; avatar_url: string | null }
+  updater?: { full_name: string | null; avatar_url: string | null }
+}
+
+export interface CreatePasswordInput {
+  application_name: string
+  url?: string | null
+  username?: string | null
+  email?: string | null
+  password: string
+  category?: string | null
+  notes?: string | null
+  password_changed_at?: string | null
+}
+
+export type UpdatePasswordInput = Partial<CreatePasswordInput>
+
+// ============================================================================
+// FINANCIAL MANAGER TYPES
+// ============================================================================
+
+// ─── Financial Groups ────────────────────────────────────────
+export interface FinancialGroup {
+  id: string
+  tenant_id: string
+  name: string
+  type: 'expense' | 'revenue' | 'both'
+  color: string | null
+  created_at: string
+  created_by: string | null
+  updated_at: string
+  updated_by: string | null
+  deleted_at: string | null
+}
+
+export interface CreateFinancialGroupInput {
+  name: string
+  type: 'expense' | 'revenue' | 'both'
+  color?: string | null
+}
+
+export type UpdateFinancialGroupInput = Partial<CreateFinancialGroupInput>
+
+// ─── Financial Entries ───────────────────────────────────────
+export interface FinancialEntry {
+  id: string
+  display_id: string | null
+  tenant_id: string
+  type: 'expense' | 'revenue'
+  group_id: string | null
+  name: string
+  description: string | null
+  amount: number
+  currency: string
+  is_recurring: boolean
+  frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null
+  recurrence_day: number | null
+  start_date: string
+  end_date: string | null
+  client_id: string | null
+  vendor: string | null
+  reference_number: string | null
+  created_at: string
+  created_by: string | null
+  updated_at: string
+  updated_by: string | null
+  deleted_at: string | null
+  // Joined
+  group?: FinancialGroup | null
+  client?: { id: string; name: string } | null
+  creator?: { full_name: string | null; avatar_url: string | null }
+  updater?: { full_name: string | null; avatar_url: string | null }
+  occurrences?: FinancialOccurrence[]
+}
+
+export interface CreateFinancialEntryInput {
+  type: 'expense' | 'revenue'
+  group_id?: string | null
+  name: string
+  description?: string | null
+  amount: number
+  currency?: string
+  is_recurring: boolean
+  frequency?: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null
+  recurrence_day?: number | null
+  start_date: string
+  end_date?: string | null
+  client_id?: string | null
+  vendor?: string | null
+  reference_number?: string | null
+}
+
+export type UpdateFinancialEntryInput = Partial<CreateFinancialEntryInput>
+
+// ─── Financial Occurrences ───────────────────────────────────
+export interface FinancialOccurrence {
+  id: string
+  tenant_id: string
+  entry_id: string
+  due_date: string
+  amount: number
+  currency: string
+  status: 'pending' | 'paid' | 'received' | 'overdue' | 'cancelled'
+  paid_date: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface CreateFinancialOccurrenceInput {
+  entry_id: string
+  due_date: string
+  amount: number
+  currency?: string
+  status?: 'pending' | 'paid' | 'received' | 'overdue' | 'cancelled'
+}
+
+export interface UpdateFinancialOccurrenceInput {
+  status?: 'pending' | 'paid' | 'received' | 'overdue' | 'cancelled'
+  paid_date?: string | null
+  amount?: number
+  notes?: string | null
+}

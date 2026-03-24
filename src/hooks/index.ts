@@ -106,3 +106,16 @@ export {
 
 // Form utilities
 export { useScrollToError, createScrollableSubmit } from './useScrollToError'
+
+// Password Manager hooks
+export { usePasswords, usePassword, usePasswordMutations } from './usePasswords'
+
+// Financial Manager hooks
+export {
+  useFinancialGroups,
+  useFinancialEntries,
+  useFinancialEntry,
+  useFinancialGroupMutations,
+  useFinancialEntryMutations,
+  useFinancialOccurrenceMutations,
+} from './useFinancials'

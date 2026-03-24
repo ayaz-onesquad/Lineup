@@ -21,6 +21,8 @@ import { PitchForm } from '@/components/forms/PitchForm'
 import { RequirementForm } from '@/components/forms/RequirementForm'
 import { ContactForm } from '@/components/forms/ContactForm'
 import { LeadForm } from '@/components/forms/LeadForm'
+import { PasswordForm } from '@/components/forms/PasswordForm'
+import { FinancialEntryForm } from '@/components/forms/FinancialEntryForm'
 
 export function CreateModal() {
   const { createModalOpen, createModalType, createModalContext, closeCreateModal } =
@@ -88,7 +90,7 @@ export function CreateModal() {
         </DialogHeader>
 
         <Tabs defaultValue={createModalType || 'requirement'} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 overflow-x-auto">
+          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10 overflow-x-auto">
             <TabsTrigger value="lead">Lead</TabsTrigger>
             <TabsTrigger value="client">Client</TabsTrigger>
             <TabsTrigger value="contact">Contact</TabsTrigger>
@@ -97,6 +99,8 @@ export function CreateModal() {
             <TabsTrigger value="set">Set</TabsTrigger>
             <TabsTrigger value="pitch">Pitch</TabsTrigger>
             <TabsTrigger value="requirement">Task</TabsTrigger>
+            <TabsTrigger value="password">Password</TabsTrigger>
+            <TabsTrigger value="financial_entry">Financial</TabsTrigger>
           </TabsList>
 
           <TabsContent value="lead" className="mt-4">
@@ -149,6 +153,18 @@ export function CreateModal() {
             <RequirementForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Task')}
+            />
+          </TabsContent>
+
+          <TabsContent value="password" className="mt-4">
+            <PasswordForm
+              onSuccess={() => handleSuccess('Password')}
+            />
+          </TabsContent>
+
+          <TabsContent value="financial_entry" className="mt-4">
+            <FinancialEntryForm
+              onSuccess={() => handleSuccess('Financial Entry')}
             />
           </TabsContent>
         </Tabs>

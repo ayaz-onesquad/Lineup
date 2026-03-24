@@ -38,6 +38,9 @@ import { TemplatesPage } from '@/pages/templates/TemplatesPage'
 import { DocumentsPage } from '@/pages/documents/DocumentsPage'
 import { NotesPage, NoteDetailPage } from '@/pages/notes'
 import { DiscussionsPage, DiscussionDetailPage } from '@/pages/discussions'
+import { PasswordsPage, PasswordDetailPage } from '@/pages/passwords'
+import { FinancialsPage } from '@/pages/financials/FinancialsPage'
+import { FinancialEntryDetailPage } from '@/pages/financials/FinancialEntryDetailPage'
 
 // Client Portal
 import { PortalLoginPage } from '@/pages/portal/PortalLoginPage'
@@ -137,6 +140,12 @@ function App() {
               <Route path="/settings/team" element={<TeamPage />} />
               <Route path="/settings/document-catalog" element={<DocumentCatalogPage />} />
               <Route path="/my-tickets" element={<MyTicketsPage />} />
+              {/* Password Manager - org_admin only (RLS enforced at DB level) */}
+              <Route path="/passwords" element={<PasswordsPage />} />
+              <Route path="/passwords/:passwordId" element={<PasswordDetailPage />} />
+              {/* Financial Manager - org_admin only (RLS enforced at DB level) */}
+              <Route path="/financials" element={<FinancialsPage />} />
+              <Route path="/financials/:entryId" element={<FinancialEntryDetailPage />} />
             </Route>
 
             {/* Client Portal Routes */}

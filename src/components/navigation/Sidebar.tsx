@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useUIStore } from '@/stores'
+import { useUserRole } from '@/hooks/useUserRole'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -15,11 +16,15 @@ import {
 } from '@/components/ui/collapsible'
 import { ChevronLeft, ChevronRight, ChevronDown, Plus, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { navGroups, settingsChildItems } from './navItems'
+import { navGroups, settingsChildItems, passwordManagerItem, financialManagerItem } from './navItems'
 
 export function Sidebar() {
   const location = useLocation()
   const { sidebarCollapsed, setSidebarCollapsed, settingsExpanded, setSettingsExpanded, openCreateModal } = useUIStore()
+  const { role } = useUserRole()
+
+  // Check if user is org_admin or sys_admin
+  const isOrgAdmin = role === 'org_admin' || role === 'sys_admin'
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
@@ -167,6 +172,48 @@ export function Sidebar() {
                   </Tooltip>
                 )
               })}
+              {/* Password Manager - org_admin only */}
+              {isOrgAdmin && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to={passwordManagerItem.href}
+                      aria-label={passwordManagerItem.label}
+                      aria-current={isActive(passwordManagerItem.href) ? 'page' : undefined}
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+                        isActive(passwordManagerItem.href)
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-muted'
+                      )}
+                    >
+                      <passwordManagerItem.icon className="h-5 w-5" aria-hidden="true" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{passwordManagerItem.label}</TooltipContent>
+                </Tooltip>
+              )}
+              {/* Financial Manager - org_admin only */}
+              {isOrgAdmin && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to={financialManagerItem.href}
+                      aria-label={financialManagerItem.label}
+                      aria-current={isActive(financialManagerItem.href) ? 'page' : undefined}
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+                        isActive(financialManagerItem.href)
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-muted'
+                      )}
+                    >
+                      <financialManagerItem.icon className="h-5 w-5" aria-hidden="true" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{financialManagerItem.label}</TooltipContent>
+                </Tooltip>
+              )}
             </nav>
           ) : (
             /* Expanded sidebar - collapsible settings group */
@@ -224,6 +271,38 @@ export function Sidebar() {
                     </Link>
                   )
                 })}
+                {/* Password Manager - org_admin only */}
+                {isOrgAdmin && (
+                  <Link
+                    to={passwordManagerItem.href}
+                    aria-current={isActive(passwordManagerItem.href) ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      isActive(passwordManagerItem.href)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    )}
+                  >
+                    <passwordManagerItem.icon className="h-5 w-5" aria-hidden="true" />
+                    {passwordManagerItem.label}
+                  </Link>
+                )}
+                {/* Financial Manager - org_admin only */}
+                {isOrgAdmin && (
+                  <Link
+                    to={financialManagerItem.href}
+                    aria-current={isActive(financialManagerItem.href) ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      isActive(financialManagerItem.href)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    )}
+                  >
+                    <financialManagerItem.icon className="h-5 w-5" aria-hidden="true" />
+                    {financialManagerItem.label}
+                  </Link>
+                )}
               </CollapsibleContent>
             </Collapsible>
           )}

@@ -3,7 +3,35 @@
     "allow": [
       "Bash(npm run build:*)",
       "Bash(npm install:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Skill(gsd:map-codebase)",
+      "Bash(wc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: map existing codebase\n\n- STACK.md - Technologies and dependencies\n- ARCHITECTURE.md - System design and patterns\n- STRUCTURE.md - Directory layout\n- CONVENTIONS.md - Code style and patterns\n- TESTING.md - Test structure\n- INTEGRATIONS.md - External services\n- CONCERNS.md - Technical debt and issues\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Skill(gsd:plan-phase)",
+      "WebSearch",
+      "Skill(gsd:execute-phase)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(npx supabase:*)",
+      "Bash(lsof:*)",
+      "Bash(npm run dev:*)",
+      "Bash(claude config mcp add:*)",
+      "Bash(claude mcp add context7 \"npx -y @upstash/context7-mcp@latest\")",
+      "WebFetch(domain:playwright.dev)",
+      "Bash(npx playwright test:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.dndkit.com)",
+      "Skill(gsd:progress)",
+      "Bash(find:*)",
+      "Skill(gsd:debug)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run test:e2e:*)",
+      "Bash(xargs:*)",
+      "Bash(echo:*)",
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
     ]
   }
 }

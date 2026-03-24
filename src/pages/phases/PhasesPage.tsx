@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Search, Calendar } from 'lucide-react'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
-import { format } from 'date-fns'
+import { formatDate } from '@/lib/utils'
 import type { EnhancedProjectPhase } from '@/types/database'
 
 export function PhasesPage() {
@@ -119,14 +119,10 @@ export function PhasesPage() {
                     </TableCell>
                     <TableCell>{phase.lead?.full_name || '-'}</TableCell>
                     <TableCell>
-                      {phase.expected_end_date ? (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {format(new Date(phase.expected_end_date), 'MMM d, yyyy')}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        {formatDate(phase.expected_end_date)}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

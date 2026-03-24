@@ -5,14 +5,30 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return ''
-  const d = typeof date === 'string' ? new Date(date) : date
+/**
+ * Format an ISO date string (YYYY-MM-DD) or Date object as MM/DD/YYYY.
+ * Returns '—' for null, undefined, or empty string.
+ * Uses 'T00:00:00' suffix when parsing strings to avoid UTC midnight shift.
+ */
+export function formatDate(value: string | Date | null | undefined): string {
+  if (!value) return '—'
+
+  // Handle empty strings
+  if (typeof value === 'string' && value.trim() === '') return '—'
+
+  // Parse the date with timezone safety
+  const date = typeof value === 'string'
+    ? new Date(value.includes('T') ? value : value + 'T00:00:00')
+    : value
+
+  // Check for invalid date
+  if (isNaN(date.getTime())) return '—'
+
   // MM/DD/YYYY format
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const year = d.getFullYear()
-  return `${month}/${day}/${year}`
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  return `${mm}/${dd}/${yyyy}`
 }
 
 export function formatDateTime(date: Date | string | null | undefined): string {

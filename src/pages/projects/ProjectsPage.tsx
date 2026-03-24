@@ -46,7 +46,9 @@ export function ProjectsPage() {
       project.name.toLowerCase().includes(search.toLowerCase()) ||
       project.project_code.toLowerCase().includes(search.toLowerCase()) ||
       project.clients?.name.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || project.status === statusFilter
+    // Status filter - use computed status
+    const computedStatus = computeDisplayStatus(project)
+    const matchesStatus = statusFilter === 'all' || computedStatus === statusFilter
     return matchesSearch && matchesStatus
   })
 
@@ -81,11 +83,11 @@ export function ProjectsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="planning">Planning</SelectItem>
             <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="on_hold">On Hold</SelectItem>
+            <SelectItem value="on_deck">On Deck</SelectItem>
+            <SelectItem value="past_due">Past Due</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="future">Future</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex items-center border rounded-md">

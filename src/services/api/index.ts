@@ -17,3 +17,9 @@ export { leadsApi } from './leads'
 
 // V3 Feature APIs
 export { notesApi } from './notes'
+
+// Password Manager API
+export { passwordsApi } from './passwords'
+
+// Financial Manager API
+export { financialGroupsApi, financialEntriesApi, financialOccurrencesApi } from './financials'

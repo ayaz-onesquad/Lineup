@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 interface BaseFieldProps {
   label: string
@@ -99,6 +99,8 @@ export function ViewEditField(props: ViewEditFieldProps) {
     case 'tel':
     case 'date': {
       const { value, onChange, placeholder, type } = props
+      // Format dates in view mode using MM/DD/YYYY format
+      const displayValue = type === 'date' ? formatDate(value) : (value || '—')
       return (
         <div className={cn('min-h-[52px]', className)}>
           {renderLabel()}
@@ -111,7 +113,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
               className={cn('h-9', error && 'border-destructive')}
             />
           ) : (
-            <p className="h-9 flex items-center">{value || '—'}</p>
+            <p className="h-9 flex items-center">{displayValue}</p>
           )}
           {renderError()}
         </div>

@@ -256,7 +256,9 @@ export function computeRequirementKeyStartDate(record: RequirementStatusRecord):
 /**
  * Compute display status for Requirements
  *
- * Requirements use due_date instead of end_date for past due calculation
+ * Requirements use ISO week boundaries (Monday-Sunday) for Active/On-Deck:
+ * - Active: due date falls within the current Mon-Sun week
+ * - On-Deck: due date falls within the NEXT Mon-Sun week
  *
  * @param record - Requirement with date fields (can be from DB or form state)
  * @returns ComputedStatus - The calculated status to display
@@ -264,35 +266,51 @@ export function computeRequirementKeyStartDate(record: RequirementStatusRecord):
 export function computeRequirementStatus(record: RequirementStatusRecord): ComputedStatus {
   const today = getLocalToday()
 
-  // P1: Completed - completed_date is set
+  // P1: Completed - completed_date is set (checked first)
   if (record.completed_date) {
     return 'completed'
   }
 
-  // Compute key dates
+  // Compute key due date
   const keyDue = computeKeyDueDate(record)
-  const keyStart = computeRequirementKeyStartDate(record)
 
-  // P2: Past Due - key due date has passed
-  if (keyDue && keyDue < today) {
+  // If no due date, default to future
+  if (!keyDue) {
+    return 'future'
+  }
+
+  // P2: Past Due - due date has already passed
+  if (keyDue < today) {
     return 'past_due'
   }
 
-  // P3: Active - key start date is today or in the past
-  if (keyStart && keyStart <= today) {
+  // Compute start of this ISO week (Monday)
+  // Sunday (0) should be treated as the last day of the previous week
+  const dayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const startOfThisWeek = new Date(today)
+  startOfThisWeek.setDate(today.getDate() - daysFromMonday)
+
+  // End of this week = Sunday (startOfThisWeek + 6 days)
+  const endOfThisWeek = new Date(startOfThisWeek)
+  endOfThisWeek.setDate(startOfThisWeek.getDate() + 6)
+
+  // P3: Active - due date falls within the current Mon-Sun week
+  if (keyDue >= today && keyDue <= endOfThisWeek) {
     return 'active'
   }
 
-  // P4: On-Deck - key start date within 10 days
-  if (keyStart) {
-    const tenDaysFromNow = new Date(today)
-    tenDaysFromNow.setDate(today.getDate() + 10)
-    if (keyStart <= tenDaysFromNow) {
-      return 'on_deck'
-    }
+  // P4: On-Deck - due date falls within NEXT Mon-Sun week
+  const startOfNextWeek = new Date(endOfThisWeek)
+  startOfNextWeek.setDate(endOfThisWeek.getDate() + 1) // Monday of next week
+  const endOfNextWeek = new Date(startOfNextWeek)
+  endOfNextWeek.setDate(startOfNextWeek.getDate() + 6) // Sunday of next week
+
+  if (keyDue >= startOfNextWeek && keyDue <= endOfNextWeek) {
+    return 'on_deck'
   }
 
-  // P5: Future - no dates or start date > 10 days away
+  // P5: Future - due date is beyond next week
   return 'future'
 }
 

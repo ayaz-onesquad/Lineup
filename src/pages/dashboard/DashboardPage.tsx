@@ -46,7 +46,8 @@ import {
   ArrowRight,
   Timer,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { computeDisplayStatus, computeRequirementStatus, getStatusLabel, getStatusColor, isPastDueStatus } from '@/utils/statusUtils'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import type { MyWorkItem } from '@/types/database'
@@ -147,9 +148,22 @@ function KpiDrillDownModal({
                       const dueDate = type === 'sets' || type === 'pitches'
                         ? (item.key_end_date || item.expected_end_date) as string
                         : (item.key_due_date || item.expected_due_date) as string
-                      // Use computed status for past due indicator
-                      const computedStatus = item.computed_status as string
-                      const isPastDue = computedStatus === 'past_due' || (dueDate && new Date(dueDate) < new Date())
+                      // Compute status client-side based on entity type
+                      const status = type === 'tasks' || type === 'requirements'
+                        ? computeRequirementStatus({
+                            completed_date: item.completed_date as string | null,
+                            actual_due_date: item.actual_due_date as string | null,
+                            expected_due_date: item.expected_due_date as string | null,
+                            actual_start_date: item.actual_start_date as string | null,
+                            expected_start_date: item.expected_start_date as string | null,
+                          })
+                        : computeDisplayStatus({
+                            completed_date: item.completed_date as string | null,
+                            actual_start_date: item.actual_start_date as string | null,
+                            expected_start_date: item.expected_start_date as string | null,
+                            actual_end_date: item.actual_end_date as string | null,
+                            expected_end_date: item.expected_end_date as string | null,
+                          })
 
                       return (
                         <TableRow
@@ -163,24 +177,18 @@ function KpiDrillDownModal({
                           <TableCell className="font-medium">{name || 'Untitled'}</TableCell>
                           <TableCell>{clientName || '-'}</TableCell>
                           <TableCell>
-                            {computedStatus ? (
-                              <Badge variant="outline" className={getComputedStatusColor(computedStatus)}>
-                                {getComputedStatusLabel(computedStatus)}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className={getStatusColor(item.status as string)}>
-                                {(item.status as string)?.replace('_', ' ')}
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className={getStatusColor(status)}>
+                              {getStatusLabel(status)}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             {dueDate ? (
-                              <span className={cn(isPastDue && 'text-red-600 font-medium')}>
+                              <span className={cn(isPastDueStatus(status) && 'text-red-600 font-medium')}>
                                 {formatDate(dueDate)}
-                                {isPastDue && ' (Past Due)'}
+                                {isPastDueStatus(status) && ' (Past Due)'}
                               </span>
                             ) : (
-                              '-'
+                              '—'
                             )}
                           </TableCell>
                         </TableRow>
@@ -345,7 +353,8 @@ function TaskItem({
     sets?: { clients?: { name?: string } }
   }
 }) {
-  const isPastDue = task.expected_due_date && new Date(task.expected_due_date) < new Date()
+  // Use computed_status from the query which is already calculated
+  const status = task.computed_status || 'future'
   const isPriority1or2 = task.priority && task.priority <= 2
 
   return (
@@ -354,7 +363,7 @@ function TaskItem({
       className="flex items-start gap-3 p-3 hover:bg-muted/50 transition-colors border-b last:border-b-0"
     >
       <Checkbox
-        checked={task.status === 'completed'}
+        checked={status === 'completed'}
         className="mt-0.5"
         disabled
       />
@@ -370,20 +379,17 @@ function TaskItem({
           <p
             className={cn(
               'text-xs flex items-center gap-1 mt-1',
-              isPastDue ? 'text-red-600' : 'text-muted-foreground'
+              isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
             )}
           >
             <Calendar className="h-3 w-3" />
             {formatDate(task.expected_due_date)}
-            {isPastDue && ' (Past Due)'}
+            {isPastDueStatus(status) && ' (Past Due)'}
           </p>
         )}
       </div>
-      <Badge
-        variant="outline"
-        className={cn('text-xs shrink-0', task.computed_status ? getComputedStatusColor(task.computed_status) : getStatusColor(task.status))}
-      >
-        {task.computed_status ? getComputedStatusLabel(task.computed_status) : task.status.replace('_', ' ')}
+      <Badge variant="outline" className={cn('text-xs shrink-0', getStatusColor(status))}>
+        {getStatusLabel(status)}
       </Badge>
     </Link>
   )
@@ -403,7 +409,9 @@ function ExpandableSet({
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const hasChildren = set.childPitches.length > 0 || set.directRequirements.length > 0
   const isPriority1or2 = set.priority && set.priority <= 2
-  const isPastDue = set.expected_due_date && new Date(set.expected_due_date) < new Date()
+  // Use computed_status from the view which is already calculated
+  // If not available, default to 'future'
+  const status = set.computed_status || 'future'
 
   // Check if set has direct requirements but no pitches assigned to user
   const hasDirectReqsButNoPitches = set.directRequirements.length > 0 && set.childPitches.length === 0
@@ -443,15 +451,15 @@ function ExpandableSet({
             <span
               className={cn(
                 'text-xs flex items-center gap-1',
-                isPastDue ? 'text-red-600' : 'text-muted-foreground'
+                isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
               )}
             >
               <Calendar className="h-3 w-3" />
               {formatDate(set.expected_due_date)}
             </span>
           )}
-          <Badge variant="outline" className={cn('text-xs', set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status))}>
-            {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status.replace('_', ' ')}
+          <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
+            {getStatusLabel(status)}
           </Badge>
           {hasChildren && (
             <Badge variant="secondary" className="text-xs">
@@ -499,7 +507,9 @@ function ExpandablePitch({
   const [isOpen, setIsOpen] = useState(false)
   const hasChildren = pitch.childRequirements.length > 0
   const isPriority1or2 = pitch.priority && pitch.priority <= 2
-  const isPastDue = pitch.expected_due_date && new Date(pitch.expected_due_date) < new Date()
+  // Use computed_status from the view which is already calculated
+  // If not available, default to 'future'
+  const status = pitch.computed_status || 'future'
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border-b last:border-b-0 relative">
@@ -534,14 +544,14 @@ function ExpandablePitch({
             <span
               className={cn(
                 'text-xs flex items-center gap-1',
-                isPastDue ? 'text-red-600' : 'text-muted-foreground'
+                isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
               )}
             >
               {formatDate(pitch.expected_due_date)}
             </span>
           )}
-          <Badge variant="outline" className={cn('text-xs', pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status))}>
-            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
+          <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
+            {getStatusLabel(status)}
           </Badge>
           {hasChildren && (
             <Badge variant="secondary" className="text-xs">
@@ -573,8 +583,9 @@ function RequirementRow({
   showConnector?: boolean
 }) {
   const isPriority1or2 = requirement.priority && requirement.priority <= 2
-  const isPastDue =
-    requirement.expected_due_date && new Date(requirement.expected_due_date) < new Date()
+  // Use computed_status from the view which is already calculated
+  // If not available, default to 'future'
+  const status = requirement.computed_status || 'future'
 
   return (
     <Link
@@ -601,14 +612,14 @@ function RequirementRow({
           <span
             className={cn(
               'text-xs',
-              isPastDue ? 'text-red-600' : 'text-muted-foreground'
+              isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
             )}
           >
             {formatDate(requirement.expected_due_date)}
           </span>
         )}
-        <Badge variant="outline" className={cn('text-xs', requirement.computed_status ? getComputedStatusColor(requirement.computed_status) : getStatusColor(requirement.status))}>
-          {requirement.computed_status ? getComputedStatusLabel(requirement.computed_status) : requirement.status.replace('_', ' ')}
+        <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
+          {getStatusLabel(status)}
         </Badge>
       </div>
     </Link>

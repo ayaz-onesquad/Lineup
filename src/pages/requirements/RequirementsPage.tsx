@@ -56,12 +56,13 @@ export function RequirementsPage() {
   // Get requirements by computed status (status is now READ-ONLY calculated from dates)
   const getRequirementsByStatus = (status: ComputedStatus | 'past_due') => {
     return filteredRequirements?.filter((req) => {
-      const computedStatus = req.computed_status || 'future'
+      // Always use computeRequirementStatus to get the correct status from dates
+      const computed = computeRequirementStatus(req)
       // 'past_due' column should include all past_due variants
       if (status === 'past_due') {
-        return isPastDueStatus(computedStatus)
+        return isPastDueStatus(computed)
       }
-      return computedStatus === status
+      return computed === status
     })
   }
 

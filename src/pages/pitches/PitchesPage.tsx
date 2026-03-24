@@ -38,13 +38,14 @@ import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/st
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { PriorityScore } from '@/types/database'
 
+// Computed status options (status is now READ-ONLY calculated from dates)
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
-  { value: 'not_started', label: 'Not Started' },
-  { value: 'in_progress', label: 'In Progress' },
+  { value: 'active', label: 'Active' },
+  { value: 'on_deck', label: 'On Deck' },
+  { value: 'past_due', label: 'Past Due' },
   { value: 'completed', label: 'Completed' },
-  { value: 'blocked', label: 'Blocked' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'future', label: 'Future' },
 ]
 
 export function PitchesPage() {
@@ -66,21 +67,22 @@ export function PitchesPage() {
         pitch.sets?.projects?.name?.toLowerCase().includes(search.toLowerCase()) ||
         pitch.sets?.clients?.name?.toLowerCase().includes(search.toLowerCase())
 
-      // Status filter
-      const matchesStatus = !statusFilter || pitch.status === statusFilter
+      // Status filter - use computed status
+      const computedStatus = computeDisplayStatus(pitch)
+      const matchesStatus = !statusFilter || computedStatus === statusFilter
 
       return matchesSearch && matchesStatus
     })
   }, [pitches, search, statusFilter])
 
-  // Stats
+  // Stats using computed status
   const stats = useMemo(() => {
-    if (!pitches) return { total: 0, completed: 0, inProgress: 0, blocked: 0 }
+    if (!pitches) return { total: 0, completed: 0, active: 0, pastDue: 0 }
     return {
       total: pitches.length,
-      completed: pitches.filter((p) => p.status === 'completed').length,
-      inProgress: pitches.filter((p) => p.status === 'in_progress').length,
-      blocked: pitches.filter((p) => p.status === 'blocked').length,
+      completed: pitches.filter((p) => computeDisplayStatus(p) === 'completed').length,
+      active: pitches.filter((p) => computeDisplayStatus(p) === 'active').length,
+      pastDue: pitches.filter((p) => computeDisplayStatus(p) === 'past_due').length,
     }
   }, [pitches])
 
@@ -126,9 +128,9 @@ export function PitchesPage() {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <PlayCircle className="h-4 w-4 text-blue-600" />
-              <span className="text-sm text-muted-foreground">In Progress</span>
+              <span className="text-sm text-muted-foreground">Active</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.inProgress}</p>
+            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.active}</p>
           </CardContent>
         </Card>
         <Card>
@@ -144,9 +146,9 @@ export function PitchesPage() {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <Presentation className="h-4 w-4 text-red-600" />
-              <span className="text-sm text-muted-foreground">Blocked</span>
+              <span className="text-sm text-muted-foreground">Past Due</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-red-600">{stats.blocked}</p>
+            <p className="text-2xl font-bold mt-1 text-red-600">{stats.pastDue}</p>
           </CardContent>
         </Card>
       </div>
