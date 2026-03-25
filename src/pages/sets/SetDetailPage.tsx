@@ -52,7 +52,8 @@ import {
   Presentation,
 } from 'lucide-react'
 import { formatDate, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
-import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
+import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, computeSetKeyEndDate, computeSetKeyStartDate, getStatusLabel, getStatusColor, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
+import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -188,32 +189,37 @@ export function SetDetailPage() {
     set?.key_end_date,
   ])
 
-  // ON_CHANGE: Compute reactive key dates from form values in edit mode
+  // ON_CHANGE: Compute reactive key start date considering child pitches
+  // Uses computeSetKeyStartDate which aggregates from children when no actual date set
   const reactiveKeyStartDate = useMemo(() => {
-    if (isEditing) {
-      return computeKeyStartDate({
-        actual_start_date: watchedActualStartDate || null,
-        expected_start_date: watchedExpectedStartDate || null,
-      })
-    }
-    return computeKeyStartDate({
-      actual_start_date: set?.actual_start_date || null,
-      expected_start_date: set?.expected_start_date || null,
-    })
-  }, [isEditing, watchedActualStartDate, watchedExpectedStartDate, set?.actual_start_date, set?.expected_start_date])
+    const setRecord = isEditing
+      ? {
+          actual_start_date: watchedActualStartDate || null,
+          expected_start_date: watchedExpectedStartDate || null,
+        }
+      : {
+          actual_start_date: set?.actual_start_date || null,
+          expected_start_date: set?.expected_start_date || null,
+        }
+    // Pass pitches for child aggregation (use empty array while loading)
+    return computeSetKeyStartDate(setRecord, pitches || [])
+  }, [isEditing, watchedActualStartDate, watchedExpectedStartDate, set?.actual_start_date, set?.expected_start_date, pitches])
 
+  // ON_CHANGE: Compute reactive key end date considering child pitches
+  // Uses computeSetKeyEndDate which aggregates from children when no actual date set
   const reactiveKeyEndDate = useMemo(() => {
-    if (isEditing) {
-      return computeKeyEndDate({
-        actual_end_date: watchedActualEndDate || null,
-        expected_end_date: watchedExpectedEndDate || null,
-      })
-    }
-    return computeKeyEndDate({
-      actual_end_date: set?.actual_end_date || null,
-      expected_end_date: set?.expected_end_date || null,
-    })
-  }, [isEditing, watchedActualEndDate, watchedExpectedEndDate, set?.actual_end_date, set?.expected_end_date])
+    const setRecord = isEditing
+      ? {
+          actual_end_date: watchedActualEndDate || null,
+          expected_end_date: watchedExpectedEndDate || null,
+        }
+      : {
+          actual_end_date: set?.actual_end_date || null,
+          expected_end_date: set?.expected_end_date || null,
+        }
+    // Pass pitches for child aggregation (use empty array while loading)
+    return computeSetKeyEndDate(setRecord, pitches || [])
+  }, [isEditing, watchedActualEndDate, watchedExpectedEndDate, set?.actual_end_date, set?.expected_end_date, pitches])
 
   // Fetch phases for the selected project
   const { data: projectPhases } = usePhasesByProject(selectedProjectId || '')
@@ -566,15 +572,6 @@ export function SetDetailPage() {
             <Layers className="h-4 w-4" />
             Details
           </TabsTrigger>
-          <TabsTrigger value="requirements" className="gap-2">
-            <CheckSquare className="h-4 w-4" />
-            Requirements
-            {requirements && requirements.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {requirements.length}
-              </Badge>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="pitches" className="gap-2">
             <Presentation className="h-4 w-4" />
             Pitches
@@ -584,17 +581,26 @@ export function SetDetailPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="requirements" className="gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Requirements
+            {requirements && requirements.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {requirements.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
             Documents
           </TabsTrigger>
-          <TabsTrigger value="activity" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Activity
-          </TabsTrigger>
           <TabsTrigger value="discussions" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Discussions
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Activity
           </TabsTrigger>
         </TabsList>
 
@@ -947,19 +953,25 @@ export function SetDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
+                      <TableHead>Priority</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Approval</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {[1, 2, 3].map((i) => (
                       <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -985,63 +997,78 @@ export function SetDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
+                      <TableHead>Priority</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Lead</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pitches.map((pitch) => (
-                      <TableRow
-                        key={pitch.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/pitches/${pitch.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {pitch.name}
-                            {pitch.pitch_id_display && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {pitch.pitch_id_display}
-                              </Badge>
+                    {pitches.map((pitch) => {
+                      const status = computeDisplayStatus(pitch)
+                      const priority = calcPriority(pitch.importance, pitch.urgency)
+                      const keyStart = computeKeyStartDate(pitch)
+                      const keyEnd = computeKeyEndDate(pitch)
+                      return (
+                        <TableRow
+                          key={pitch.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onDoubleClick={() => navigate(`/pitches/${pitch.id}`)}
+                        >
+                          <TableCell className="text-right tabular-nums">
+                            {pitch.order_manual ?? '—'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {pitch.name}
+                              {pitch.pitch_id_display && (
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {pitch.pitch_id_display}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {priority ? (
+                              <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(computeDisplayStatus(pitch))} variant="outline">
-                            {getStatusLabel(computeDisplayStatus(pitch))}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {pitch.lead?.full_name || '—'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={pitch.completion_percentage} className="h-2 w-16" />
-                            <span className="text-xs text-muted-foreground">
-                              {pitch.completion_percentage}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {pitch.lead?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

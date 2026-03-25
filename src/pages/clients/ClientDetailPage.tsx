@@ -90,7 +90,8 @@ import {
   Presentation,
   MessageSquare,
 } from 'lucide-react'
-import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS } from '@/lib/utils'
+import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
+import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -516,21 +517,21 @@ export function ClientDetailPage() {
             <Building2 className="h-4 w-4" />
             Details
           </TabsTrigger>
-          <TabsTrigger value="contacts" className="gap-2">
-            <Users className="h-4 w-4" />
-            Contacts
-            {contacts && contacts.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {contacts.length}
-              </Badge>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="projects" className="gap-2">
             <FolderKanban className="h-4 w-4" />
             Projects
             {projects && projects.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5">
                 {projects.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="contacts" className="gap-2">
+            <Users className="h-4 w-4" />
+            Contacts
+            {contacts && contacts.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {contacts.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -543,15 +544,6 @@ export function ClientDetailPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="requirements" className="gap-2">
-            <CheckSquare className="h-4 w-4" />
-            Requirements
-            {clientRequirements && clientRequirements.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {clientRequirements.length}
-              </Badge>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="pitches" className="gap-2">
             <Presentation className="h-4 w-4" />
             Pitches
@@ -561,17 +553,26 @@ export function ClientDetailPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="requirements" className="gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Requirements
+            {clientRequirements && clientRequirements.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {clientRequirements.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
             Documents
           </TabsTrigger>
-          <TabsTrigger value="notes" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Notes
-          </TabsTrigger>
           <TabsTrigger value="discussions" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Discussions
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Notes
           </TabsTrigger>
         </TabsList>
 
@@ -1006,21 +1007,25 @@ export function ClientDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Project</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Priority</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {[1, 2, 3].map((i) => (
                       <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1043,99 +1048,88 @@ export function ClientDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Project</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Priority</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {clientSets.map((set) => (
-                      <TableRow
-                        key={set.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/sets/${set.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {set.name}
-                            {set.display_id && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                #{set.display_id}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {set.project_id ? (
-                            <Link
-                              to={`/projects/${set.project_id}`}
-                              className="flex items-center gap-2 hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                              {set.projects?.name || '—'}
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={set.computed_status ? getComputedStatusColor(set.computed_status) : getStatusColor(set.status)} variant="outline">
-                            {set.computed_status ? getComputedStatusLabel(set.computed_status) : set.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={
-                            set.urgency === 'high' && set.importance === 'high'
-                              ? 'border-red-500 text-red-700'
-                              : ''
-                          }>
-                            U:{set.urgency[0].toUpperCase()} I:{set.importance[0].toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 h-2 rounded-full bg-muted overflow-hidden">
-                              <div
-                                className="h-full bg-primary"
-                                style={{ width: `${set.completion_percentage}%` }}
-                              />
+                    {clientSets.map((set) => {
+                      const status = computeDisplayStatus(set)
+                      const priority = calcPriority(set.importance, set.urgency)
+                      const keyStart = computeKeyStartDate(set)
+                      const keyEnd = computeKeyEndDate(set)
+                      return (
+                        <TableRow
+                          key={set.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onDoubleClick={() => navigate(`/sets/${set.id}`)}
+                        >
+                          <TableCell className="text-right tabular-nums">
+                            {set.set_order ?? '—'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {set.name}
+                              {set.display_id && (
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  #{set.display_id}
+                                </Badge>
+                              )}
                             </div>
-                            <span className="text-xs text-muted-foreground">
-                              {set.completion_percentage}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link to={`/sets/${set.id}`}>
-                                  <Layers className="mr-2 h-4 w-4" />
-                                  View Set
-                                </Link>
-                              </DropdownMenuItem>
-                              {set.project_id && (
+                          </TableCell>
+                          <TableCell>
+                            {priority ? (
+                              <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {set.lead?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
                                 <DropdownMenuItem asChild>
-                                  <Link to={`/projects/${set.project_id}`}>
-                                    <FolderKanban className="mr-2 h-4 w-4" />
-                                    View Project
+                                  <Link to={`/sets/${set.id}`}>
+                                    <Layers className="mr-2 h-4 w-4" />
+                                    View Set
                                   </Link>
                                 </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                                {set.project_id && (
+                                  <DropdownMenuItem asChild>
+                                    <Link to={`/projects/${set.project_id}`}>
+                                      <FolderKanban className="mr-2 h-4 w-4" />
+                                      View Project
+                                    </Link>
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -1169,23 +1163,25 @@ export function ClientDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Set</TableHead>
-                      <TableHead>Project</TableHead>
+                      <TableHead>Priority</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Approval</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {[1, 2, 3].map((i) => (
                       <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1208,85 +1204,78 @@ export function ClientDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Set</TableHead>
-                      <TableHead>Project</TableHead>
+                      <TableHead>Priority</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {clientPitches.map((pitch) => (
-                      <TableRow
-                        key={pitch.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/pitches/${pitch.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {pitch.name}
-                            {pitch.pitch_id_display && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {pitch.pitch_id_display}
-                              </Badge>
+                    {clientPitches.map((pitch) => {
+                      const status = computeDisplayStatus(pitch)
+                      const priority = calcPriority(pitch.importance, pitch.urgency)
+                      const keyStart = computeKeyStartDate(pitch)
+                      const keyEnd = computeKeyEndDate(pitch)
+                      return (
+                        <TableRow
+                          key={pitch.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onDoubleClick={() => navigate(`/pitches/${pitch.id}`)}
+                        >
+                          <TableCell className="text-right tabular-nums">
+                            {pitch.order_manual ?? '—'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {pitch.name}
+                              {pitch.pitch_id_display && (
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {pitch.pitch_id_display}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {priority ? (
+                              <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            to={`/sets/${pitch.set_id}`}
-                            className="hover:underline flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Layers className="h-3 w-3 text-muted-foreground" />
-                            {pitch.sets?.name || '—'}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          {pitch.sets?.project_id ? (
-                            <Link
-                              to={`/projects/${pitch.sets.project_id}`}
-                              className="hover:underline flex items-center gap-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                              {pitch.sets.projects?.name || '—'}
-                            </Link>
-                          ) : (
-                            '—'
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={pitch.computed_status ? getComputedStatusColor(pitch.computed_status) : getStatusColor(pitch.status)} variant="outline">
-                            {pitch.computed_status ? getComputedStatusLabel(pitch.computed_status) : pitch.status.replace('_', ' ')}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={pitch.completion_percentage} className="h-2 w-16" />
-                            <span className="text-xs text-muted-foreground">
-                              {pitch.completion_percentage}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {pitch.lead?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

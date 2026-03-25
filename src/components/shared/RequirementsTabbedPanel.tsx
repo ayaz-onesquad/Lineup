@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,10 +25,9 @@ import {
   MoreVertical,
   ExternalLink,
   Edit,
-  Layers,
-  FolderKanban,
 } from 'lucide-react'
-import { computeRequirementStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
+import { computeRequirementStatus, computeKeyDueDate, computeRequirementKeyStartDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
+import { formatDate, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
 import { useUIStore } from '@/stores'
 import type { RequirementWithRelations } from '@/types/database'
 
@@ -56,10 +55,14 @@ export function RequirementsTabbedPanel({
   isLoading = false,
   createContext,
   onCreateClick,
-  showSetColumn = true,
-  showProjectColumn = true,
+  showSetColumn: _showSetColumn = true,
+  showProjectColumn: _showProjectColumn = true,
   emptyMessage = 'No requirements yet',
 }: RequirementsTabbedPanelProps) {
+  // Note: showSetColumn and showProjectColumn are kept for backward compatibility
+  // but columns are now standardized across all child tables
+  void _showSetColumn
+  void _showProjectColumn
   const navigate = useNavigate()
   const { openDetailPanel, openCreateModal } = useUIStore()
   const [activeTab, setActiveTab] = useState<'open' | 'completed'>('open')
@@ -114,20 +117,22 @@ export function RequirementsTabbedPanel({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Title</TableHead>
-                {showSetColumn && <TableHead>Set</TableHead>}
-                {showProjectColumn && <TableHead>Project</TableHead>}
-                <TableHead>Type</TableHead>
+                <TableHead className="w-[60px]">Order</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Due Date</TableHead>
+                <TableHead>Lead</TableHead>
+                <TableHead>Key Start</TableHead>
+                <TableHead>Key End</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {reqs.map((req) => {
                 const status = computeRequirementStatus(req)
-                const statusColor = getStatusColor(status)
-                const statusLabel = getStatusLabel(status)
+                const priority = calcPriority(req.importance, req.urgency)
+                const keyStart = computeRequirementKeyStartDate(req)
+                const keyEnd = computeKeyDueDate(req)
 
                 return (
                   <TableRow
@@ -135,6 +140,9 @@ export function RequirementsTabbedPanel({
                     className="cursor-pointer hover:bg-muted/50"
                     onDoubleClick={() => navigate(`/requirements/${req.id}`)}
                   >
+                    <TableCell className="text-right tabular-nums">
+                      {req.requirement_order ?? '—'}
+                    </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {req.title}
@@ -145,46 +153,24 @@ export function RequirementsTabbedPanel({
                         )}
                       </div>
                     </TableCell>
-                    {showSetColumn && (
-                      <TableCell>
-                        {req.set_id ? (
-                          <Link
-                            to={`/sets/${req.set_id}`}
-                            className="hover:underline flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Layers className="h-3 w-3 text-muted-foreground" />
-                            {req.sets?.name || '—'}
-                          </Link>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                    )}
-                    {showProjectColumn && (
-                      <TableCell>
-                        {req.sets?.project_id ? (
-                          <Link
-                            to={`/projects/${req.sets?.project_id}`}
-                            className="hover:underline flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                            {req.sets?.projects?.name || '—'}
-                          </Link>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                    )}
                     <TableCell>
-                      <Badge variant="outline">{req.requirement_type}</Badge>
+                      {priority ? (
+                        <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={statusColor}>{statusLabel}</Badge>
+                      <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
                     </TableCell>
                     <TableCell>
-                      {req.key_due_date || req.expected_due_date || '—'}
+                      {req.assigned_to?.full_name || '—'}
+                    </TableCell>
+                    <TableCell>
+                      {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                    </TableCell>
+                    <TableCell>
+                      {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -222,22 +208,24 @@ export function RequirementsTabbedPanel({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Title</TableHead>
-                {showSetColumn && <TableHead>Set</TableHead>}
-                {showProjectColumn && <TableHead>Project</TableHead>}
-                <TableHead>Type</TableHead>
+                <TableHead className="w-[60px]">Order</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Due Date</TableHead>
+                <TableHead>Lead</TableHead>
+                <TableHead>Key Start</TableHead>
+                <TableHead>Key End</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {[1, 2, 3].map((i) => (
                 <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  {showSetColumn && <TableCell><Skeleton className="h-4 w-24" /></TableCell>}
-                  {showProjectColumn && <TableCell><Skeleton className="h-4 w-28" /></TableCell>}
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                 </TableRow>
               ))}

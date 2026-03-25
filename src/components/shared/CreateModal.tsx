@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { useUIStore } from '@/stores'
 import {
@@ -7,10 +7,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 // Import form components
 import { ClientForm } from '@/components/forms/ClientForm'
@@ -24,6 +24,20 @@ import { LeadForm } from '@/components/forms/LeadForm'
 import { PasswordForm } from '@/components/forms/PasswordForm'
 import { FinancialEntryForm } from '@/components/forms/FinancialEntryForm'
 
+// Entity type options for the dropdown selector
+const ENTITY_OPTIONS = [
+  { value: 'lead', label: 'Lead' },
+  { value: 'client', label: 'Client' },
+  { value: 'contact', label: 'Contact' },
+  { value: 'project', label: 'Project' },
+  { value: 'phase', label: 'Phase' },
+  { value: 'set', label: 'Set' },
+  { value: 'pitch', label: 'Pitch' },
+  { value: 'requirement', label: 'Task' },
+  { value: 'password', label: 'Password' },
+  { value: 'financial_entry', label: 'Financial Entry' },
+]
+
 export function CreateModal() {
   const { createModalOpen, createModalType, createModalContext, closeCreateModal } =
     useUIStore()
@@ -31,6 +45,17 @@ export function CreateModal() {
   const [successMessage, setSuccessMessage] = useState('')
   const [createAnother, setCreateAnother] = useState(false)
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [selectedType, setSelectedType] = useState<string>(createModalType || '')
+
+  // Sync selectedType when modal opens with a pre-selected type
+  useEffect(() => {
+    if (createModalOpen) {
+      setSelectedType(createModalType || '')
+    }
+  }, [createModalOpen, createModalType])
+
+  // Get the label for the selected type
+  const selectedLabel = ENTITY_OPTIONS.find(opt => opt.value === selectedType)?.label
 
   const handleSuccess = useCallback((entityName?: string) => {
     // Clear any existing timeout
@@ -86,88 +111,90 @@ export function CreateModal() {
         </div>
 
         <DialogHeader>
-          <DialogTitle>Create New</DialogTitle>
+          <DialogTitle>
+            {selectedLabel ? `Create ${selectedLabel}` : 'Create New'}
+          </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue={createModalType || 'requirement'} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10 overflow-x-auto">
-            <TabsTrigger value="lead">Lead</TabsTrigger>
-            <TabsTrigger value="client">Client</TabsTrigger>
-            <TabsTrigger value="contact">Contact</TabsTrigger>
-            <TabsTrigger value="project">Project</TabsTrigger>
-            <TabsTrigger value="phase">Phase</TabsTrigger>
-            <TabsTrigger value="set">Set</TabsTrigger>
-            <TabsTrigger value="pitch">Pitch</TabsTrigger>
-            <TabsTrigger value="requirement">Task</TabsTrigger>
-            <TabsTrigger value="password">Password</TabsTrigger>
-            <TabsTrigger value="financial_entry">Financial</TabsTrigger>
-          </TabsList>
+        <div className="space-y-4">
+          {/* Entity type selector */}
+          <div>
+            <p className="text-sm font-medium text-muted-foreground mb-1">
+              Create a new...
+            </p>
+            <SearchableSelect
+              options={ENTITY_OPTIONS}
+              value={selectedType}
+              onValueChange={(val) => setSelectedType(val || '')}
+              placeholder="Select what to create..."
+              searchPlaceholder="Search types..."
+              emptyMessage="No matching type"
+              clearable={false}
+            />
+          </div>
 
-          <TabsContent value="lead" className="mt-4">
+          {/* Render the selected form */}
+          {selectedType === 'lead' && (
             <LeadForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Lead')}
             />
-          </TabsContent>
-
-          <TabsContent value="client" className="mt-4">
+          )}
+          {selectedType === 'client' && (
             <ClientForm onSuccess={() => handleSuccess('Client')} />
-          </TabsContent>
-
-          <TabsContent value="contact" className="mt-4">
+          )}
+          {selectedType === 'contact' && (
             <ContactForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Contact')}
             />
-          </TabsContent>
-
-          <TabsContent value="project" className="mt-4">
+          )}
+          {selectedType === 'project' && (
             <ProjectForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Project')}
             />
-          </TabsContent>
-
-          <TabsContent value="phase" className="mt-4">
+          )}
+          {selectedType === 'phase' && (
             <PhaseForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Phase')}
             />
-          </TabsContent>
-
-          <TabsContent value="set" className="mt-4">
+          )}
+          {selectedType === 'set' && (
             <SetForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Set')}
             />
-          </TabsContent>
-
-          <TabsContent value="pitch" className="mt-4">
+          )}
+          {selectedType === 'pitch' && (
             <PitchForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Pitch')}
             />
-          </TabsContent>
-
-          <TabsContent value="requirement" className="mt-4">
+          )}
+          {selectedType === 'requirement' && (
             <RequirementForm
               defaultValues={createModalContext}
               onSuccess={() => handleSuccess('Task')}
             />
-          </TabsContent>
-
-          <TabsContent value="password" className="mt-4">
+          )}
+          {selectedType === 'password' && (
             <PasswordForm
               onSuccess={() => handleSuccess('Password')}
             />
-          </TabsContent>
-
-          <TabsContent value="financial_entry" className="mt-4">
+          )}
+          {selectedType === 'financial_entry' && (
             <FinancialEntryForm
               onSuccess={() => handleSuccess('Financial Entry')}
             />
-          </TabsContent>
-        </Tabs>
+          )}
+          {!selectedType && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Select a type above to get started.
+            </p>
+          )}
+        </div>
 
         {/* Create another checkbox */}
         <div className="flex items-center space-x-2 pt-4 border-t">

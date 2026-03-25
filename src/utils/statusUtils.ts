@@ -389,3 +389,89 @@ export const SET_STATUS_LABELS = STATUS_LABELS
  * Set status colors - alias for STATUS_COLORS
  */
 export const SET_STATUS_COLORS = STATUS_COLORS
+
+// ============================================================================
+// CHILD-AWARE KEY DATE COMPUTATION
+// ============================================================================
+
+/**
+ * Compute Key End Date for a Set, considering child pitches.
+ *
+ * Rule:
+ *   1. If actual_end_date exists → use it (no children needed)
+ *   2. Else if child pitches exist → use the LATEST computeKeyEndDate
+ *      across all pitches that have a non-null key end date
+ *   3. Else → use expected_end_date
+ *   4. Else → null
+ *
+ * @param set    The set record with its own date fields
+ * @param pitches The set's child pitches (pass [] if none loaded yet)
+ */
+export function computeSetKeyEndDate(
+  set: StatusRecord,
+  pitches: StatusRecord[]
+): Date | null {
+  // 1. Actual end date always wins
+  if (set.actual_end_date) {
+    return new Date(set.actual_end_date + 'T00:00:00')
+  }
+
+  // 2. Aggregate from children if available
+  if (pitches.length > 0) {
+    const childDates = pitches
+      .map(p => computeKeyEndDate(p))
+      .filter((d): d is Date => d !== null)
+
+    if (childDates.length > 0) {
+      return new Date(Math.max(...childDates.map(d => d.getTime())))
+    }
+  }
+
+  // 3. Fall back to expected_end_date
+  if (set.expected_end_date) {
+    return new Date(set.expected_end_date + 'T00:00:00')
+  }
+
+  return null
+}
+
+/**
+ * Compute Key Start Date for a Set, considering child pitches.
+ *
+ * Rule:
+ *   1. If actual_start_date exists → use it
+ *   2. Else if child pitches exist → use the EARLIEST computeKeyStartDate
+ *      across all pitches that have a non-null key start date
+ *   3. Else → use expected_start_date
+ *   4. Else → null
+ *
+ * @param set    The set record with its own date fields
+ * @param pitches The set's child pitches (pass [] if none loaded yet)
+ */
+export function computeSetKeyStartDate(
+  set: StatusRecord,
+  pitches: StatusRecord[]
+): Date | null {
+  // 1. Actual start date always wins
+  if (set.actual_start_date) {
+    return new Date(set.actual_start_date + 'T00:00:00')
+  }
+
+  // 2. Aggregate from children if available
+  if (pitches.length > 0) {
+    const childDates = pitches
+      .map(p => computeKeyStartDate(p))
+      .filter((d): d is Date => d !== null)
+
+    if (childDates.length > 0) {
+      return new Date(Math.min(...childDates.map(d => d.getTime())))
+    }
+  }
+
+  // 3. Fall back to expected_start_date
+  if (set.expected_start_date) {
+    return new Date(set.expected_start_date + 'T00:00:00')
+  }
+
+  return null
+}

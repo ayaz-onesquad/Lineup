@@ -435,13 +435,13 @@ export function RequirementDetailPage() {
             <FileText className="h-4 w-4" />
             Documents
           </TabsTrigger>
-          <TabsTrigger value="activity" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Activity
-          </TabsTrigger>
           <TabsTrigger value="discussions" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Discussions
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Activity
           </TabsTrigger>
         </TabsList>
 

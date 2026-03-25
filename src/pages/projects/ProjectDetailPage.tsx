@@ -50,7 +50,8 @@ import {
   Presentation,
 } from 'lucide-react'
 import { formatDate, getHealthColor } from '@/lib/utils'
-import { computeDisplayStatus, computeRequirementStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
+import { computeDisplayStatus, computeRequirementStatus, computeKeyStartDate, computeKeyEndDate, computeKeyDueDate, computeRequirementKeyStartDate, getStatusLabel, getStatusColor, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
+import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -496,15 +497,6 @@ export function ProjectDetailPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="requirements" className="gap-2">
-            <CheckSquare className="h-4 w-4" />
-            Requirements
-            {projectRequirements && projectRequirements.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {projectRequirements.length}
-              </Badge>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="pitches" className="gap-2">
             <Presentation className="h-4 w-4" />
             Pitches
@@ -514,9 +506,22 @@ export function ProjectDetailPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="requirements" className="gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Requirements
+            {projectRequirements && projectRequirements.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {projectRequirements.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
             Documents
+          </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
           </TabsTrigger>
           <TabsTrigger value="activity" className="gap-2">
             <MessageSquare className="h-4 w-4" />
@@ -525,10 +530,6 @@ export function ProjectDetailPage() {
           <TabsTrigger value="status-updates" className="gap-2">
             <Calendar className="h-4 w-4" />
             Status Updates
-          </TabsTrigger>
-          <TabsTrigger value="discussions" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Discussions
           </TabsTrigger>
         </TabsList>
 
@@ -581,7 +582,36 @@ export function ProjectDetailPage() {
             </Button>
           </div>
           {setsLoading ? (
-            <Skeleton className="h-64 w-full" />
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           ) : !projectSets || projectSets.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
@@ -601,65 +631,74 @@ export function ProjectDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Phase</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Priority</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectSets.map((set) => (
-                      <TableRow
-                        key={set.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => openDetailPanel('set', set.id)}
-                        onDoubleClick={() => navigate(`/sets/${set.id}`)}
-                      >
-                        <TableCell className="font-medium">{set.name}</TableCell>
-                        <TableCell>{set.project_phases?.name || '—'}</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(computeDisplayStatus(set))} variant="outline">
-                            {getStatusLabel(computeDisplayStatus(set))}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={
-                            set.urgency === 'high' && set.importance === 'high'
-                              ? 'border-red-500 text-red-700'
-                              : ''
-                          }>
-                            U:{set.urgency[0].toUpperCase()} I:{set.importance[0].toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={set.completion_percentage} className="h-2 w-20" />
-                            <span className="text-xs text-muted-foreground">{set.completion_percentage}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Details
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {projectSets.map((set) => {
+                      const status = computeDisplayStatus(set)
+                      const priority = calcPriority(set.importance, set.urgency)
+                      const keyStart = computeKeyStartDate(set)
+                      const keyEnd = computeKeyEndDate(set)
+                      return (
+                        <TableRow
+                          key={set.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => openDetailPanel('set', set.id)}
+                          onDoubleClick={() => navigate(`/sets/${set.id}`)}
+                        >
+                          <TableCell className="text-right tabular-nums">
+                            {set.set_order ?? '—'}
+                          </TableCell>
+                          <TableCell className="font-medium">{set.name}</TableCell>
+                          <TableCell>
+                            {priority ? (
+                              <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {set.lead?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openDetailPanel('set', set.id)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Details
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -883,7 +922,36 @@ export function ProjectDetailPage() {
             </Button>
           </div>
           {requirementsLoading ? (
-            <Skeleton className="h-64 w-full" />
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           ) : !projectRequirements || projectRequirements.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
@@ -906,85 +974,82 @@ export function ProjectDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Set</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="w-[60px]">Order</TableHead>
+                      <TableHead>Name</TableHead>
                       <TableHead>Priority</TableHead>
-                      <TableHead>Assigned To</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectRequirements.map((req) => (
-                      <TableRow
-                        key={req.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/requirements/${req.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {req.title}
-                            {req.display_id && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                #{req.display_id}
-                              </Badge>
+                    {projectRequirements.map((req) => {
+                      const status = computeRequirementStatus(req)
+                      const priority = calcPriority(req.importance, req.urgency)
+                      const keyStart = computeRequirementKeyStartDate(req)
+                      const keyEnd = computeKeyDueDate(req)
+                      return (
+                        <TableRow
+                          key={req.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onDoubleClick={() => navigate(`/requirements/${req.id}`)}
+                        >
+                          <TableCell className="text-right tabular-nums">
+                            {req.requirement_order ?? '—'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {req.title}
+                              {req.display_id && (
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  #{req.display_id}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {priority ? (
+                              <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            to={`/sets/${req.set_id}`}
-                            className="hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {req.sets?.name || '—'}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{req.requirement_type}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(computeRequirementStatus(req))} variant="outline">
-                            {getStatusLabel(computeRequirementStatus(req))}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              req.urgency === 'high' && req.importance === 'high'
-                                ? 'border-red-500 text-red-700'
-                                : ''
-                            }
-                          >
-                            U:{req.urgency[0].toUpperCase()} I:{req.importance[0].toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {req.assigned_to?.full_name || '—'}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}`)}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {req.assigned_to?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}`)}>
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -1006,21 +1071,25 @@ export function ProjectDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Set</TableHead>
+                      <TableHead>Priority</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Approval</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {[1, 2, 3].map((i) => (
                       <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1043,74 +1112,78 @@ export function ProjectDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Set</TableHead>
+                      <TableHead>Priority</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Lead</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectPitches.map((pitch) => (
-                      <TableRow
-                        key={pitch.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onDoubleClick={() => navigate(`/pitches/${pitch.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {pitch.name}
-                            {pitch.pitch_id_display && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {pitch.pitch_id_display}
-                              </Badge>
+                    {projectPitches.map((pitch) => {
+                      const status = computeDisplayStatus(pitch)
+                      const priority = calcPriority(pitch.importance, pitch.urgency)
+                      const keyStart = computeKeyStartDate(pitch)
+                      const keyEnd = computeKeyEndDate(pitch)
+                      return (
+                        <TableRow
+                          key={pitch.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onDoubleClick={() => navigate(`/pitches/${pitch.id}`)}
+                        >
+                          <TableCell className="text-right tabular-nums">
+                            {pitch.order_manual ?? '—'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {pitch.name}
+                              {pitch.pitch_id_display && (
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {pitch.pitch_id_display}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {priority ? (
+                              <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            to={`/sets/${pitch.set_id}`}
-                            className="hover:underline flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Layers className="h-3 w-3 text-muted-foreground" />
-                            {pitch.sets?.name || '—'}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(computeDisplayStatus(pitch))} variant="outline">
-                            {getStatusLabel(computeDisplayStatus(pitch))}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {pitch.lead?.full_name || '—'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={pitch.completion_percentage} className="h-2 w-16" />
-                            <span className="text-xs text-muted-foreground">
-                              {pitch.completion_percentage}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {pitch.lead?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

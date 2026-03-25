@@ -45,7 +45,8 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { URGENCY_OPTIONS, IMPORTANCE_OPTIONS, getPriorityLabel, getPriorityColor, formatDate, type PriorityScore } from '@/lib/utils'
-import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
+import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
+import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -466,13 +467,13 @@ export function PhaseDetailPage() {
             <FileText className="h-4 w-4" />
             Documents
           </TabsTrigger>
-          <TabsTrigger value="notes" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Notes
-          </TabsTrigger>
           <TabsTrigger value="discussions" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Discussions
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Notes
           </TabsTrigger>
         </TabsList>
 
@@ -737,61 +738,63 @@ export function PhaseDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Order</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Priority</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Lead</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Key Start</TableHead>
+                      <TableHead>Key End</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sets.map((set) => (
-                      <TableRow
-                        key={set.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => openDetailPanel('set', set.id)}
-                        onDoubleClick={() => navigate(`/sets/${set.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {set.name}
-                            {set.display_id && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                #{set.display_id}
-                              </Badge>
+                    {sets.map((set) => {
+                      const status = computeDisplayStatus(set)
+                      const priority = calcPriority(set.importance, set.urgency)
+                      const keyStart = computeKeyStartDate(set)
+                      const keyEnd = computeKeyEndDate(set)
+                      return (
+                        <TableRow
+                          key={set.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => openDetailPanel('set', set.id)}
+                          onDoubleClick={() => navigate(`/sets/${set.id}`)}
+                        >
+                          <TableCell className="text-right tabular-nums">
+                            {set.set_order ?? '—'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {set.name}
+                              {set.display_id && (
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  #{set.display_id}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {priority ? (
+                              <Badge className={getPrioColor(priority)}>P{priority}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(computeDisplayStatus(set))} variant="outline">
-                            {getStatusLabel(computeDisplayStatus(set))}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              set.urgency === 'high' && set.importance === 'high'
-                                ? 'border-red-500 text-red-700'
-                                : ''
-                            }
-                          >
-                            U:{set.urgency?.[0].toUpperCase()} I:{set.importance?.[0].toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {set.lead?.full_name || set.owner?.full_name || '—'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={set.completion_percentage} className="h-2 w-20" />
-                            <span className="text-xs text-muted-foreground">
-                              {set.completion_percentage}%
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {set.lead?.full_name || set.owner?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyStart ? formatDate(keyStart.toISOString()) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
