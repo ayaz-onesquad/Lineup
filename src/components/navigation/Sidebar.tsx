@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/collapsible'
 import { ChevronLeft, ChevronRight, ChevronDown, Plus, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { navGroups, settingsChildItems, passwordManagerItem, financialManagerItem } from './navItems'
+import { navGroups, settingsChildItems, passwordManagerItem, financialManagerItem, competitorTrackerItem } from './navItems'
 
 export function Sidebar() {
   const location = useLocation()
@@ -214,6 +214,27 @@ export function Sidebar() {
                   <TooltipContent side="right">{financialManagerItem.label}</TooltipContent>
                 </Tooltip>
               )}
+              {/* Competitor Tracker - org_admin only */}
+              {isOrgAdmin && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to={competitorTrackerItem.href}
+                      aria-label={competitorTrackerItem.label}
+                      aria-current={isActive(competitorTrackerItem.href) ? 'page' : undefined}
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+                        isActive(competitorTrackerItem.href)
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-muted'
+                      )}
+                    >
+                      <competitorTrackerItem.icon className="h-5 w-5" aria-hidden="true" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{competitorTrackerItem.label}</TooltipContent>
+                </Tooltip>
+              )}
             </nav>
           ) : (
             /* Expanded sidebar - collapsible settings group */
@@ -301,6 +322,22 @@ export function Sidebar() {
                   >
                     <financialManagerItem.icon className="h-5 w-5" aria-hidden="true" />
                     {financialManagerItem.label}
+                  </Link>
+                )}
+                {/* Competitor Tracker - org_admin only */}
+                {isOrgAdmin && (
+                  <Link
+                    to={competitorTrackerItem.href}
+                    aria-current={isActive(competitorTrackerItem.href) ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      isActive(competitorTrackerItem.href)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    )}
+                  >
+                    <competitorTrackerItem.icon className="h-5 w-5" aria-hidden="true" />
+                    {competitorTrackerItem.label}
                   </Link>
                 )}
               </CollapsibleContent>

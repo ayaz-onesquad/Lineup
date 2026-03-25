@@ -16,6 +16,7 @@ import {
   UsersRound,
   Lock,
   DollarSign,
+  Swords,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -68,6 +69,9 @@ export const passwordManagerItem: NavItem = { href: '/passwords', label: 'Passwo
 
 // Financial Manager - org_admin only (filtered in Sidebar)
 export const financialManagerItem: NavItem = { href: '/financials', label: 'Financials', icon: DollarSign }
+
+// Competitor Tracker - org_admin only (filtered in Sidebar)
+export const competitorTrackerItem: NavItem = { href: '/competitors', label: 'Competitors', icon: Swords }
 
 // Settings - All items (legacy - for backwards compatibility)
 export const settingsItems: NavItem[] = [

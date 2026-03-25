@@ -23,6 +23,7 @@ import { ContactForm } from '@/components/forms/ContactForm'
 import { LeadForm } from '@/components/forms/LeadForm'
 import { PasswordForm } from '@/components/forms/PasswordForm'
 import { FinancialEntryForm } from '@/components/forms/FinancialEntryForm'
+import { CompetitorForm } from '@/components/forms/CompetitorForm'
 
 // Entity type options for the dropdown selector
 const ENTITY_OPTIONS = [
@@ -36,6 +37,7 @@ const ENTITY_OPTIONS = [
   { value: 'requirement', label: 'Task' },
   { value: 'password', label: 'Password' },
   { value: 'financial_entry', label: 'Financial Entry' },
+  { value: 'competitor', label: 'Competitor' },
 ]
 
 export function CreateModal() {
@@ -130,6 +132,7 @@ export function CreateModal() {
               searchPlaceholder="Search types..."
               emptyMessage="No matching type"
               clearable={false}
+              className="max-h-[280px]"
             />
           </div>
 
@@ -187,6 +190,11 @@ export function CreateModal() {
           {selectedType === 'financial_entry' && (
             <FinancialEntryForm
               onSuccess={() => handleSuccess('Financial Entry')}
+            />
+          )}
+          {selectedType === 'competitor' && (
+            <CompetitorForm
+              onSuccess={() => handleSuccess('Competitor')}
             />
           )}
           {!selectedType && (

@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export interface SearchableSelectOption {
@@ -118,31 +117,38 @@ export function SearchableSelect({
             </div>
           </Button>
         </PopoverTrigger>
-      <PopoverContent className={cn('w-[--radix-popover-trigger-width] p-0', className)}>
-        <div className="flex items-center border-b px-3">
+      <PopoverContent
+        className={cn('w-[--radix-popover-trigger-width] p-0', className)}
+        onWheel={(e) => e.stopPropagation()}
+      >
+        {/* Search header - fixed at top */}
+        <div className="flex items-center border-b px-3 bg-popover">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
+            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-10 bg-transparent"
           />
         </div>
-        <ScrollArea className="max-h-[300px]">
-          {filteredOptions.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {emptyMessage}
-            </p>
-          ) : (
-            <div className="p-1">
-              {filteredOptions.map((option) => (
+        {/* Scrollable options list */}
+        {filteredOptions.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground bg-popover">
+            {emptyMessage}
+          </p>
+        ) : (
+          <ul
+            className="max-h-[280px] overflow-y-auto overscroll-contain bg-popover py-1"
+            role="listbox"
+          >
+            {filteredOptions.map((option) => (
+              <li key={option.value} role="option" aria-selected={value === option.value}>
                 <button
-                  key={option.value}
                   type="button"
                   disabled={option.disabled}
                   onClick={() => handleSelect(option.value)}
                   className={cn(
-                    'relative flex w-full cursor-pointer select-none items-center rounded-sm py-2 px-2 text-sm outline-none',
+                    'relative flex w-full cursor-pointer select-none items-center py-2 px-3 text-sm outline-none',
                     'hover:bg-accent hover:text-accent-foreground',
                     'focus:bg-accent focus:text-accent-foreground',
                     option.disabled && 'pointer-events-none opacity-50',
@@ -164,10 +170,10 @@ export function SearchableSelect({
                     )}
                   </div>
                 </button>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+              </li>
+            ))}
+          </ul>
+        )}
       </PopoverContent>
     </Popover>
     {error && errorMessage && (
@@ -280,31 +286,38 @@ export function MultiSearchableSelect({
             <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0 ml-2" aria-hidden="true" />
           </Button>
         </PopoverTrigger>
-      <PopoverContent className={cn('w-[--radix-popover-trigger-width] p-0', className)}>
-        <div className="flex items-center border-b px-3">
+      <PopoverContent
+        className={cn('w-[--radix-popover-trigger-width] p-0', className)}
+        onWheel={(e) => e.stopPropagation()}
+      >
+        {/* Search header - fixed at top */}
+        <div className="flex items-center border-b px-3 bg-popover">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
+            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-10 bg-transparent"
           />
         </div>
-        <ScrollArea className="max-h-[300px]">
-          {filteredOptions.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {emptyMessage}
-            </p>
-          ) : (
-            <div className="p-1">
-              {filteredOptions.map((option) => (
+        {/* Scrollable options list */}
+        {filteredOptions.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground bg-popover">
+            {emptyMessage}
+          </p>
+        ) : (
+          <ul
+            className="max-h-[280px] overflow-y-auto overscroll-contain bg-popover py-1"
+            role="listbox"
+          >
+            {filteredOptions.map((option) => (
+              <li key={option.value} role="option" aria-selected={value.includes(option.value)}>
                 <button
-                  key={option.value}
                   type="button"
                   disabled={option.disabled}
                   onClick={() => handleSelect(option.value)}
                   className={cn(
-                    'relative flex w-full cursor-pointer select-none items-center rounded-sm py-2 px-2 text-sm outline-none',
+                    'relative flex w-full cursor-pointer select-none items-center py-2 px-3 text-sm outline-none',
                     'hover:bg-accent hover:text-accent-foreground',
                     'focus:bg-accent focus:text-accent-foreground',
                     option.disabled && 'pointer-events-none opacity-50',
@@ -326,10 +339,10 @@ export function MultiSearchableSelect({
                     )}
                   </div>
                 </button>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+              </li>
+            ))}
+          </ul>
+        )}
       </PopoverContent>
     </Popover>
     {error && errorMessage && (

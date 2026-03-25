@@ -1242,3 +1242,64 @@ export interface UpdateFinancialOccurrenceInput {
   amount?: number
   notes?: string | null
 }
+
+// ============================================================================
+// COMPETITOR TRACKER TYPES
+// ============================================================================
+
+export interface Competitor {
+  id: string
+  display_id: number | null
+  tenant_id: string
+  name: string
+  website: string | null
+  industry: string | null
+  description: string | null
+  status: 'active' | 'inactive' | 'acquired' | 'defunct'
+  threat_level: 'low' | 'medium' | 'high' | 'critical' | null
+  target_market: string | null
+  pricing_model: string | null
+  pricing_notes: string | null
+  strengths: string | null
+  weaknesses: string | null
+  differentiators: string | null
+  linkedin_url: string | null
+  twitter_url: string | null
+  crunchbase_url: string | null
+  client_id: string | null
+  tags: string[]
+  last_reviewed_at: string | null
+  created_at: string
+  created_by: string | null
+  updated_at: string
+  updated_by: string | null
+  deleted_at: string | null
+  // Joined
+  client?: { id: string; name: string } | null
+  creator?: { full_name: string | null; avatar_url: string | null }
+  updater?: { full_name: string | null; avatar_url: string | null }
+}
+
+export interface CreateCompetitorInput {
+  name: string
+  website?: string | null
+  industry?: string | null
+  description?: string | null
+  status?: 'active' | 'inactive' | 'acquired' | 'defunct'
+  threat_level?: 'low' | 'medium' | 'high' | 'critical' | null
+  target_market?: string | null
+  pricing_model?: string | null
+  pricing_notes?: string | null
+  strengths?: string | null
+  weaknesses?: string | null
+  differentiators?: string | null
+  linkedin_url?: string | null
+  twitter_url?: string | null
+  crunchbase_url?: string | null
+  client_id?: string | null
+  tags?: string[]
+}
+
+export type UpdateCompetitorInput = Partial<CreateCompetitorInput> & {
+  last_reviewed_at?: string | null
+}

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement' | 'contact' | 'lead' | 'pitch' | 'password' | 'financial_entry'
+export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement' | 'contact' | 'lead' | 'pitch' | 'password' | 'financial_entry' | 'competitor'
 export type LeadsViewMode = 'pipeline' | 'list' | 'table'
 
 interface DetailPanelState {

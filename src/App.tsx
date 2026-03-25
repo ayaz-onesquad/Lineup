@@ -41,6 +41,7 @@ import { DiscussionsPage, DiscussionDetailPage } from '@/pages/discussions'
 import { PasswordsPage, PasswordDetailPage } from '@/pages/passwords'
 import { FinancialsPage } from '@/pages/financials/FinancialsPage'
 import { FinancialEntryDetailPage } from '@/pages/financials/FinancialEntryDetailPage'
+import { CompetitorsPage, CompetitorDetailPage } from '@/pages/competitors'
 
 // Client Portal
 import { PortalLoginPage } from '@/pages/portal/PortalLoginPage'
@@ -146,6 +147,9 @@ function App() {
               {/* Financial Manager - org_admin only (RLS enforced at DB level) */}
               <Route path="/financials" element={<FinancialsPage />} />
               <Route path="/financials/:entryId" element={<FinancialEntryDetailPage />} />
+              {/* Competitor Tracker - org_admin only (RLS enforced at DB level) */}
+              <Route path="/competitors" element={<CompetitorsPage />} />
+              <Route path="/competitors/:competitorId" element={<CompetitorDetailPage />} />
             </Route>
 
             {/* Client Portal Routes */}

@@ -23,3 +23,6 @@ export { passwordsApi } from './passwords'
 
 // Financial Manager API
 export { financialGroupsApi, financialEntriesApi, financialOccurrencesApi } from './financials'
+
+// Competitor Tracker API
+export { competitorsApi } from './competitors'

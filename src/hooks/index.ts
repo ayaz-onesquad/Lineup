@@ -119,3 +119,10 @@ export {
   useFinancialEntryMutations,
   useFinancialOccurrenceMutations,
 } from './useFinancials'
+
+// Competitor Tracker hooks
+export {
+  useCompetitors,
+  useCompetitor,
+  useCompetitorMutations,
+} from './useCompetitors'
