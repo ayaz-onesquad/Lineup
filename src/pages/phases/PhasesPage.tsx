@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { usePhases } from '@/hooks'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -12,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Search, Calendar, Building2 } from 'lucide-react'
+import { Search, Calendar, Building2, ExternalLink } from 'lucide-react'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { formatDate } from '@/lib/utils'
 import type { EnhancedProjectPhase } from '@/types/database'
@@ -77,6 +78,7 @@ export function PhasesPage() {
                 <TableHead>Lead</TableHead>
                 <TableHead>Expected End Date</TableHead>
                 <TableHead>Progress</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -90,7 +92,7 @@ export function PhasesPage() {
                 filteredPhases?.map((phase) => (
                   <TableRow
                     key={phase.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
                     onClick={() => handleRowClick(phase)}
                     onDoubleClick={() => navigate(`/phases/${phase.id}`)}
                   >
@@ -151,6 +153,21 @@ export function PhasesPage() {
                           {phase.completion_percentage}%
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {/* Mobile-only Open button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 md:hidden"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/phases/${phase.id}`)
+                        }}
+                        title="Open"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

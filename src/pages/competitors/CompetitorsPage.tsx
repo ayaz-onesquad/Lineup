@@ -198,7 +198,7 @@ export function CompetitorsPage() {
                 {filteredCompetitors.map((competitor) => (
                   <TableRow
                     key={competitor.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
                     onDoubleClick={() => navigate(`/competitors/${competitor.id}`)}
                   >
                     <TableCell>
@@ -254,7 +254,7 @@ export function CompetitorsPage() {
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="z-50">
                           <DropdownMenuItem onClick={() => navigate(`/competitors/${competitor.id}?edit=true`)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
@@ -272,6 +272,19 @@ export function CompetitorsPage() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      {/* Mobile-only Open button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 md:hidden"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/competitors/${competitor.id}`)
+                        }}
+                        title="Open"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

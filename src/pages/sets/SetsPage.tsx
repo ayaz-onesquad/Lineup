@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Search, Layers, Grid, LayoutGrid } from 'lucide-react'
+import { Plus, Search, Layers, Grid, LayoutGrid, ExternalLink } from 'lucide-react'
 import { getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import type { SetWithRelations } from '@/types/database'
@@ -231,13 +231,14 @@ export function SetsPage() {
                     <TableHead>Priority</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Assigned To</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredSets?.map((set) => (
                     <TableRow
                       key={set.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
                       onClick={() => openDetailPanel('set', set.id)}
                       onDoubleClick={() => navigate(`/sets/${set.id}`)}
                     >
@@ -275,6 +276,21 @@ export function SetsPage() {
                       </TableCell>
                       <TableCell>
                         {set.owner?.full_name || set.lead?.full_name || '—'}
+                      </TableCell>
+                      <TableCell>
+                        {/* Mobile-only Open button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 md:hidden"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/sets/${set.id}`)
+                          }}
+                          title="Open"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

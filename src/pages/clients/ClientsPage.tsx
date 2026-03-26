@@ -133,7 +133,7 @@ export function ClientsPage() {
                 filteredClients?.map((client) => (
                   <TableRow
                     key={client.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
                     onClick={() => openDetailPanel('client', client.id)}
                     onDoubleClick={() => navigate(`/clients/${client.id}`)}
                   >
@@ -163,13 +163,27 @@ export function ClientsPage() {
                     </TableCell>
                     <TableCell>{formatDate(client.created_at)}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" aria-label={`Actions for ${client.name}`}>
-                            <MoreVertical className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                      <div className="flex items-center gap-1">
+                        {/* Mobile-only Open button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 md:hidden"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/clients/${client.id}`)
+                          }}
+                          title="Open"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${client.name}`}>
+                              <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="z-50">
                           <DropdownMenuItem asChild>
                             <Link to={`/clients/${client.id}`}>
                               <ExternalLink className="mr-2 h-4 w-4" />
@@ -193,7 +207,8 @@ export function ClientsPage() {
                             Archive
                           </DropdownMenuItem>
                         </DropdownMenuContent>
-                      </DropdownMenu>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

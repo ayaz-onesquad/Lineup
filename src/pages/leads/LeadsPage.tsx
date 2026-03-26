@@ -563,7 +563,7 @@ function SortableLeadCard({
                 <MoreVertical className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-lg">
+            <DropdownMenuContent align="end" className="rounded-lg z-50">
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation()
@@ -805,7 +805,7 @@ function LeadsTableView({
             {leads.map((lead) => (
               <TableRow
                 key={lead.id}
-                className="cursor-pointer hover:bg-muted/50"
+                className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
                 onClick={() => onNavigate(lead.id)}
               >
                 <TableCell>
@@ -853,7 +853,7 @@ function LeadsTableView({
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-lg">
+                    <DropdownMenuContent align="end" className="rounded-lg z-50">
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onNavigate(lead.id) }}>
                         <ExternalLink className="mr-2 h-4 w-4" />
                         View Details
@@ -868,6 +868,19 @@ function LeadsTableView({
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  {/* Mobile-only Open button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 md:hidden"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onNavigate(lead.id)
+                    }}
+                    title="Open"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

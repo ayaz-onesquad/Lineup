@@ -64,6 +64,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  ExternalLink,
 } from 'lucide-react'
 import { formatDate, cn } from '@/lib/utils'
 import { formatFrequency, formatCurrency } from '@/utils/recurrenceUtils'
@@ -713,7 +714,7 @@ function EntriesTable({
               return (
                 <TableRow
                   key={entry.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
                   onDoubleClick={() => onNavigate(`/financials/${entry.id}`)}
                 >
                   <TableCell>
@@ -766,7 +767,7 @@ function EntriesTable({
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="z-50">
                         <DropdownMenuItem
                           onClick={() => onNavigate(`/financials/${entry.id}?edit=true`)}
                         >
@@ -782,6 +783,19 @@ function EntriesTable({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {/* Mobile-only Open button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 md:hidden"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onNavigate(`/financials/${entry.id}`)
+                      }}
+                      title="Open"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               )

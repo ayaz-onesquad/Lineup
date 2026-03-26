@@ -231,7 +231,7 @@ export function PitchesPage() {
                   return (
                     <TableRow
                       key={pitch.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
                       onClick={() => handleRowClick(pitch.id)}
                       onDoubleClick={() => handleRowDoubleClick(pitch.id)}
                     >
@@ -295,7 +295,7 @@ export function PitchesPage() {
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="z-50">
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -307,6 +307,19 @@ export function PitchesPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        {/* Mobile-only Open button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 md:hidden"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/pitches/${pitch.id}`)
+                          }}
+                          title="Open"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   )
