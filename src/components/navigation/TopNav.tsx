@@ -66,7 +66,7 @@ export function TopNav() {
                 <span className="sr-only">Open navigation menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-0">
+            <SheetContent side="left" className="w-[280px] p-0 overflow-y-auto">
               <MobileSidebar />
             </SheetContent>
           </Sheet>
