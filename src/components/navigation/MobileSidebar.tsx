@@ -1,22 +1,33 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useUIStore } from '@/stores'
+import { useUserRole } from '@/hooks/useUserRole'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { SheetClose, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FolderKanban, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { navGroups, settingsMainItem, settingsChildItems } from './navItems'
+import { NAV_ITEMS, NAV_GROUPS, type NavItem } from './navItems'
 
 export function MobileSidebar() {
   const location = useLocation()
   const { openCreateModal } = useUIStore()
+  const { role } = useUserRole()
 
-  const isActive = (href: string) => {
-    if (href === '/dashboard') {
-      return location.pathname === '/dashboard'
+  // Check if user has org_admin or sys_admin access
+  const isAdmin = role === 'org_admin' || role === 'sys_admin'
+
+  // Filter items by role
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (item.requiredRole === 'org_admin' && !isAdmin) return false
+    if (item.requiredRole === 'sys_admin' && role !== 'sys_admin') return false
+    return true
+  })
+
+  const isActive = (item: NavItem) => {
+    if (item.exact) {
+      return location.pathname === item.path
     }
-    return location.pathname.startsWith(href)
+    return location.pathname.startsWith(item.path)
   }
 
   return (
@@ -30,7 +41,7 @@ export function MobileSidebar() {
       </SheetHeader>
 
       {/* Quick Create Button */}
-      <div className="p-3">
+      <div className="p-3 shrink-0">
         <SheetClose asChild>
           <Button
             className="w-full justify-start gap-2"
@@ -44,85 +55,44 @@ export function MobileSidebar() {
 
       <Separator />
 
-      {/* Main Navigation - Grouped */}
-      <ScrollArea className="flex-1 px-3 py-2">
-        <nav className="space-y-4">
-          {navGroups.map((group) => (
-            <div key={group.label}>
-              <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.label}
-              </h4>
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const active = isActive(item.href)
-                  return (
-                    <SheetClose key={item.href} asChild>
-                      <Link
-                        to={item.href}
-                        aria-current={active ? 'page' : undefined}
-                        className={cn(
-                          'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
-                          active
-                            ? 'bg-primary text-primary-foreground'
-                            : 'hover:bg-muted'
-                        )}
-                      >
-                        <item.icon className="h-5 w-5" aria-hidden="true" />
-                        {item.label}
-                      </Link>
-                    </SheetClose>
-                  )
-                })}
+      {/* Main Navigation - Scrollable container */}
+      <nav className="flex-1 overflow-y-auto px-3 py-2">
+        <div className="space-y-4">
+          {NAV_GROUPS.map((group) => {
+            const groupItems = visibleItems.filter((item) => item.group === group)
+            if (groupItems.length === 0) return null
+            return (
+              <div key={group}>
+                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group}
+                </h4>
+                <div className="space-y-1">
+                  {groupItems.map((item) => {
+                    const active = isActive(item)
+                    return (
+                      <SheetClose key={item.path} asChild>
+                        <Link
+                          to={item.path}
+                          aria-current={active ? 'page' : undefined}
+                          className={cn(
+                            'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
+                            active
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
+                          )}
+                        >
+                          <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{item.label}</span>
+                        </Link>
+                      </SheetClose>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </nav>
-      </ScrollArea>
-
-      {/* Bottom Navigation - Settings */}
-      <div className="border-t p-3">
-        <nav className="space-y-1">
-          {/* Settings Main */}
-          <SheetClose asChild>
-            <Link
-              to={settingsMainItem.href}
-              aria-current={isActive(settingsMainItem.href) ? 'page' : undefined}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
-                location.pathname === settingsMainItem.href
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted'
-              )}
-            >
-              <settingsMainItem.icon className="h-5 w-5" aria-hidden="true" />
-              {settingsMainItem.label}
-            </Link>
-          </SheetClose>
-          {/* Settings Children - indented */}
-          <div className="ml-4 border-l pl-2 space-y-1">
-            {settingsChildItems.map((item) => {
-              const active = isActive(item.href)
-              return (
-                <SheetClose key={item.href} asChild>
-                  <Link
-                    to={item.href}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
-                      active
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted'
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" aria-hidden="true" />
-                    {item.label}
-                  </Link>
-                </SheetClose>
-              )
-            })}
-          </div>
-        </nav>
-      </div>
+            )
+          })}
+        </div>
+      </nav>
     </div>
   )
 }

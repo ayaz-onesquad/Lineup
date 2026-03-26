@@ -20,78 +20,50 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+export type NavGroup = 'Command Center' | 'Core' | 'Assets' | 'Management' | 'Settings'
+
 export interface NavItem {
-  href: string
   label: string
+  path: string
   icon: LucideIcon
+  group: NavGroup
+  requiredRole?: 'org_admin' | 'sys_admin'
+  exact?: boolean
 }
 
-export interface NavGroup {
-  label: string
-  items: NavItem[]
-}
+/**
+ * Single source of truth for all navigation items.
+ * Order here = order in sidebar in both expanded and collapsed modes.
+ */
+export const NAV_ITEMS: NavItem[] = [
+  // Command Center
+  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, group: 'Command Center', exact: true },
+  { label: 'Pipeline', path: '/leads', icon: Target, group: 'Command Center' },
 
-// Command Center - Dashboard and Pipeline
-export const commandCenterItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/leads', label: 'Pipeline', icon: Target },
+  // Core - Main hierarchy entities
+  { label: 'Clients', path: '/clients', icon: Users, group: 'Core' },
+  { label: 'Contacts', path: '/contacts', icon: Contact, group: 'Core' },
+  { label: 'Projects', path: '/projects', icon: FolderKanban, group: 'Core' },
+  { label: 'Phases', path: '/phases', icon: ListOrdered, group: 'Core' },
+  { label: 'Sets', path: '/sets', icon: Layers, group: 'Core' },
+  { label: 'Pitches', path: '/pitches', icon: Presentation, group: 'Core' },
+  { label: 'Requirements', path: '/requirements', icon: CheckSquare, group: 'Core' },
+
+  // Assets
+  { label: 'Templates', path: '/templates', icon: LayoutTemplate, group: 'Assets' },
+  { label: 'Documents', path: '/documents', icon: FileText, group: 'Assets' },
+  { label: 'Notes', path: '/notes', icon: StickyNote, group: 'Assets' },
+
+  // Management - org_admin only
+  { label: 'Financials', path: '/financials', icon: DollarSign, group: 'Management', requiredRole: 'org_admin' },
+  { label: 'Password Manager', path: '/passwords', icon: Lock, group: 'Management', requiredRole: 'org_admin' },
+  { label: 'Competitors', path: '/competitors', icon: Swords, group: 'Management', requiredRole: 'org_admin' },
+
+  // Settings - org_admin only
+  { label: 'Settings', path: '/settings', icon: Settings, group: 'Settings', requiredRole: 'org_admin', exact: true },
+  { label: 'Team', path: '/settings/team', icon: UsersRound, group: 'Settings', requiredRole: 'org_admin' },
+  { label: 'Security', path: '/settings/security', icon: Shield, group: 'Settings', requiredRole: 'org_admin' },
 ]
 
-// Core - Main hierarchy entities
-export const coreItems: NavItem[] = [
-  { href: '/clients', label: 'Clients', icon: Users },
-  { href: '/contacts', label: 'Contacts', icon: Contact },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/phases', label: 'Phases', icon: ListOrdered },
-  { href: '/sets', label: 'Sets', icon: Layers },
-  { href: '/pitches', label: 'Pitches', icon: Presentation },
-  { href: '/requirements', label: 'Requirements', icon: CheckSquare },
-]
-
-// Assets - Templates, Documents, Notes
-export const assetItems: NavItem[] = [
-  { href: '/templates', label: 'Templates', icon: LayoutTemplate },
-  { href: '/documents', label: 'Documents', icon: FileText },
-  { href: '/notes', label: 'Notes', icon: StickyNote },
-]
-
-// Settings - Main settings item
-export const settingsMainItem: NavItem = { href: '/settings', label: 'Settings', icon: Settings }
-
-// Settings - Child items (grouped inside collapsible)
-export const settingsChildItems: NavItem[] = [
-  { href: '/settings/team', label: 'Team', icon: UsersRound },
-  { href: '/settings/security', label: 'Security', icon: Shield },
-]
-
-// Password Manager - org_admin only (filtered in Sidebar)
-export const passwordManagerItem: NavItem = { href: '/passwords', label: 'Password Manager', icon: Lock }
-
-// Financial Manager - org_admin only (filtered in Sidebar)
-export const financialManagerItem: NavItem = { href: '/financials', label: 'Financials', icon: DollarSign }
-
-// Competitor Tracker - org_admin only (filtered in Sidebar)
-export const competitorTrackerItem: NavItem = { href: '/competitors', label: 'Competitors', icon: Swords }
-
-// Settings - All items (legacy - for backwards compatibility)
-export const settingsItems: NavItem[] = [
-  settingsMainItem,
-  ...settingsChildItems,
-]
-
-// Grouped navigation
-export const navGroups: NavGroup[] = [
-  { label: 'Command Center', items: commandCenterItems },
-  { label: 'Core', items: coreItems },
-  { label: 'Assets', items: assetItems },
-]
-
-// Bottom nav (Settings - moved to separate section)
-export const bottomNavItems: NavItem[] = settingsItems
-
-// Legacy flat lists for backwards compatibility
-export const mainNavItems: NavItem[] = [
-  ...commandCenterItems,
-  ...coreItems,
-  ...assetItems,
-]
+/** All group names in display order */
+export const NAV_GROUPS: NavGroup[] = ['Command Center', 'Core', 'Assets', 'Management', 'Settings']
