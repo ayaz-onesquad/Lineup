@@ -124,5 +124,6 @@ export {
 export {
   useCompetitors,
   useCompetitor,
+  useCompetitorsByClient,
   useCompetitorMutations,
 } from './useCompetitors'

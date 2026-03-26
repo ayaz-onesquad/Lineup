@@ -30,6 +30,17 @@ export function useCompetitor(id: string) {
 }
 
 /**
+ * Hook to fetch competitors linked to a specific client
+ */
+export function useCompetitorsByClient(clientId: string) {
+  return useQuery({
+    queryKey: ['competitors', 'by-client', clientId],
+    queryFn: () => competitorsApi.getByClient(clientId),
+    enabled: !!clientId,
+  })
+}
+
+/**
  * Hook to get the current user's profile ID
  */
 function useCurrentUserProfileId() {

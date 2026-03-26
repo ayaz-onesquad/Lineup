@@ -10,6 +10,7 @@ import { useContacts, useContactMutations, useUnlinkedContacts } from '@/hooks/u
 import { useSetsByClient } from '@/hooks/useSets'
 import { useRequirementsByClient } from '@/hooks/useRequirements'
 import { usePitchesByClient } from '@/hooks/usePitches'
+import { useCompetitorsByClient } from '@/hooks/useCompetitors'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -89,6 +90,7 @@ import {
   CheckSquare,
   Presentation,
   MessageSquare,
+  Swords,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
@@ -131,6 +133,13 @@ const relationshipFormSchema = z.object({
 
 type RelationshipFormValues = z.infer<typeof relationshipFormSchema>
 
+const THREAT_COLORS: Record<string, string> = {
+  critical: 'bg-red-600 text-white',
+  high: 'bg-orange-500 text-white',
+  medium: 'bg-yellow-500 text-black',
+  low: 'bg-gray-400 text-white',
+}
+
 export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
   const navigate = useNavigate()
@@ -148,6 +157,7 @@ export function ClientDetailPage() {
   const { data: clientSets, isLoading: setsLoading } = useSetsByClient(safeClientId)
   const { data: clientRequirements, isLoading: requirementsLoading } = useRequirementsByClient(safeClientId)
   const { data: clientPitches, isLoading: pitchesLoading } = usePitchesByClient(safeClientId)
+  const { data: competitorsByClient, isLoading: competitorsLoading } = useCompetitorsByClient(safeClientId)
   const { data: tenantUsers } = useTenantUsers()
   const { data: unlinkedContacts, isLoading: unlinkedLoading } = useUnlinkedContacts(safeClientId)
   const { updateClient } = useClientMutations()
@@ -573,6 +583,15 @@ export function ClientDetailPage() {
           <TabsTrigger value="notes" className="gap-2">
             <FileText className="h-4 w-4" />
             Notes
+          </TabsTrigger>
+          <TabsTrigger value="competitors" className="gap-2">
+            <Swords className="h-4 w-4" />
+            Competitors
+            {competitorsByClient && competitorsByClient.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {competitorsByClient.length}
+              </Badge>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -1313,6 +1332,94 @@ export function ClientDetailPage() {
             description="Collaborate and discuss client matters"
             maxHeight="600px"
           />
+        </TabsContent>
+
+        {/* Competitors Tab */}
+        <TabsContent value="competitors" className="mt-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Linked Competitors</h3>
+              <p className="text-sm text-muted-foreground">
+                Competitors associated with this client
+              </p>
+            </div>
+
+            {competitorsLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : !competitorsByClient || competitorsByClient.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Swords className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p>No competitors linked to this client.</p>
+                <p className="text-sm mt-1">
+                  Link a competitor to this client from the Competitors page.
+                </p>
+              </div>
+            ) : (
+              <Card className="card-carbon">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Industry</TableHead>
+                        <TableHead>Threat Level</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Website</TableHead>
+                        <TableHead>Last Reviewed</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {competitorsByClient.map((competitor) => (
+                        <TableRow
+                          key={competitor.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onDoubleClick={() => navigate(`/competitors/${competitor.id}`)}
+                        >
+                          <TableCell>
+                            <span className="font-mono text-xs">{competitor.display_id}</span>
+                          </TableCell>
+                          <TableCell className="font-medium">{competitor.name}</TableCell>
+                          <TableCell>{competitor.industry ?? '—'}</TableCell>
+                          <TableCell>
+                            {competitor.threat_level ? (
+                              <Badge className={THREAT_COLORS[competitor.threat_level]}>
+                                {competitor.threat_level.charAt(0).toUpperCase() +
+                                  competitor.threat_level.slice(1)}
+                              </Badge>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge>{competitor.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {competitor.website ? (
+                              <a
+                                href={competitor.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary underline text-sm truncate max-w-[150px] block"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {competitor.website.replace(/^https?:\/\//, '')}
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {formatDate(competitor.last_reviewed_at) || 'Never'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 

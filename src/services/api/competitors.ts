@@ -179,4 +179,24 @@ export const competitorsApi = {
 
     if (error) throw error
   },
+
+  /**
+   * Get all competitors linked to a specific client
+   */
+  getByClient: async (clientId: string): Promise<Competitor[]> => {
+    const { data, error } = await supabase
+      .from('competitors')
+      .select(`
+        *,
+        client:clients!client_id(id, name),
+        creator:user_profiles!created_by(full_name, avatar_url),
+        updater:user_profiles!updated_by(full_name, avatar_url)
+      `)
+      .eq('client_id', clientId)
+      .is('deleted_at', null)
+      .order('name', { ascending: true })
+
+    if (error) throw error
+    return data ?? []
+  },
 }
