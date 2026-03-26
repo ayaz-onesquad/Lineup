@@ -48,6 +48,18 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Focus search input only on non-touch devices (prevents mobile keyboard popup)
+  React.useEffect(() => {
+    if (open && searchInputRef.current) {
+      // Only auto-focus on devices with hover capability (desktop/laptop)
+      const isDesktop = window.matchMedia('(hover: hover)').matches
+      if (isDesktop) {
+        searchInputRef.current.focus()
+      }
+    }
+  }, [open])
 
   const selectedOption = options.find((opt) => opt.value === value)
 
@@ -120,11 +132,14 @@ export function SearchableSelect({
       <PopoverContent
         className={cn('w-[--radix-popover-trigger-width] p-0', className)}
         onWheel={(e) => e.stopPropagation()}
+        avoidCollisions={true}
+        collisionPadding={16}
       >
         {/* Search header - fixed at top */}
         <div className="flex items-center border-b px-3 bg-popover">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
+            ref={searchInputRef}
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -138,7 +153,7 @@ export function SearchableSelect({
           </p>
         ) : (
           <ul
-            className="max-h-[280px] overflow-y-auto overscroll-contain bg-popover py-1"
+            className="max-h-[40vh] overflow-y-auto overscroll-contain bg-popover py-1"
             role="listbox"
           >
             {filteredOptions.map((option) => (
@@ -219,6 +234,18 @@ export function MultiSearchableSelect({
 }: MultiSearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Focus search input only on non-touch devices (prevents mobile keyboard popup)
+  React.useEffect(() => {
+    if (open && searchInputRef.current) {
+      // Only auto-focus on devices with hover capability (desktop/laptop)
+      const isDesktop = window.matchMedia('(hover: hover)').matches
+      if (isDesktop) {
+        searchInputRef.current.focus()
+      }
+    }
+  }, [open])
 
   const selectedOptions = options.filter((opt) => value.includes(opt.value))
 
@@ -289,11 +316,14 @@ export function MultiSearchableSelect({
       <PopoverContent
         className={cn('w-[--radix-popover-trigger-width] p-0', className)}
         onWheel={(e) => e.stopPropagation()}
+        avoidCollisions={true}
+        collisionPadding={16}
       >
         {/* Search header - fixed at top */}
         <div className="flex items-center border-b px-3 bg-popover">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
+            ref={searchInputRef}
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -307,7 +337,7 @@ export function MultiSearchableSelect({
           </p>
         ) : (
           <ul
-            className="max-h-[280px] overflow-y-auto overscroll-contain bg-popover py-1"
+            className="max-h-[40vh] overflow-y-auto overscroll-contain bg-popover py-1"
             role="listbox"
           >
             {filteredOptions.map((option) => (
