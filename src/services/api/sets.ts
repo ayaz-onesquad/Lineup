@@ -21,6 +21,87 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
   return cleaned as T
 }
 
+/**
+ * Cascade parent field changes to all child requirements of a set.
+ * Only passes fields that actually changed.
+ */
+export async function cascadeSetParentIds(
+  setId: string,
+  updates: {
+    client_id?: string | null
+    project_id?: string | null
+    phase_id?: string | null
+  }
+): Promise<void> {
+  // Filter out undefined values - only cascade what actually changed
+  const filteredUpdates: Record<string, unknown> = {}
+  if (updates.client_id !== undefined) filteredUpdates.client_id = updates.client_id
+  // Note: requirements don't have project_id or phase_id columns, only client_id
+
+  if (Object.keys(filteredUpdates).length === 0) return
+
+  const { error } = await supabase
+    .from('requirements')
+    .update({ ...filteredUpdates, updated_at: new Date().toISOString() })
+    .eq('set_id', setId)
+    .is('deleted_at', null)
+  if (error) throw error
+}
+
+// Base select without nested clients (will be enriched separately)
+const SET_SELECT = `
+  *,
+  clients:client_id (id, name),
+  projects (id, name, client_id),
+  project_phases (*),
+  owner:owner_id (id, full_name, avatar_url),
+  lead:lead_id (id, full_name, avatar_url),
+  secondary_lead:secondary_lead_id (id, full_name, avatar_url),
+  pm:pm_id (id, full_name, avatar_url)
+`
+
+// Helper to enrich sets with project->client data (fixes empty client column issue)
+async function enrichSetsWithClients(sets: Record<string, unknown>[]): Promise<SetWithRelations[]> {
+  if (!sets.length) return sets as unknown as SetWithRelations[]
+
+  // Collect all project client_ids that need fetching
+  const clientIds = new Set<string>()
+  for (const set of sets) {
+    const s = set as Record<string, unknown>
+    const project = s.projects as { client_id?: string } | null
+    if (project?.client_id) clientIds.add(project.client_id)
+  }
+
+  if (clientIds.size === 0) {
+    return sets as unknown as SetWithRelations[]
+  }
+
+  // Fetch clients for projects
+  const { data: clients } = await supabase
+    .from('clients')
+    .select('id, name')
+    .in('id', Array.from(clientIds))
+
+  // Build lookup map
+  const clientMap = new Map((clients || []).map(c => [c.id, c]))
+
+  // Enrich sets with project.clients
+  return sets.map(set => {
+    const s = set as Record<string, unknown>
+    const project = s.projects as { id: string; name: string; client_id?: string } | null
+    if (project?.client_id) {
+      return {
+        ...set,
+        projects: {
+          ...project,
+          clients: clientMap.get(project.client_id) || null,
+        },
+      } as unknown as SetWithRelations
+    }
+    return set as unknown as SetWithRelations
+  })
+}
+
 export const setsApi = {
   /**
    * Get all sets for tenant (excludes templates by default)
@@ -28,16 +109,7 @@ export const setsApi = {
   getAll: async (tenantId: string, includeTemplates = false): Promise<SetWithRelations[]> => {
     let query = supabase
       .from('sets')
-      .select(`
-        *,
-        clients:client_id (id, name),
-        projects (*, clients (*)),
-        project_phases (*),
-        owner:owner_id (id, full_name, avatar_url),
-        lead:lead_id (id, full_name, avatar_url),
-        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
-        pm:pm_id (id, full_name, avatar_url)
-      `)
+      .select(SET_SELECT)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('priority', { ascending: true })
@@ -50,7 +122,9 @@ export const setsApi = {
     const { data, error } = await query
 
     if (error) throw error
-    return data || []
+
+    // Enrich with project->client data
+    return enrichSetsWithClients(data || [])
   },
 
   /**
@@ -59,19 +133,14 @@ export const setsApi = {
   getTemplates: async (tenantId: string): Promise<SetWithRelations[]> => {
     const { data, error } = await supabase
       .from('sets')
-      .select(`
-        *,
-        clients:client_id (id, name),
-        projects (*, clients (*)),
-        project_phases (*)
-      `)
+      .select(SET_SELECT)
       .eq('tenant_id', tenantId)
       .eq('is_template', true)
       .is('deleted_at', null)
       .order('name', { ascending: true })
 
     if (error) throw error
-    return data || []
+    return enrichSetsWithClients(data || [])
   },
 
   getByClientId: async (clientId: string): Promise<SetWithRelations[]> => {
@@ -82,15 +151,7 @@ export const setsApi = {
     // First, get sets with direct client_id
     const { data: directSets, error: directError } = await supabase
       .from('sets')
-      .select(`
-        *,
-        projects (*,clients (*)),
-        project_phases (*),
-        owner:owner_id (id, full_name, avatar_url),
-        lead:lead_id (id, full_name, avatar_url),
-        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
-        pm:pm_id (id, full_name, avatar_url)
-      `)
+      .select(SET_SELECT)
       .eq('client_id', clientId)
       .is('deleted_at', null)
 
@@ -101,7 +162,7 @@ export const setsApi = {
       .from('sets')
       .select(`
         *,
-        projects!inner (*,clients (*)),
+        projects!inner (id, name, client_id),
         project_phases (*),
         owner:owner_id (id, full_name, avatar_url),
         lead:lead_id (id, full_name, avatar_url),
@@ -119,7 +180,8 @@ export const setsApi = {
     const uniqueSets = Array.from(new Map(allSets.map(s => [s.id, s])).values())
     uniqueSets.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-    return uniqueSets
+    // Enrich with client data
+    return enrichSetsWithClients(uniqueSets)
   },
 
   getByProjectId: async (projectId: string): Promise<SetWithRelations[]> => {
@@ -152,16 +214,7 @@ export const setsApi = {
   getById: async (id: string): Promise<SetWithRelations | null> => {
     const { data: set, error } = await supabase
       .from('sets')
-      .select(`
-        *,
-        clients:client_id (id, name),
-        projects (*, clients (*)),
-        project_phases (*),
-        owner:owner_id (id, full_name, avatar_url),
-        lead:lead_id (id, full_name, avatar_url),
-        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
-        pm:pm_id (id, full_name, avatar_url)
-      `)
+      .select(SET_SELECT)
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -187,10 +240,13 @@ export const setsApi = {
       }
     }
 
+    // Enrich with project->client data
+    const [enriched] = await enrichSetsWithClients([set])
+
     return {
-      ...set,
-      creator: set.created_by ? profileMap.get(set.created_by) || null : null,
-      updater: set.updated_by ? profileMap.get(set.updated_by) || null : null,
+      ...enriched,
+      creator: set.created_by ? profileMap.get(set.created_by) as unknown as SetWithRelations['creator'] : undefined,
+      updater: set.updated_by ? profileMap.get(set.updated_by) as unknown as SetWithRelations['updater'] : undefined,
     }
   },
 
@@ -334,7 +390,7 @@ export const setsApi = {
       .select(`
         *,
         clients:client_id (id, name),
-        projects (id, name, clients (id, name))
+        projects (id, name, client_id)
       `)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
@@ -345,7 +401,7 @@ export const setsApi = {
       .limit(10)
 
     if (error) throw error
-    return data || []
+    return enrichSetsWithClients(data || [])
   },
 
   /**
@@ -354,22 +410,13 @@ export const setsApi = {
   getPortalVisible: async (projectId: string): Promise<SetWithRelations[]> => {
     const { data, error } = await supabase
       .from('sets')
-      .select(`
-        *,
-        clients:client_id (id, name),
-        projects (*, clients (*)),
-        project_phases (*),
-        owner:owner_id (id, full_name, avatar_url),
-        lead:lead_id (id, full_name, avatar_url),
-        secondary_lead:secondary_lead_id (id, full_name, avatar_url),
-        pm:pm_id (id, full_name, avatar_url)
-      `)
+      .select(SET_SELECT)
       .eq('project_id', projectId)
       .eq('show_in_client_portal', true)
       .is('deleted_at', null)
       .order('set_order', { ascending: true })
 
     if (error) throw error
-    return data || []
+    return enrichSetsWithClients(data || [])
   },
 }

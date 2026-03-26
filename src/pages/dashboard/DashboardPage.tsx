@@ -350,6 +350,7 @@ function TaskItem({
     computed_status?: string | null
     priority?: number
     expected_due_date?: string | null
+    clients?: { name?: string } // Direct client relation
     sets?: { clients?: { name?: string } }
   }
 }) {
@@ -373,7 +374,7 @@ function TaskItem({
           {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
         </div>
         <p className="text-xs text-muted-foreground mt-1 truncate">
-          {task.sets?.clients?.name || 'No client'}
+          {task.clients?.name || task.sets?.clients?.name || 'No client'}
         </p>
         {task.expected_due_date && (
           <p

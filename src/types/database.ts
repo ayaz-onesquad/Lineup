@@ -389,6 +389,7 @@ export interface Requirement {
 }
 
 export interface RequirementWithRelations extends Requirement {
+  clients?: { id: string; name: string } // Direct client relation (from client_id)
   sets?: SetWithRelations
   pitches?: { id: string; name: string; status?: string } // Parent pitch relation
   assigned_to?: UserProfile
@@ -653,6 +654,7 @@ export interface UpdateSetInput extends Omit<Partial<CreateSetInput>, 'project_i
 export interface CreateRequirementInput {
   client_id: string
   set_id?: string
+  pitch_id?: string // Optional pitch grouping within a set
   title: string
   description?: string
   requirement_order?: number

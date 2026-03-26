@@ -39,6 +39,80 @@ function cleanDateFields<T>(input: T, fields: string[]): T {
   return cleaned as T
 }
 
+// Base select for requirements without deeply nested clients
+const REQUIREMENT_SELECT = `
+  *,
+  sets (
+    id, name, client_id, project_id, phase_id,
+    projects (id, name, client_id),
+    project_phases (id, name)
+  ),
+  pitches:pitch_id (id, name, status, is_approved),
+  assigned_to:assigned_to_id (id, full_name, avatar_url)
+`
+
+// Helper to enrich requirements with client data using direct client_id
+async function enrichRequirementsWithClients(requirements: Record<string, unknown>[]): Promise<RequirementWithRelations[]> {
+  if (!requirements.length) return requirements as unknown as RequirementWithRelations[]
+
+  // Collect all client IDs from:
+  // 1. requirement.client_id (direct, primary source)
+  // 2. sets->projects->client_id (fallback for legacy data)
+  const clientIds = new Set<string>()
+  for (const req of requirements) {
+    const r = req as Record<string, unknown>
+    // Primary: requirement's own client_id
+    if (r.client_id && typeof r.client_id === 'string') {
+      clientIds.add(r.client_id)
+    }
+    // Fallback: sets->projects->client_id
+    const sets = r.sets as { project_id?: string; projects?: { client_id?: string } } | null
+    if (sets?.projects?.client_id) {
+      clientIds.add(sets.projects.client_id)
+    }
+  }
+
+  if (clientIds.size === 0) {
+    return requirements as unknown as RequirementWithRelations[]
+  }
+
+  // Fetch clients
+  const { data: clients } = await supabase
+    .from('clients')
+    .select('id, name')
+    .in('id', Array.from(clientIds))
+
+  // Build lookup map
+  const clientMap = new Map((clients || []).map(c => [c.id, c]))
+
+  // Enrich requirements with direct clients relation AND sets->projects->clients
+  return requirements.map(req => {
+    const r = req as Record<string, unknown>
+    const sets = r.sets as { project_id?: string; projects?: { id: string; name: string; client_id?: string } | null } | null
+
+    // Build enriched requirement
+    const enriched: Record<string, unknown> = { ...req }
+
+    // Add direct clients relation using requirement's own client_id
+    if (r.client_id && typeof r.client_id === 'string') {
+      enriched.clients = clientMap.get(r.client_id) || null
+    }
+
+    // Also enrich sets->projects->clients for backwards compatibility
+    if (sets?.projects?.client_id) {
+      enriched.sets = {
+        ...sets,
+        projects: {
+          ...sets.projects,
+          clients: clientMap.get(sets.projects.client_id) || null,
+        },
+      }
+    }
+
+    return enriched as unknown as RequirementWithRelations
+  })
+}
+
 export const requirementsApi = {
   /**
    * Get all requirements for tenant (excludes templates by default)
@@ -46,16 +120,7 @@ export const requirementsApi = {
   getAll: async (tenantId: string, includeTemplates = false): Promise<RequirementWithRelations[]> => {
     let query = supabase
       .from('requirements')
-      .select(`
-        *,
-        sets (
-          *,
-          projects (*, clients (*)),
-          project_phases (*)
-        ),
-        pitches:pitch_id (id, name, status, is_approved),
-        assigned_to:assigned_to_id (id, full_name, avatar_url)
-      `)
+      .select(REQUIREMENT_SELECT)
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('priority', { ascending: true })
@@ -68,7 +133,7 @@ export const requirementsApi = {
     const { data, error } = await query
 
     if (error) throw error
-    return data || []
+    return enrichRequirementsWithClients(data || [])
   },
 
   /**
@@ -146,45 +211,28 @@ export const requirementsApi = {
     const setIds = sets.map(s => s.id)
     const { data, error } = await supabase
       .from('requirements')
-      .select(`
-        *,
-        sets (
-          *,
-          projects (*, clients (*)),
-          project_phases (*)
-        ),
-        assigned_to:assigned_to_id (id, full_name, avatar_url)
-      `)
+      .select(REQUIREMENT_SELECT)
       .in('set_id', setIds)
       .is('deleted_at', null)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+    return enrichRequirementsWithClients(data || [])
   },
 
   getByClientId: async (clientId: string): Promise<RequirementWithRelations[]> => {
     // Now requirements have direct client_id, so query directly
     const { data, error } = await supabase
       .from('requirements')
-      .select(`
-        *,
-        clients (*),
-        sets (
-          *,
-          projects (*, clients (*)),
-          project_phases (*)
-        ),
-        assigned_to:assigned_to_id (id, full_name, avatar_url)
-      `)
+      .select(REQUIREMENT_SELECT)
       .eq('client_id', clientId)
       .is('deleted_at', null)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+    return enrichRequirementsWithClients(data || [])
   },
 
   getByAssignedTo: async (
@@ -193,15 +241,7 @@ export const requirementsApi = {
   ): Promise<RequirementWithRelations[]> => {
     const { data, error } = await supabase
       .from('requirements')
-      .select(`
-        *,
-        sets (
-          *,
-          projects (*, clients (*)),
-          project_phases (*)
-        ),
-        assigned_to:assigned_to_id (id, full_name, avatar_url)
-      `)
+      .select(REQUIREMENT_SELECT)
       .eq('tenant_id', tenantId)
       .eq('assigned_to_id', userId)
       .is('deleted_at', null)
@@ -209,7 +249,7 @@ export const requirementsApi = {
       .order('expected_due_date', { ascending: true, nullsFirst: false })
 
     if (error) throw error
-    return data || []
+    return enrichRequirementsWithClients(data || [])
   },
 
   getById: async (id: string): Promise<RequirementWithRelations | null> => {
@@ -332,10 +372,17 @@ export const requirementsApi = {
   },
 
   update: async (id: string, userId: string, input: UpdateRequirementInput): Promise<Requirement> => {
-    // Clean UUID fields
-    // Note: client_id and set_id are excluded from cleaning because they should never change after creation
+    // Get current requirement to track set changes for completion percentage updates
+    const { data: currentReq } = await supabase
+      .from('requirements')
+      .select('set_id')
+      .eq('id', id)
+      .single()
+    const previousSetId = currentReq?.set_id
+
+    // Clean UUID fields - include all parent fields for re-assignment
     let cleanedInput = cleanUUIDFields(input, [
-      'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
+      'client_id', 'set_id', 'pitch_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
     ])
 
     // Clean date fields - convert empty strings to null (fixes "revert" bug when clearing dates)
@@ -343,12 +390,8 @@ export const requirementsApi = {
       'expected_due_date', 'actual_due_date', 'completed_date', 'expected_start_date', 'actual_start_date'
     ])
 
-    // Explicitly remove client_id and set_id from updates to prevent accidental nullification
-    // Requirements should not change their client or set after creation
-    const { client_id: _removedClientId, set_id: _removedSetId, ...inputWithoutSetId } = cleanedInput
-
     const updates: Record<string, unknown> = {
-      ...inputWithoutSetId,
+      ...cleanedInput,
       updated_by: userId,
     }
 
@@ -373,9 +416,16 @@ export const requirementsApi = {
 
     if (error) throw error
 
-    // Update set completion
+    // Update set completion for both old and new sets if set changed
     const { setsApi } = await import('./sets')
-    await setsApi.updateCompletionPercentage(data.set_id)
+    if (previousSetId && previousSetId !== data.set_id) {
+      // Update old set's completion percentage
+      await setsApi.updateCompletionPercentage(previousSetId)
+    }
+    if (data.set_id) {
+      // Update new/current set's completion percentage
+      await setsApi.updateCompletionPercentage(data.set_id)
+    }
 
     return data
   },
@@ -458,7 +508,8 @@ export const requirementsApi = {
       .limit(15)
 
     if (error) throw error
-    return data || []
+    // Enrich with client data using requirement's direct client_id
+    return enrichRequirementsWithClients(data || [])
   },
 
   /**

@@ -27,6 +27,41 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
   return cleaned as T
 }
 
+/**
+ * Cascade client_id change to all child sets and requirements of a project.
+ * Called only when user confirms the cascade dialog.
+ */
+export async function cascadeProjectClientId(
+  projectId: string,
+  newClientId: string
+): Promise<void> {
+  // Update all sets belonging to this project
+  const { error: setsError } = await supabase
+    .from('sets')
+    .update({ client_id: newClientId, updated_at: new Date().toISOString() })
+    .eq('project_id', projectId)
+    .is('deleted_at', null)
+  if (setsError) throw setsError
+
+  // Update all requirements belonging to sets of this project
+  // First get the set IDs for this project
+  const { data: sets } = await supabase
+    .from('sets')
+    .select('id')
+    .eq('project_id', projectId)
+    .is('deleted_at', null)
+
+  if (sets && sets.length > 0) {
+    const setIds = sets.map(s => s.id)
+    const { error: reqError } = await supabase
+      .from('requirements')
+      .update({ client_id: newClientId, updated_at: new Date().toISOString() })
+      .in('set_id', setIds)
+      .is('deleted_at', null)
+    if (reqError) throw reqError
+  }
+}
+
 export const projectsApi = {
   /**
    * Get all projects for tenant (excludes templates by default)
@@ -298,17 +333,13 @@ export const projectsApi = {
 
   update: async (id: string, userId: string, input: UpdateProjectInput): Promise<Project> => {
     // Clean UUID fields to prevent "invalid UUID" errors
-    // Note: client_id is excluded because it should never change after creation
-    const cleanedInput = cleanUUIDFields(input, ['lead_id', 'secondary_lead_id', 'pm_id'])
-
-    // Explicitly remove client_id from updates to prevent accidental nullification
-    // Projects should not change their client after creation
-    const { client_id: _removedClientId, ...updateData } = cleanedInput
+    // client_id is included for parent re-assignment feature
+    const cleanedInput = cleanUUIDFields(input, ['client_id', 'lead_id', 'secondary_lead_id', 'pm_id'])
 
     const { data, error } = await supabase
       .from('projects')
       .update({
-        ...updateData,
+        ...cleanedInput,
         updated_by: userId,
       })
       .eq('id', id)

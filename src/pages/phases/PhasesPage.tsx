@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Search, Calendar } from 'lucide-react'
+import { Search, Calendar, Building2 } from 'lucide-react'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { formatDate } from '@/lib/utils'
 import type { EnhancedProjectPhase } from '@/types/database'
@@ -70,6 +70,7 @@ export function PhasesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Phase ID</TableHead>
+                <TableHead>Client</TableHead>
                 <TableHead>Project</TableHead>
                 <TableHead>Phase Name</TableHead>
                 <TableHead>Status</TableHead>
@@ -81,7 +82,7 @@ export function PhasesPage() {
             <TableBody>
               {filteredPhases?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No phases found
                   </TableCell>
                 </TableRow>
@@ -97,6 +98,20 @@ export function PhasesPage() {
                       <span className="font-mono text-sm">
                         {phase.phase_id_display || `PH-${phase.display_id}`}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      {phase.projects?.clients?.id ? (
+                        <Link
+                          to={`/clients/${phase.projects.clients.id}`}
+                          className="flex items-center gap-2 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                          {phase.projects.clients.name || '—'}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {phase.projects ? (

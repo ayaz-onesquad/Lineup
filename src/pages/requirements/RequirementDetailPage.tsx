@@ -4,6 +4,11 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRequirement, useRequirementMutations } from '@/hooks/useRequirements'
+import { useClients } from '@/hooks/useClients'
+import { useProjects } from '@/hooks/useProjects'
+import { usePhasesByProject } from '@/hooks/usePhases'
+import { useSets } from '@/hooks/useSets'
+import { usePitchesBySet } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -25,7 +30,9 @@ import {
   Calendar,
   Users,
   Clock,
+  Presentation,
 } from 'lucide-react'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatDate, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { computeRequirementStatus, computeKeyDueDate, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
@@ -60,6 +67,12 @@ const REVIEW_STATUS_OPTIONS = [
 const requirementFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
+  // Parent hierarchy - all editable
+  client_id: z.string().min(1, 'Client is required'),
+  project_id: z.string().optional(), // For filtering phases/sets
+  phase_id: z.string().optional(), // For filtering sets
+  set_id: z.string().optional(), // Parent set
+  pitch_id: z.string().optional(), // Optional pitch grouping
   // Status is computed from dates, not editable
   requirement_type: z.enum(['task', 'open_item', 'technical', 'support', 'internal_deliverable', 'client_deliverable']),
   is_task: z.boolean(), // When true, appears in Global Tasks view
@@ -87,6 +100,9 @@ export function RequirementDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: requirement, isLoading } = useRequirement(requirementId!)
+  const { data: clients } = useClients()
+  const { data: allProjects } = useProjects()
+  const { data: allSets } = useSets()
   const { data: tenantUsers } = useTenantUsers()
   const { updateRequirement } = useRequirementMutations()
 
@@ -102,6 +118,11 @@ export function RequirementDetailPage() {
     defaultValues: {
       title: requirement?.title || '',
       description: requirement?.description || '',
+      client_id: requirement?.client_id || '',
+      project_id: requirement?.sets?.project_id || '',
+      phase_id: requirement?.sets?.phase_id || '',
+      set_id: requirement?.set_id || '',
+      pitch_id: requirement?.pitch_id || '',
       requirement_type: requirement?.requirement_type || 'task',
       is_task: requirement?.is_task || false,
       urgency: requirement?.urgency || 'medium',
@@ -119,6 +140,96 @@ export function RequirementDetailPage() {
       requirement_order: requirement?.requirement_order ?? undefined,
     },
   })
+
+  // Watch parent fields for cascading dropdown filtering
+  const selectedClientId = useWatch({ control: form.control, name: 'client_id' })
+  const selectedProjectId = useWatch({ control: form.control, name: 'project_id' })
+  const selectedPhaseId = useWatch({ control: form.control, name: 'phase_id' })
+  const selectedSetId = useWatch({ control: form.control, name: 'set_id' })
+
+  // Fetch phases for the selected project
+  const { data: projectPhases } = usePhasesByProject(selectedProjectId || '')
+
+  // Fetch pitches for the selected set
+  const { data: setPitches } = usePitchesBySet(selectedSetId || '')
+
+  // Build client options for dropdown
+  const clientOptions = useMemo(() =>
+    clients?.map((c) => ({ value: c.id, label: c.name })) || [],
+    [clients]
+  )
+
+  // Filter projects by selected client
+  const filteredProjects = useMemo(() => {
+    if (!allProjects) return []
+    if (!selectedClientId) return allProjects
+    return allProjects.filter((p) => p.client_id === selectedClientId)
+  }, [allProjects, selectedClientId])
+
+  // Build project options
+  const projectOptions = useMemo(() =>
+    filteredProjects.map((p) => ({
+      value: p.id,
+      label: p.name,
+      description: p.project_code,
+    })),
+    [filteredProjects]
+  )
+
+  // Build phase options for selected project
+  const phaseOptions = useMemo(() =>
+    projectPhases?.map((p) => ({
+      value: p.id,
+      label: p.name,
+      description: `Order: ${p.phase_order}`,
+    })) || [],
+    [projectPhases]
+  )
+
+  // Filter sets by selected client/project/phase (cascading)
+  const filteredSets = useMemo(() => {
+    if (!allSets) return []
+    let filtered = allSets
+
+    // Filter by client
+    if (selectedClientId) {
+      filtered = filtered.filter((s) =>
+        s.client_id === selectedClientId ||
+        s.projects?.client_id === selectedClientId
+      )
+    }
+
+    // Filter by project if selected
+    if (selectedProjectId) {
+      filtered = filtered.filter((s) => s.project_id === selectedProjectId)
+    }
+
+    // Filter by phase if selected
+    if (selectedPhaseId) {
+      filtered = filtered.filter((s) => s.phase_id === selectedPhaseId)
+    }
+
+    return filtered
+  }, [allSets, selectedClientId, selectedProjectId, selectedPhaseId])
+
+  // Build set options
+  const setOptions = useMemo(() =>
+    filteredSets.map((s) => ({
+      value: s.id,
+      label: s.name,
+      description: s.projects?.name || 'No project',
+    })),
+    [filteredSets]
+  )
+
+  // Build pitch options for selected set
+  const pitchOptions = useMemo(() =>
+    setPitches?.map((p) => ({
+      value: p.id,
+      label: p.name,
+    })) || [],
+    [setPitches]
+  )
 
   // Watch date fields for real-time reactive status calculation
   const watchedActualDueDate = useWatch({ control: form.control, name: 'actual_due_date' })
@@ -183,6 +294,11 @@ export function RequirementDetailPage() {
       form.reset({
         title: requirement.title,
         description: requirement.description || '',
+        client_id: requirement.client_id || '',
+        project_id: requirement.sets?.project_id || '',
+        phase_id: requirement.sets?.phase_id || '',
+        set_id: requirement.set_id || '',
+        pitch_id: requirement.pitch_id || '',
         requirement_type: requirement.requirement_type,
         is_task: requirement.is_task || false,
         urgency: requirement.urgency,
@@ -225,6 +341,9 @@ export function RequirementDetailPage() {
         id: requirementId,
         title: data.title,
         description: data.description,
+        client_id: data.client_id,
+        set_id: data.set_id || undefined,
+        pitch_id: data.pitch_id || undefined,
         requirement_type: data.requirement_type as RequirementType,
         is_task: data.is_task,
         urgency: data.urgency as UrgencyLevel,
@@ -253,6 +372,11 @@ export function RequirementDetailPage() {
     form.reset({
       title: requirement?.title || '',
       description: requirement?.description || '',
+      client_id: requirement?.client_id || '',
+      project_id: requirement?.sets?.project_id || '',
+      phase_id: requirement?.sets?.phase_id || '',
+      set_id: requirement?.set_id || '',
+      pitch_id: requirement?.pitch_id || '',
       requirement_type: requirement?.requirement_type || 'task',
       is_task: requirement?.is_task || false,
       urgency: requirement?.urgency || 'medium',
@@ -295,30 +419,58 @@ export function RequirementDetailPage() {
 
   return (
     <div className="page-carbon p-6 space-y-6">
-      {/* Breadcrumbs: Client > Project > Set > Requirement */}
+      {/* Breadcrumbs: Client > Project > Phase > Set > Pitch > Requirement (hierarchy order) */}
       <Breadcrumbs
-        items={[
-          {
-            label: requirement.sets?.projects?.clients?.name || 'Client',
-            href: requirement.sets?.projects?.clients?.id
-              ? `/clients/${requirement.sets.projects.clients.id}`
-              : '/clients',
-          },
-          {
-            label: requirement.sets?.projects?.name || 'Project',
-            href: requirement.sets?.project_id
-              ? `/projects/${requirement.sets.project_id}`
-              : undefined,
-          },
-          {
-            label: requirement.sets?.name || 'Set',
-            href: requirement.set_id ? `/sets/${requirement.set_id}` : undefined,
-          },
-          {
+        items={(() => {
+          const items: { label: string; href?: string; displayId?: number | string }[] = []
+
+          // 1. Client (use requirement's client_id directly)
+          const clientName = clients?.find((c) => c.id === requirement.client_id)?.name || 'Client'
+          items.push({
+            label: clientName,
+            href: requirement.client_id ? `/clients/${requirement.client_id}` : '/clients',
+          })
+
+          // 2. Project (if exists via set)
+          if (requirement.sets?.project_id && requirement.sets?.projects?.name) {
+            items.push({
+              label: requirement.sets.projects.name,
+              href: `/projects/${requirement.sets.project_id}`,
+            })
+          }
+
+          // 3. Phase (if exists via set)
+          if (requirement.sets?.phase_id && requirement.sets?.project_phases?.name) {
+            items.push({
+              label: requirement.sets.project_phases.name,
+              href: `/phases/${requirement.sets.phase_id}`,
+            })
+          }
+
+          // 4. Set (if exists)
+          if (requirement.set_id && requirement.sets?.name) {
+            items.push({
+              label: requirement.sets.name,
+              href: `/sets/${requirement.set_id}`,
+            })
+          }
+
+          // 5. Pitch (if exists)
+          if (requirement.pitch_id && requirement.pitches?.name) {
+            items.push({
+              label: requirement.pitches.name,
+              href: `/pitches/${requirement.pitch_id}`,
+            })
+          }
+
+          // 6. Requirement (current item)
+          items.push({
             label: requirement.title,
             displayId: requirement.display_id,
-          },
-        ]}
+          })
+
+          return items
+        })()}
       />
 
       {/* Header - Title with Name | ID format */}
@@ -454,37 +606,189 @@ export function RequirementDetailPage() {
                 <CheckSquare className="h-5 w-5 text-muted-foreground" />
                 Requirement Information
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {/* Parent Hierarchy: Client → Project → Phase → Set → Pitch (all editable) */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
+                {/* 1. Client - Editable */}
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Set</p>
-                  <Link
-                    to={`/sets/${requirement.set_id}`}
-                    className="font-medium hover:underline flex items-center gap-1"
-                  >
-                    <Layers className="h-3 w-3" />
-                    {requirement.sets?.name || '—'}
-                  </Link>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Client *</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={clientOptions}
+                      value={form.watch('client_id')}
+                      onValueChange={(value) => {
+                        form.setValue('client_id', value || '')
+                        // Reset dependent fields when client changes
+                        const currentProject = form.getValues('project_id')
+                        if (currentProject && value) {
+                          const projectBelongsToClient = allProjects?.find(
+                            (p) => p.id === currentProject && p.client_id === value
+                          )
+                          if (!projectBelongsToClient) {
+                            form.setValue('project_id', '')
+                            form.setValue('phase_id', '')
+                          }
+                        }
+                        // Reset set if it doesn't belong to new client
+                        const currentSet = form.getValues('set_id')
+                        if (currentSet && value) {
+                          const setBelongsToClient = allSets?.find(
+                            (s) => s.id === currentSet && (s.client_id === value || s.projects?.client_id === value)
+                          )
+                          if (!setBelongsToClient) {
+                            form.setValue('set_id', '')
+                            form.setValue('pitch_id', '')
+                          }
+                        }
+                      }}
+                      placeholder="Select client..."
+                      searchPlaceholder="Search clients..."
+                      emptyMessage="No clients found."
+                    />
+                  ) : (
+                    <Link
+                      to={`/clients/${requirement.client_id}`}
+                      className="font-medium hover:underline flex items-center gap-1"
+                    >
+                      <Building2 className="h-3 w-3" />
+                      {clients?.find((c) => c.id === requirement.client_id)?.name || '—'}
+                    </Link>
+                  )}
                 </div>
+                {/* 2. Project - Editable (filters sets) */}
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Project</p>
-                  <Link
-                    to={`/projects/${requirement.sets?.project_id}`}
-                    className="font-medium hover:underline flex items-center gap-1"
-                  >
-                    <FolderKanban className="h-3 w-3" />
-                    {requirement.sets?.projects?.name || '—'}
-                  </Link>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Project</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={projectOptions}
+                      value={form.watch('project_id') || ''}
+                      onValueChange={(value) => {
+                        form.setValue('project_id', value || '')
+                        // Reset phase when project changes
+                        form.setValue('phase_id', '')
+                        // Reset set if it doesn't belong to new project
+                        const currentSet = form.getValues('set_id')
+                        if (currentSet && value) {
+                          const setBelongsToProject = allSets?.find(
+                            (s) => s.id === currentSet && s.project_id === value
+                          )
+                          if (!setBelongsToProject) {
+                            form.setValue('set_id', '')
+                            form.setValue('pitch_id', '')
+                          }
+                        }
+                      }}
+                      placeholder="Select project..."
+                      searchPlaceholder="Search projects..."
+                      emptyMessage={selectedClientId ? "No projects found." : "Select a client first."}
+                      clearable
+                    />
+                  ) : requirement.sets?.project_id ? (
+                    <Link
+                      to={`/projects/${requirement.sets.project_id}`}
+                      className="font-medium hover:underline flex items-center gap-1"
+                    >
+                      <FolderKanban className="h-3 w-3" />
+                      {requirement.sets?.projects?.name || '—'}
+                    </Link>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
                 </div>
+                {/* 3. Phase - Editable (filters sets) */}
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Client</p>
-                  <Link
-                    to={`/clients/${requirement.sets?.projects?.clients?.id}`}
-                    className="font-medium hover:underline flex items-center gap-1"
-                  >
-                    <Building2 className="h-3 w-3" />
-                    {requirement.sets?.projects?.clients?.name || '—'}
-                  </Link>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Phase</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={phaseOptions}
+                      value={form.watch('phase_id') || ''}
+                      onValueChange={(value) => {
+                        form.setValue('phase_id', value || '')
+                        // Reset set if it doesn't belong to new phase
+                        const currentSet = form.getValues('set_id')
+                        if (currentSet && value) {
+                          const setBelongsToPhase = allSets?.find(
+                            (s) => s.id === currentSet && s.phase_id === value
+                          )
+                          if (!setBelongsToPhase) {
+                            form.setValue('set_id', '')
+                            form.setValue('pitch_id', '')
+                          }
+                        }
+                      }}
+                      placeholder="Select phase..."
+                      searchPlaceholder="Search phases..."
+                      emptyMessage={selectedProjectId ? "No phases found." : "Select a project first."}
+                      clearable
+                      disabled={!selectedProjectId}
+                    />
+                  ) : requirement.sets?.phase_id ? (
+                    <Link
+                      to={`/phases/${requirement.sets.phase_id}`}
+                      className="font-medium hover:underline flex items-center gap-1"
+                    >
+                      <Calendar className="h-3 w-3" />
+                      {requirement.sets?.project_phases?.name || '—'}
+                    </Link>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
                 </div>
+                {/* 4. Set - Editable */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Set</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={setOptions}
+                      value={form.watch('set_id') || ''}
+                      onValueChange={(value) => {
+                        form.setValue('set_id', value || '')
+                        // Reset pitch when set changes
+                        form.setValue('pitch_id', '')
+                      }}
+                      placeholder="Select set..."
+                      searchPlaceholder="Search sets..."
+                      emptyMessage={selectedClientId ? "No sets found." : "Select a client first."}
+                      clearable
+                    />
+                  ) : requirement.set_id ? (
+                    <Link
+                      to={`/sets/${requirement.set_id}`}
+                      className="font-medium hover:underline flex items-center gap-1"
+                    >
+                      <Layers className="h-3 w-3" />
+                      {requirement.sets?.name || '—'}
+                    </Link>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
+                </div>
+                {/* 5. Pitch - Editable (if set is selected) */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Pitch</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={pitchOptions}
+                      value={form.watch('pitch_id') || ''}
+                      onValueChange={(value) => form.setValue('pitch_id', value || '')}
+                      placeholder="Select pitch..."
+                      searchPlaceholder="Search pitches..."
+                      emptyMessage={selectedSetId ? "No pitches found." : "Select a set first."}
+                      clearable
+                      disabled={!selectedSetId}
+                    />
+                  ) : requirement.pitch_id && requirement.pitches ? (
+                    <Link
+                      to={`/pitches/${requirement.pitch_id}`}
+                      className="font-medium hover:underline flex items-center gap-1"
+                    >
+                      <Presentation className="h-3 w-3" />
+                      {requirement.pitches.name || '—'}
+                    </Link>
+                  ) : (
+                    <p className="text-muted-foreground">—</p>
+                  )}
+                </div>
+                {/* Order */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Order</p>
                   {isEditing ? (

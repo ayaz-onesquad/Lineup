@@ -248,7 +248,7 @@ export function RequirementsPage() {
                       onDoubleClick={() => navigate(`/requirements/${req.id}`)}
                     >
                       <TableCell>
-                        {req.sets?.projects?.clients?.name || '—'}
+                        {req.clients?.name || req.sets?.projects?.clients?.name || '—'}
                       </TableCell>
                       <TableCell>
                         {req.sets?.projects?.name || '—'}

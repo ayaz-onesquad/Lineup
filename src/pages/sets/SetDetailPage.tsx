@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSet, useSetMutations } from '@/hooks/useSets'
 import { useRequirementsBySet } from '@/hooks/useRequirements'
 import { usePitchesBySet } from '@/hooks/usePitches'
@@ -10,7 +11,9 @@ import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
 import { usePhasesByProject } from '@/hooks/usePhases'
 import { useTenantUsers } from '@/hooks/useTenant'
-import { useUIStore } from '@/stores'
+import { useUIStore, useTenantStore } from '@/stores'
+import { cascadeSetParentIds } from '@/services/api/sets'
+import { toast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +34,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   ArrowLeft,
   Plus,
@@ -93,6 +106,8 @@ type SetFormValues = z.infer<typeof setFormSchema>
 export function SetDetailPage() {
   const { setId } = useParams<{ setId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { currentTenant } = useTenantStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: set, isLoading } = useSet(setId!)
   const { data: requirements, isLoading: requirementsLoading } = useRequirementsBySet(setId!)
@@ -108,6 +123,10 @@ export function SetDetailPage() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  // Cascade dialog state for parent re-assignment
+  const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false)
+  const [pendingSaveData, setPendingSaveData] = useState<SetFormValues | null>(null)
+  const [parentChanges, setParentChanges] = useState<string[]>([])
 
   // Set form - status is computed and not editable
   const form = useForm<SetFormValues>({
@@ -300,7 +319,41 @@ export function SetDetailPage() {
     }
   }, [shouldEditOnLoad, set])
 
+  // Detect parent changes and show cascade dialog if needed
   const handleSaveSet = async (data: SetFormValues) => {
+    if (!setId) return
+
+    // Check which parent fields changed
+    const changes: string[] = []
+    // Note: For sets, only client_id cascades to requirements (requirements don't have project_id/phase_id)
+    if (data.client_id !== (set?.client_id || set?.projects?.client_id)) {
+      changes.push('Client')
+    }
+
+    if (changes.length > 0) {
+      // Parent changed — hold the save and show dialog
+      setPendingSaveData(data)
+      setParentChanges(changes)
+      setCascadeDialogOpen(true)
+      return
+    }
+
+    // No cascadable parent change — save normally
+    await executeSave(data, false)
+  }
+
+  // Called after user answers the cascade dialog
+  const handleCascadeDecision = async (cascade: boolean) => {
+    setCascadeDialogOpen(false)
+    if (pendingSaveData) {
+      await executeSave(pendingSaveData, cascade)
+      setPendingSaveData(null)
+      setParentChanges([])
+    }
+  }
+
+  // The actual save logic (separated so cascade dialog can call it)
+  const executeSave = async (data: SetFormValues, cascade: boolean) => {
     if (!setId) return
     setIsSaving(true)
     try {
@@ -329,6 +382,41 @@ export function SetDetailPage() {
         budget_hours: data.budget_hours,
         set_order: data.set_order,
       })
+
+      // Cascade client_id to child requirements if user confirmed
+      if (cascade) {
+        const originalClientId = set?.client_id || set?.projects?.client_id
+        const cascadeUpdates: { client_id?: string | null } = {}
+        if (data.client_id !== originalClientId) {
+          cascadeUpdates.client_id = data.client_id
+        }
+
+        if (Object.keys(cascadeUpdates).length > 0) {
+          try {
+            await cascadeSetParentIds(setId, cascadeUpdates)
+            // Invalidate related queries to refresh data
+            queryClient.invalidateQueries({ queryKey: ['requirements', 'set', setId] })
+            queryClient.invalidateQueries({ queryKey: ['requirements', currentTenant?.id] })
+            toast({
+              title: 'Saved',
+              description: 'Set and all child requirements updated.',
+            })
+          } catch (cascadeError) {
+            console.error('Cascade failed:', cascadeError)
+            toast({
+              title: 'Partial Update',
+              description: 'Set saved, but failed to update child requirements.',
+              variant: 'destructive',
+            })
+          }
+        }
+      } else if (cascade === false && parentChanges.length > 0) {
+        toast({
+          title: 'Saved',
+          description: 'Set saved. Child requirements not changed.',
+        })
+      }
+
       setIsEditing(false)
     } finally {
       setIsSaving(false)
@@ -1107,6 +1195,39 @@ export function SetDetailPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Cascade Confirmation Dialog */}
+      <AlertDialog open={cascadeDialogOpen} onOpenChange={setCascadeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update Child Records?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>
+                  You changed the <strong>{parentChanges.join(' and ')}</strong> of this set.
+                  Would you like to update all child requirements to match?
+                </p>
+                <p className="mt-3">
+                  <strong>Yes</strong> — All requirements under this set will be
+                  moved to the new {parentChanges.join(' / ')}.
+                </p>
+                <p className="mt-2">
+                  <strong>No</strong> — Only this set is updated. Child requirements keep their
+                  current parent assignments.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleCascadeDecision(false)}>
+              No, this set only
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleCascadeDecision(true)}>
+              Yes, update all children
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

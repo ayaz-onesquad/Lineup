@@ -3,12 +3,16 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { useProjectWithHierarchy, useProjectMutations } from '@/hooks/useProjects'
 import { useSetsByProject } from '@/hooks/useSets'
 import { useRequirementsByProject } from '@/hooks/useRequirements'
 import { usePitchesByProject } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
-import { useUIStore } from '@/stores'
+import { useClients } from '@/hooks/useClients'
+import { useUIStore, useTenantStore } from '@/stores'
+import { cascadeProjectClientId } from '@/services/api/projects'
+import { toast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +34,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   ArrowLeft,
   Plus,
@@ -65,6 +79,8 @@ import type { ProjectHealth } from '@/types/database'
 const projectFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
+  // Client is editable for parent re-assignment
+  client_id: z.string().min(1, 'Client is required'),
   // Status is now computed from dates, not editable
   health: z.enum(['on_track', 'at_risk', 'delayed']),
   expected_start_date: z.string().optional(),
@@ -83,6 +99,8 @@ type ProjectFormValues = z.infer<typeof projectFormSchema>
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { currentTenant } = useTenantStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: project, isLoading } = useProjectWithHierarchy(projectId!)
   const { data: projectSets, isLoading: setsLoading } = useSetsByProject(projectId!)
@@ -90,6 +108,7 @@ export function ProjectDetailPage() {
   const { data: projectPitches, isLoading: pitchesLoading } = usePitchesByProject(projectId!)
   const { updateProject, duplicateProject } = useProjectMutations()
   const { data: users } = useTenantUsers()
+  const { data: clients } = useClients()
   const { openDetailPanel, openCreateModal } = useUIStore()
 
   // User options for team member dropdowns - use user_profiles.id (not user_id)
@@ -101,6 +120,12 @@ export function ProjectDetailPage() {
     [users]
   )
 
+  // Client options for client dropdown
+  const clientOptions = useMemo(() =>
+    clients?.map((c) => ({ value: c.id, label: c.name })) || [],
+    [clients]
+  )
+
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
 
@@ -109,6 +134,10 @@ export function ProjectDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
+  // Cascade dialog state for parent re-assignment
+  const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false)
+  const [pendingSaveData, setPendingSaveData] = useState<ProjectFormValues | null>(null)
+  const [parentChanges, setParentChanges] = useState<string[]>([])
 
   // Project form - status is computed and not editable
   const form = useForm<ProjectFormValues>({
@@ -116,6 +145,7 @@ export function ProjectDetailPage() {
     defaultValues: {
       name: project?.name || '',
       description: project?.description || '',
+      client_id: project?.client_id || '',
       health: project?.health || 'on_track',
       expected_start_date: project?.expected_start_date?.split('T')[0] || '',
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
@@ -212,6 +242,7 @@ export function ProjectDetailPage() {
       form.reset({
         name: project.name,
         description: project.description || '',
+        client_id: project.client_id || '',
         health: project.health,
         expected_start_date: project.expected_start_date?.split('T')[0] || '',
         expected_end_date: project.expected_end_date?.split('T')[0] || '',
@@ -260,7 +291,40 @@ export function ProjectDetailPage() {
   const toNullableDate = (val: string | undefined | null): string | undefined =>
     val?.trim() ? val.trim() : (null as unknown as undefined)
 
+  // Detect parent changes and show cascade dialog if needed
   const handleSaveProject = async (data: ProjectFormValues) => {
+    if (!projectId) return
+
+    // Check if client_id changed (only parent field for projects)
+    const changes: string[] = []
+    if (data.client_id !== project?.client_id) {
+      changes.push('Client')
+    }
+
+    if (changes.length > 0) {
+      // Parent changed — hold the save and show dialog
+      setPendingSaveData(data)
+      setParentChanges(changes)
+      setCascadeDialogOpen(true)
+      return
+    }
+
+    // No parent change — save normally
+    await executeSave(data, false)
+  }
+
+  // Called after user answers the cascade dialog
+  const handleCascadeDecision = async (cascade: boolean) => {
+    setCascadeDialogOpen(false)
+    if (pendingSaveData) {
+      await executeSave(pendingSaveData, cascade)
+      setPendingSaveData(null)
+      setParentChanges([])
+    }
+  }
+
+  // The actual save logic (separated so cascade dialog can call it)
+  const executeSave = async (data: ProjectFormValues, cascade: boolean) => {
     if (!projectId) return
     setIsSaving(true)
     try {
@@ -270,6 +334,7 @@ export function ProjectDetailPage() {
         id: projectId,
         name: data.name,
         description: data.description,
+        client_id: data.client_id,
         health: data.health as ProjectHealth,
         expected_start_date: toNullableDate(data.expected_start_date),
         expected_end_date: toNullableDate(data.expected_end_date),
@@ -280,6 +345,34 @@ export function ProjectDetailPage() {
         secondary_lead_id: data.secondary_lead_id || undefined,
         pm_id: data.pm_id || undefined,
       })
+
+      // Cascade client_id to children if user confirmed
+      if (cascade && data.client_id !== project?.client_id) {
+        try {
+          await cascadeProjectClientId(projectId, data.client_id)
+          // Invalidate related queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['sets', 'project', projectId] })
+          queryClient.invalidateQueries({ queryKey: ['requirements', 'project', projectId] })
+          queryClient.invalidateQueries({ queryKey: ['sets', currentTenant?.id] })
+          toast({
+            title: 'Saved',
+            description: 'Project and all child records updated.',
+          })
+        } catch (cascadeError) {
+          console.error('Cascade failed:', cascadeError)
+          toast({
+            title: 'Partial Update',
+            description: 'Project saved, but failed to update child records.',
+            variant: 'destructive',
+          })
+        }
+      } else if (cascade === false && parentChanges.length > 0) {
+        toast({
+          title: 'Saved',
+          description: 'Project saved. Child records not changed.',
+        })
+      }
+
       // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
       // record?.updated_at handle form reset when fresh data arrives from query cache
       setIsEditing(false)
@@ -292,6 +385,7 @@ export function ProjectDetailPage() {
     form.reset({
       name: project?.name || '',
       description: project?.description || '',
+      client_id: project?.client_id || '',
       health: project?.health || 'on_track',
       expected_start_date: project?.expected_start_date?.split('T')[0] || '',
       expected_end_date: project?.expected_end_date?.split('T')[0] || '',
@@ -428,13 +522,26 @@ export function ProjectDetailPage() {
           {/* Header fields: Client (1st), Project Name, Status, Health */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
-              <p className="text-sm font-medium text-muted-foreground mb-1">Client</p>
-              <Link
-                to={`/clients/${project.clients?.id}`}
-                className="font-medium hover:underline"
-              >
-                {project.clients?.name || '—'}
-              </Link>
+              <p className="text-sm font-medium text-muted-foreground mb-1">
+                Client {isEditing && <span className="text-red-500">*</span>}
+              </p>
+              {isEditing ? (
+                <SearchableSelect
+                  options={clientOptions}
+                  value={form.watch('client_id') || ''}
+                  onValueChange={(value) => form.setValue('client_id', value || '')}
+                  placeholder="Select client..."
+                  searchPlaceholder="Search clients..."
+                  emptyMessage="No clients found."
+                />
+              ) : (
+                <Link
+                  to={`/clients/${project.clients?.id}`}
+                  className="font-medium hover:underline"
+                >
+                  {project.clients?.name || '—'}
+                </Link>
+              )}
             </div>
             <ViewEditField
               type="text"
@@ -1238,6 +1345,39 @@ export function ProjectDetailPage() {
         open={saveTemplateOpen}
         onOpenChange={setSaveTemplateOpen}
       />
+
+      {/* Cascade Confirmation Dialog */}
+      <AlertDialog open={cascadeDialogOpen} onOpenChange={setCascadeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update Child Records?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>
+                  You changed the <strong>{parentChanges.join(' and ')}</strong> of this project.
+                  Would you like to update all child records to match?
+                </p>
+                <p className="mt-3">
+                  <strong>Yes</strong> — All sets and requirements under this project will be
+                  moved to the new {parentChanges.join(' / ')}.
+                </p>
+                <p className="mt-2">
+                  <strong>No</strong> — Only this project is updated. Child records keep their
+                  current parent assignments.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleCascadeDecision(false)}>
+              No, this project only
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleCascadeDecision(true)}>
+              Yes, update all children
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
