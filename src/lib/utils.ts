@@ -438,6 +438,7 @@ export const REFERRAL_SOURCE_OPTIONS = [
   { value: 'event', label: 'Event' },
   { value: 'partner', label: 'Partner' },
   { value: 'cold_outreach', label: 'Cold Outreach' },
+  { value: 'lead_generator', label: 'Lead Generator' },
   { value: 'other', label: 'Other' },
 ] as const
 

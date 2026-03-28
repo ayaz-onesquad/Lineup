@@ -129,6 +129,7 @@ export type ReferralSource =
   | 'event'
   | 'partner'
   | 'cold_outreach'
+  | 'lead_generator'
   | 'other'
 
 export interface Client {
@@ -993,6 +994,7 @@ export interface Lead {
   estimated_value?: number
   estimated_close_date?: string
   source?: ReferralSource
+  source_automation_name?: string
   lead_owner_id?: string
   converted_to_client_id?: string
   converted_at?: string
