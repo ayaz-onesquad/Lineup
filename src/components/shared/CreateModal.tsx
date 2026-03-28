@@ -24,6 +24,7 @@ import { LeadForm } from '@/components/forms/LeadForm'
 import { PasswordForm } from '@/components/forms/PasswordForm'
 import { FinancialEntryForm } from '@/components/forms/FinancialEntryForm'
 import { CompetitorForm } from '@/components/forms/CompetitorForm'
+import { LeadAutomationForm } from '@/components/forms/LeadAutomationForm'
 
 // Entity type options for the dropdown selector
 const ENTITY_OPTIONS = [
@@ -38,6 +39,7 @@ const ENTITY_OPTIONS = [
   { value: 'password', label: 'Password' },
   { value: 'financial_entry', label: 'Financial Entry' },
   { value: 'competitor', label: 'Competitor' },
+  { value: 'lead_automation', label: 'Lead Automation' },
 ]
 
 export function CreateModal() {
@@ -195,6 +197,11 @@ export function CreateModal() {
           {selectedType === 'competitor' && (
             <CompetitorForm
               onSuccess={() => handleSuccess('Competitor')}
+            />
+          )}
+          {selectedType === 'lead_automation' && (
+            <LeadAutomationForm
+              onSuccess={() => handleSuccess('Automation')}
             />
           )}
           {!selectedType && (

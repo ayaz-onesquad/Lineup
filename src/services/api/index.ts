@@ -14,6 +14,13 @@ export { statusUpdatesApi } from './statusUpdates'
 export { documentCatalogApi } from './documentCatalog'
 export { pitchesApi } from './pitches'
 export { leadsApi } from './leads'
+export { leadAutomationsApi } from './leadAutomations'
+export type {
+  LeadAutomation,
+  AutomationRun,
+  CreateLeadAutomationInput,
+  UpdateLeadAutomationInput,
+} from './leadAutomations'
 
 // V3 Feature APIs
 export { notesApi } from './notes'

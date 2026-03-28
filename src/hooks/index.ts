@@ -129,3 +129,11 @@ export {
   useCompetitorsByClient,
   useCompetitorMutations,
 } from './useCompetitors'
+
+// Lead Automation hooks
+export {
+  useLeadAutomations,
+  useLeadAutomation,
+  useAutomationRuns,
+  useLeadAutomationMutations,
+} from './useLeadAutomations'

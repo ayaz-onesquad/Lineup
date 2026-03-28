@@ -67,9 +67,12 @@ import {
   List,
   TableIcon,
   GripVertical,
+  Zap,
+  X,
 } from 'lucide-react'
 import { formatDate, formatCurrency } from '@/lib/utils'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLeadAutomation } from '@/hooks/useLeadAutomations'
 import type { LeadWithRelations, LeadStatus } from '@/types/database'
 
 // Pipeline stages configuration
@@ -104,10 +107,15 @@ export function LeadsPage() {
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const automationFilter = searchParams.get('automation')
   const { data: leads, isLoading } = useLeads()
   const { data: stats } = useLeadPipelineStats()
   const { updateLeadStatus, deleteLead } = useLeadMutations()
   const { openCreateModal, leadsViewMode, setLeadsViewMode } = useUIStore()
+
+  // Fetch automation name for the filter banner
+  const { data: filterAutomation } = useLeadAutomation(automationFilter ?? '')
 
   // DnD sensors
   const sensors = useSensors(
@@ -337,6 +345,25 @@ export function LeadsPage() {
 
       {/* Content Area */}
       <div className="p-6">
+        {/* Automation filter banner */}
+        {automationFilter && filterAutomation && (
+          <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
+            <Zap className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm flex-1">
+              Showing leads from: <span className="font-medium">{filterAutomation.name}</span>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7"
+              onClick={() => setSearchParams({})}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear filter
+            </Button>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="grid grid-cols-5 gap-4">
             {Array.from({ length: 5 }).map((_, i) => (

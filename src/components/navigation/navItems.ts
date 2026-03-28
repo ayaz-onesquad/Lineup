@@ -17,6 +17,7 @@ import {
   Lock,
   DollarSign,
   Swords,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -58,6 +59,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Financials', path: '/financials', icon: DollarSign, group: 'Management', requiredRole: 'org_admin' },
   { label: 'Password Manager', path: '/passwords', icon: Lock, group: 'Management', requiredRole: 'org_admin' },
   { label: 'Competitors', path: '/competitors', icon: Swords, group: 'Management', requiredRole: 'org_admin' },
+  { label: 'Lead Generator', path: '/lead-generator', icon: Zap, group: 'Management', requiredRole: 'org_admin' },
 
   // Settings - org_admin only
   { label: 'Settings', path: '/settings', icon: Settings, group: 'Settings', requiredRole: 'org_admin', exact: true },
