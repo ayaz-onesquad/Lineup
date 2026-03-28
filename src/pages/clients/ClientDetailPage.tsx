@@ -97,7 +97,7 @@ import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, STATUS_LA
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -1304,13 +1304,14 @@ export function ClientDetailPage() {
 
         {/* Documents Tab */}
         <TabsContent value="documents" className="mt-6">
-          <DocumentUpload
+          <DocumentsTab
             entityType="client"
             entityId={clientId!}
+            clientId={clientId}
             title="Client Documents"
-            description="Upload and manage files for this client"
-            maxHeight="500px"
-            allowMultiple
+            parentContext={{
+              clientName: client?.name,
+            }}
           />
         </TabsContent>
 

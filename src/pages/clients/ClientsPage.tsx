@@ -21,15 +21,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2, Edit, Info } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import { Link, useNavigate } from 'react-router-dom'
+import { MobileActionBar } from '@/components/shared'
 
 export function ClientsPage() {
   const [search, setSearch] = useState('')
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const navigate = useNavigate()
   const { data: clients, isLoading } = useClients()
   const { deleteClient } = useClientMutations()
   const { openCreateModal, openDetailPanel } = useUIStore()
+
+  const selectedClient = clients?.find((c) => c.id === selectedRowId) ?? null
 
   const filteredClients = clients?.filter(
     (client) =>
@@ -79,19 +83,20 @@ export function ClientsPage() {
             <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[80px]"></TableHead>
                 <TableHead>Client</TableHead>
                 <TableHead>Industry</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Portal</TableHead>
                 <TableHead>Added</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-40" />
                     </TableCell>
@@ -110,7 +115,6 @@ export function ClientsPage() {
                     <TableCell>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
-                    <TableCell></TableCell>
                   </TableRow>
                 ))
               ) : filteredClients?.length === 0 ? (
@@ -133,10 +137,57 @@ export function ClientsPage() {
                 filteredClients?.map((client) => (
                   <TableRow
                     key={client.id}
-                    className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                    onClick={() => openDetailPanel('client', client.id)}
+                    className={cn(
+                      'cursor-pointer hover:bg-muted/50 min-h-[44px]',
+                      selectedRowId === client.id && 'bg-muted'
+                    )}
+                    onClick={() => {
+                      // Mobile: select row to show action bar
+                      // Desktop: open detail panel
+                      if (window.innerWidth < 768) {
+                        setSelectedRowId(selectedRowId === client.id ? null : client.id)
+                      } else {
+                        openDetailPanel('client', client.id)
+                      }
+                    }}
                     onDoubleClick={() => navigate(`/clients/${client.id}`)}
                   >
+                    {/* Actions - FIRST column */}
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${client.name}`}>
+                              <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="z-50">
+                            <DropdownMenuItem asChild>
+                              <Link to={`/clients/${client.id}`}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link to={`/clients/${client.id}?edit=true`}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                deleteClient.mutate(client.id)
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Archive
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium">{client.name}</p>
@@ -162,54 +213,6 @@ export function ClientsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDate(client.created_at)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {/* Mobile-only Open button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 md:hidden"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate(`/clients/${client.id}`)
-                          }}
-                          title="Open"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${client.name}`}>
-                              <MoreVertical className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-50">
-                          <DropdownMenuItem asChild>
-                            <Link to={`/clients/${client.id}`}>
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              View Details
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link to={`/clients/${client.id}?edit=true`}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Details
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteClient.mutate(client.id)
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Archive
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -218,6 +221,26 @@ export function ClientsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Action Bar */}
+      {selectedClient && (
+        <MobileActionBar
+          selectedName={selectedClient.name}
+          onDeselect={() => setSelectedRowId(null)}
+          onOpen={() => {
+            navigate(`/clients/${selectedClient.id}`)
+            setSelectedRowId(null)
+          }}
+          onEdit={() => {
+            navigate(`/clients/${selectedClient.id}?edit=true`)
+            setSelectedRowId(null)
+          }}
+          onDelete={() => {
+            deleteClient.mutate(selectedClient.id)
+            setSelectedRowId(null)
+          }}
+        />
+      )}
     </div>
   )
 }

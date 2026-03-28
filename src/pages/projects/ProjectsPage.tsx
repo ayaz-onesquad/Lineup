@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useProjects } from '@/hooks/useProjects'
 import { useUIStore } from '@/stores'
+import { MobileActionBar } from '@/components/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,16 +31,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Search, FolderKanban, Grid, List, MoreVertical, ExternalLink, Edit, Building2, User } from 'lucide-react'
-import { getHealthColor, formatDate } from '@/lib/utils'
+import { getHealthColor, formatDate, cn } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 
 export function ProjectsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const navigate = useNavigate()
   const { data: projects, isLoading } = useProjects()
   const { openCreateModal, openDetailPanel } = useUIStore()
+
+  const selectedProject = projects?.find((p) => p.id === selectedRowId) ?? null
 
   const filteredProjects = projects?.filter((project) => {
     const matchesSearch =
@@ -180,22 +184,51 @@ export function ProjectsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[80px]"></TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Project Name</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Health</TableHead>
                   <TableHead>Lead</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredProjects?.map((project) => (
                   <TableRow
                     key={project.id}
-                    className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                    onClick={() => openDetailPanel('project', project.id)}
+                    className={cn(
+                      'cursor-pointer hover:bg-muted/50 min-h-[44px]',
+                      selectedRowId === project.id && 'bg-muted'
+                    )}
+                    onClick={() => {
+                      if (window.innerWidth < 768) {
+                        setSelectedRowId(selectedRowId === project.id ? null : project.id)
+                      } else {
+                        openDetailPanel('project', project.id)
+                      }
+                    }}
                     onDoubleClick={() => navigate(`/projects/${project.id}`)}
                   >
+                    {/* Actions - FIRST column */}
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="z-50">
+                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            View Project
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}?edit=true`)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Project
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                     <TableCell>
                       {project.clients?.id ? (
                         <Link
@@ -248,44 +281,28 @@ export function ProjectsPage() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-50">
-                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            View Project
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}?edit=true`)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Project
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {/* Mobile-only Open button */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 md:hidden"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/projects/${project.id}`)
-                        }}
-                        title="Open"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* Mobile Action Bar */}
+      {selectedProject && (
+        <MobileActionBar
+          selectedName={selectedProject.name}
+          onDeselect={() => setSelectedRowId(null)}
+          onOpen={() => {
+            navigate(`/projects/${selectedProject.id}`)
+            setSelectedRowId(null)
+          }}
+          onEdit={() => {
+            navigate(`/projects/${selectedProject.id}?edit=true`)
+            setSelectedRowId(null)
+          }}
+        />
       )}
     </div>
   )

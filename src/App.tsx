@@ -36,6 +36,7 @@ import { PhaseDetailPage } from '@/pages/phases/PhaseDetailPage'
 import { DocumentCatalogPage } from '@/pages/settings/DocumentCatalogPage'
 import { TemplatesPage } from '@/pages/templates/TemplatesPage'
 import { DocumentsPage } from '@/pages/documents/DocumentsPage'
+import { DocumentDetailPage } from '@/pages/documents/DocumentDetailPage'
 import { NotesPage, NoteDetailPage } from '@/pages/notes'
 import { DiscussionsPage, DiscussionDetailPage } from '@/pages/discussions'
 import { PasswordsPage, PasswordDetailPage } from '@/pages/passwords'
@@ -132,6 +133,7 @@ function App() {
               <Route path="/pitches/:pitchId" element={<PitchDetailPage />} />
               <Route path="/templates" element={<TemplatesPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/documents/:documentId" element={<DocumentDetailPage />} />
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/notes/:noteId" element={<NoteDetailPage />} />
               <Route path="/discussions" element={<DiscussionsPage />} />

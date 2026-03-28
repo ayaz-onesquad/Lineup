@@ -403,35 +403,119 @@ export interface RequirementWithRelations extends Requirement {
 
 // Document types
 export type EntityType = 'client' | 'project' | 'phase' | 'set' | 'requirement' | 'lead' | 'pitch'
+export type DocumentVisibility = 'internal' | 'client' | 'public'
 
 export interface Document {
   id: string
   tenant_id: string
+
+  // Document metadata
   name: string
-  description?: string
-  file_url: string
+  description?: string | null
+  document_type?: string | null      // "Contract", "SOW", "Brief", etc.
+
+  // File storage - kept as string for backward compat, DB allows null
+  file_url: string                   // URL in Supabase Storage (uploaded file)
   file_type: string
   file_size_bytes: number
+
+  // External link - NEW: separate from file_url, for link-only documents
+  external_link?: string | null      // External URL entered by user
+
+  // Polymorphic link (legacy — keep for backward compat)
   entity_type: EntityType
   entity_id: string
+
+  // Explicit parent chain - NEW: all nullable
+  client_id?: string | null
+  lead_id?: string | null
+  project_id?: string | null
+  phase_id?: string | null
+  set_id?: string | null
+  pitch_id?: string | null
+  requirement_id?: string | null
+
+  // Visibility
+  visibility?: DocumentVisibility
   show_in_client_portal: boolean
+
+  // Versioning
+  version?: number
+  is_latest_version?: boolean
+  previous_version_id?: string | null
+
+  // Tags
+  tags?: string[]
+
+  // Audit
   uploaded_by: string
   created_at: string
   updated_at: string
-  deleted_at?: string
+  updated_by?: string | null
+  deleted_at?: string | null
+}
+
+export interface CreateDocumentInput {
+  name: string
+  description?: string | null
+  document_type?: string | null
+  file_url?: string | null           // set after Supabase Storage upload
+  external_link?: string | null      // set when user enters a URL
+  file_type?: string | null
+  file_size_bytes?: number | null
+  entity_type: EntityType
+  entity_id: string
+  client_id?: string | null
+  lead_id?: string | null
+  project_id?: string | null
+  phase_id?: string | null
+  set_id?: string | null
+  pitch_id?: string | null
+  requirement_id?: string | null
+  visibility?: DocumentVisibility
+  show_in_client_portal?: boolean
+  tags?: string[]
+}
+
+export interface UpdateDocumentInput {
+  name?: string
+  description?: string | null
+  document_type?: string | null
+  external_link?: string | null
+  visibility?: DocumentVisibility
+  show_in_client_portal?: boolean
+  tags?: string[]
+  file_url?: string | null
+  file_type?: string | null
+  file_size_bytes?: number | null
 }
 
 export interface DocumentWithUploader extends Document {
   uploader?: UserProfile
+  updater?: UserProfile
+  client?: { id: string; name: string } | null
+  lead?: { id: string; name: string } | null
+  project?: { id: string; name: string } | null
+  phase?: { id: string; name: string } | null
+  set?: { id: string; name: string } | null
+  pitch?: { id: string; name: string } | null
+  requirement?: { id: string; name: string } | null
 }
 
 export interface DocumentWithRelations extends Document {
   uploader?: UserProfile
+  updater?: UserProfile
   document_catalog?: {
     id: string
     name: string
     category: DocumentCatalogCategory
   }
+  client?: { id: string; name: string } | null
+  project?: { id: string; name: string } | null
+  phase?: { id: string; name: string } | null
+  set?: { id: string; name: string } | null
+  pitch?: { id: string; name: string } | null
+  requirement?: { id: string; name: string } | null
 }
 
 // Discussion types
@@ -763,10 +847,9 @@ export interface CreateDocumentCatalogInput {
 export interface UpdateDocumentCatalogInput extends Partial<CreateDocumentCatalogInput> {}
 
 // Enhanced Document types (updated)
+// phase_id and pitch_id are now part of base Document interface
 export interface EnhancedDocument extends Document {
   document_catalog_id?: string
-  phase_id?: string
-  pitch_id?: string
   has_file?: boolean
   document_catalog?: DocumentCatalog
 }

@@ -69,7 +69,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
 import { DraggablePhasesTable } from '@/components/phases/DraggablePhasesTable'
@@ -1299,13 +1299,16 @@ export function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <DocumentUpload
+          <DocumentsTab
             entityType="project"
             entityId={projectId!}
+            projectId={projectId}
+            clientId={project?.client_id}
             title="Project Documents"
-            description="Upload and manage files for this project"
-            maxHeight="500px"
-            allowMultiple
+            parentContext={{
+              clientName: project?.clients?.name,
+              projectName: project?.name,
+            }}
           />
         </TabsContent>
 

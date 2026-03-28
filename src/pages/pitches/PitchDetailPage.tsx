@@ -49,7 +49,7 @@ import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatus
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -814,13 +814,22 @@ export function PitchDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <DocumentUpload
+          <DocumentsTab
             entityType="pitch"
             entityId={pitchId!}
+            pitchId={pitchId}
+            setId={pitch?.set_id}
+            phaseId={pitch?.sets?.phase_id}
+            projectId={pitch?.sets?.project_id}
+            clientId={pitch?.sets?.client_id || pitch?.sets?.projects?.client_id}
             title="Pitch Documents"
-            description="Upload and manage files for this pitch"
-            maxHeight="500px"
-            allowMultiple
+            parentContext={{
+              clientName: (pitch?.sets?.projects?.clients || pitch?.sets?.clients)?.name,
+              projectName: pitch?.sets?.projects?.name,
+              phaseName: pitch?.sets?.project_phases?.name,
+              setName: pitch?.sets?.name,
+              pitchName: pitch?.name,
+            }}
           />
         </TabsContent>
 

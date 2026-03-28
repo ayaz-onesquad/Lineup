@@ -66,7 +66,7 @@ import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, 
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentUpload, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel } from '@/components/shared'
 import type { LeadStatus, CompanySize, ContactRole, ReferralSource } from '@/types/database'
 import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
@@ -931,13 +931,14 @@ export function LeadDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <DocumentUpload
+          <DocumentsTab
             entityType="lead"
             entityId={leadId!}
+            leadId={leadId}
             title="Lead Documents"
-            description="Upload and manage files for this lead"
-            maxHeight="500px"
-            allowMultiple
+            parentContext={{
+              leadName: lead?.lead_name,
+            }}
           />
         </TabsContent>
 

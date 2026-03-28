@@ -38,7 +38,7 @@ import { computeRequirementStatus, computeKeyDueDate, getStatusLabel, getStatusC
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DiscussionsPanel, DocumentUpload, NotesPanel } from '@/components/shared'
+import { DiscussionsPanel, DocumentsTab, NotesPanel } from '@/components/shared'
 import type {
   RequirementType,
   ReviewStatus,
@@ -1022,12 +1022,24 @@ export function RequirementDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <DocumentUpload
+          <DocumentsTab
             entityType="requirement"
             entityId={requirementId!}
+            requirementId={requirementId}
+            pitchId={requirement?.pitch_id}
+            setId={requirement?.set_id}
+            phaseId={requirement?.sets?.phase_id}
+            projectId={requirement?.sets?.project_id}
+            clientId={requirement?.client_id}
             title="Requirement Documents"
-            description="Upload files and attachments"
-            allowMultiple={true}
+            parentContext={{
+              clientName: clients?.find((c) => c.id === requirement?.client_id)?.name,
+              projectName: requirement?.sets?.projects?.name,
+              phaseName: requirement?.sets?.project_phases?.name,
+              setName: requirement?.sets?.name,
+              pitchName: requirement?.pitches?.name,
+              requirementName: requirement?.title,
+            }}
           />
         </TabsContent>
 

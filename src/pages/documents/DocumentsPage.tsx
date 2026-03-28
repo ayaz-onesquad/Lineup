@@ -490,7 +490,7 @@ export function DocumentsPage() {
     if (editingDoc && editName.trim()) {
       updateDocument.mutate({
         id: editingDoc.id,
-        updates: { name: editName.trim() },
+        name: editName.trim(),
       })
       setEditingDoc(null)
     }

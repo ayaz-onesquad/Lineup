@@ -72,7 +72,9 @@ export {
 // Documents hooks
 export {
   useDocuments,
+  useDocument,
   useDocumentsByEntity,
+  useDocumentsByParent,
   useDocumentMutations,
 } from './useDocuments'
 
