@@ -164,7 +164,11 @@ function DocumentTableRow({
       const a = window.document.createElement('a')
       a.href = url
       a.download = doc.name
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
       a.click()
+      document.body.removeChild(a)
     } catch (error) {
       console.error('Failed to get download URL:', error)
       toast({
@@ -187,7 +191,10 @@ function DocumentTableRow({
 
   return (
     <>
-      <TableRow>
+      <TableRow
+        className="cursor-pointer hover:bg-muted/50"
+        onDoubleClick={() => navigate(`/documents/${doc.id}`)}
+      >
         {/* Actions - FIRST column */}
         <TableCell>
           <div className="flex items-center gap-1">

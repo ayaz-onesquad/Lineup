@@ -110,7 +110,7 @@ export function usePhaseMutations() {
       queryClient.invalidateQueries({ queryKey: phaseKeys.byTenant(currentTenantId!) })
       if (data.project_id) {
         queryClient.invalidateQueries({ queryKey: phaseKeys.byProject(data.project_id) })
-        queryClient.invalidateQueries({ queryKey: ['project', data.project_id] })
+        queryClient.invalidateQueries({ queryKey: ['projects', data.project_id] })
       }
       toast({
         title: 'Phase updated',
@@ -127,9 +127,15 @@ export function usePhaseMutations() {
   })
 
   const deletePhase = useMutation({
-    mutationFn: (id: string) => phasesApi.delete(id),
-    onSuccess: () => {
+    mutationFn: ({ id }: { id: string; projectId?: string }) => phasesApi.delete(id),
+    onSuccess: (_, variables) => {
+      // Invalidate all phase queries (prefix match)
       queryClient.invalidateQueries({ queryKey: phaseKeys.all })
+      // Also invalidate the project-specific cache if projectId was provided
+      if (variables.projectId) {
+        queryClient.invalidateQueries({ queryKey: phaseKeys.byProject(variables.projectId) })
+        queryClient.invalidateQueries({ queryKey: ['projects', variables.projectId] })
+      }
       toast({
         title: 'Phase deleted',
         description: 'The phase has been deleted successfully.',

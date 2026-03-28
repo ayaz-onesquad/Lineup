@@ -304,7 +304,7 @@ export function DraggablePhasesTable({
               toggleSet={toggleSet}
               openCreateModal={openCreateModal}
               projectId={projectId}
-              onDeletePhase={(id) => deletePhase.mutate(id)}
+              onDeletePhase={(id) => deletePhase.mutate({ id, projectId })}
             />
           ))}
         </div>

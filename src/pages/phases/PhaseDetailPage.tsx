@@ -6,6 +6,8 @@ import { z } from 'zod'
 import { usePhaseById, usePhaseMutations } from '@/hooks'
 import { useSetsByPhase } from '@/hooks'
 import { useTenantUsers } from '@/hooks'
+import { useClients } from '@/hooks/useClients'
+import { useProjects } from '@/hooks/useProjects'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -43,6 +45,7 @@ import {
   MoreHorizontal,
   FileText,
   MessageSquare,
+  Link2,
 } from 'lucide-react'
 import { URGENCY_OPTIONS, IMPORTANCE_OPTIONS, getPriorityLabel, getPriorityColor, formatDate, type PriorityScore } from '@/lib/utils'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
@@ -58,6 +61,8 @@ import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
 const phaseFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
+  // client_id is form-only for filtering projects — not saved to DB directly
+  client_id: z.string().optional(),
   project_id: z.string().min(1, 'Project is required'),
   // Status is now computed from dates, not editable
   urgency: z.enum(['low', 'medium', 'high', 'critical']).optional(),
@@ -82,6 +87,8 @@ export function PhaseDetailPage() {
   const { data: phase, isLoading } = usePhaseById(phaseId!)
   const { data: sets, isLoading: setsLoading } = useSetsByPhase(phaseId!)
   const { data: users } = useTenantUsers()
+  const { data: allClients } = useClients()
+  const { data: allProjects } = useProjects()
   const { updatePhase } = usePhaseMutations()
   const { openDetailPanel, openCreateModal } = useUIStore()
 
@@ -97,6 +104,7 @@ export function PhaseDetailPage() {
     defaultValues: {
       name: phase?.name || '',
       description: phase?.description || '',
+      client_id: phase?.projects?.client_id || '',
       project_id: phase?.project_id || '',
       urgency: phase?.urgency || 'medium',
       importance: phase?.importance || 'medium',
@@ -119,6 +127,24 @@ export function PhaseDetailPage() {
     })) || [],
     [users]
   )
+
+  // Client options for dropdown
+  const clientOptions = useMemo(() =>
+    allClients?.map(c => ({ value: c.id, label: c.name })) ?? [],
+    [allClients]
+  )
+
+  // Watch client selection to filter projects
+  const selectedClientId = useWatch({ control: form.control, name: 'client_id' })
+
+  // Filtered project options based on selected client
+  const filteredProjectOptions = useMemo(() => {
+    if (!allProjects) return []
+    if (!selectedClientId) return allProjects.map(p => ({ value: p.id, label: p.name }))
+    return allProjects
+      .filter(p => p.client_id === selectedClientId)
+      .map(p => ({ value: p.id, label: p.name }))
+  }, [allProjects, selectedClientId])
 
   // Watch date fields for real-time reactive status calculation
   const watchedActualStartDate = useWatch({ control: form.control, name: 'actual_start_date' })
@@ -196,6 +222,7 @@ export function PhaseDetailPage() {
       form.reset({
         name: phase.name,
         description: phase.description || '',
+        client_id: phase.projects?.client_id || '',
         project_id: phase.project_id,
         urgency: phase.urgency || 'medium',
         importance: phase.importance || 'medium',
@@ -505,6 +532,70 @@ export function PhaseDetailPage() {
                   </div>
                 </div>
                 <Progress value={sets?.length ? (sets.filter((s) => s.status === 'completed').length / sets.length) * 100 : 0} className="h-3" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Parent Records Section — hierarchy order: Client → Project */}
+          <Card className="card-carbon">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-muted-foreground" />
+                Parent Records
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Client — first in hierarchy */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Client</p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={clientOptions}
+                      value={form.watch('client_id') || ''}
+                      onValueChange={(value) => {
+                        form.setValue('client_id', value || '')
+                        // Reset project if it no longer belongs to new client
+                        const currentProject = form.getValues('project_id')
+                        if (currentProject && value) {
+                          const valid = allProjects?.find(
+                            p => p.id === currentProject && p.client_id === value
+                          )
+                          if (!valid) form.setValue('project_id', '')
+                        }
+                      }}
+                      placeholder="Select client..."
+                      clearable
+                    />
+                  ) : (
+                    <p className="font-medium">
+                      {phase.projects?.clients?.name ?? '—'}
+                    </p>
+                  )}
+                </div>
+
+                {/* 2. Project — second in hierarchy, filtered by client */}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    Project <span className="text-destructive">*</span>
+                  </p>
+                  {isEditing ? (
+                    <SearchableSelect
+                      options={filteredProjectOptions}
+                      value={form.watch('project_id') || ''}
+                      onValueChange={(value) => form.setValue('project_id', value || '')}
+                      placeholder="Select project..."
+                      clearable
+                    />
+                  ) : (
+                    <p className="font-medium">
+                      {phase.projects?.name ?? '—'}
+                    </p>
+                  )}
+                  {form.formState.errors.project_id && (
+                    <p className="text-xs text-destructive mt-1">
+                      {form.formState.errors.project_id.message}
+                    </p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

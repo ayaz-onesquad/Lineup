@@ -488,6 +488,14 @@ export interface UpdateDocumentInput {
   file_url?: string | null
   file_type?: string | null
   file_size_bytes?: number | null
+  // Association fields
+  client_id?: string | null
+  lead_id?: string | null
+  project_id?: string | null
+  phase_id?: string | null
+  set_id?: string | null
+  pitch_id?: string | null
+  requirement_id?: string | null
 }
 
 export interface DocumentWithUploader extends Document {
