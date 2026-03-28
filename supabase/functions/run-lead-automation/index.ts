@@ -88,6 +88,8 @@ function deriveIndustry(place: ApifyPlace, filterCategory?: string | null): stri
 }
 
 Deno.serve(async (req) => {
+  const functionStartTime = Date.now() // Must be first line for accurate duration tracking
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -180,7 +182,6 @@ Deno.serve(async (req) => {
       throw runError
     }
     runId = runData.id
-    const functionStartTime = Date.now()
 
     // Build the Apify input with correct website filter values
     // Apify compass~crawler-google-places accepts:
@@ -320,6 +321,8 @@ Deno.serve(async (req) => {
     }
 
     // ── STEP C: Fetch results from the dataset ────────────────────────────
+    console.log('[run-lead-automation] Polling complete. Final Apify status:', apifyStatus)
+
     if (apifyStatus !== 'SUCCEEDED') {
       throw new Error(`Apify run ended with status: ${apifyStatus}`)
     }
@@ -329,7 +332,7 @@ Deno.serve(async (req) => {
       throw new Error('Apify run succeeded but no dataset ID returned')
     }
 
-    console.log('[run-lead-automation] Fetching results from dataset:', datasetId)
+    console.log('[run-lead-automation] Fetching dataset items from:', datasetId)
 
     const resultsResponse = await fetch(
       `https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json`,
@@ -477,12 +480,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log('[run-lead-automation] Leads inserted:', leadsCreated, 'skipped:', leadsSkipped)
+
     // Update run record — always 'completed' if Apify succeeded and we processed results
     // Zero new leads just means they were all duplicates, which is correct behavior
     const completedAt = new Date().toISOString()
     const durationSeconds = Math.round((Date.now() - functionStartTime) / 1000)
 
-    await adminClient
+    console.log('[run-lead-automation] Updating run record to completed...')
+
+    const { error: updateError } = await adminClient
       .from('automation_runs')
       .update({
         status: 'completed',
@@ -493,6 +500,12 @@ Deno.serve(async (req) => {
         leads_skipped: leadsSkipped,
       })
       .eq('id', runId)
+
+    if (updateError) {
+      console.error('[run-lead-automation] FAILED to update run to completed:', updateError.message, updateError)
+    } else {
+      console.log('[run-lead-automation] Run record updated to completed. Done.')
+    }
 
     console.log(
       `[run-lead-automation] Run completed in ${durationSeconds}s: ` +
