@@ -224,7 +224,16 @@ export function computeDisplayStatus(record: StatusRecord): ComputedStatus {
     }
   }
 
-  // P5: Future - key_start_date > 10 days away, or no dates at all
+  // P5: No dates at all - record exists but is unscheduled.
+  //     Treat as 'on_deck' (operational default) rather than 'future'
+  //     so new records are visible in the active work section.
+  //     'future' is reserved for records with a start date explicitly
+  //     set more than 10 days out.
+  if (keyStart === null && keyEnd === null) {
+    return 'on_deck'
+  }
+
+  // P6: Start date is explicitly set more than 10 days out
   return 'future'
 }
 

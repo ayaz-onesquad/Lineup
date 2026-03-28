@@ -1,9 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
-  useMyWorkKpis,
   useMyTasksByAllPriorities,
   useMyWorkHierarchy,
-  useKpiDrillDownItems,
+  useMyWorkItems,
 } from '@/hooks'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -62,28 +61,45 @@ const PRIORITY_LEVELS = [
   { level: 6, label: 'Low', sublabel: 'Eliminate', icon: Timer, color: 'text-slate-500', bgColor: 'bg-slate-100', borderColor: 'border-slate-200' },
 ]
 
-// KPI Drill-down Modal
+// Item with computed status for drill-down display
+interface DrillDownItem {
+  id: string
+  name: string
+  client_name?: string
+  status: string
+  dueDate?: string
+  itemType: 'set' | 'pitch' | 'task' | 'requirement'
+}
+
+// KPI Drill-down Modal - uses pre-filtered data passed as props
 function KpiDrillDownModal({
   open,
   onOpenChange,
   type,
   title,
+  activeItems,
+  pastDueItems,
+  isLoading,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   type: 'sets' | 'pitches' | 'tasks' | 'requirements'
   title: string
+  activeItems: DrillDownItem[]
+  pastDueItems: DrillDownItem[]
+  isLoading: boolean
 }) {
   const [activeTab, setActiveTab] = useState<'active' | 'past_due'>('active')
-  const { data: items, isLoading } = useKpiDrillDownItems(type, activeTab)
   const navigate = useNavigate()
 
-  const getItemPath = (item: { id: string }) => {
-    switch (type) {
-      case 'sets': return `/sets/${item.id}`
-      case 'pitches': return `/pitches/${item.id}`
-      case 'tasks':
-      case 'requirements': return `/requirements/${item.id}`
+  const items = activeTab === 'active' ? activeItems : pastDueItems
+
+  const getItemPath = (item: DrillDownItem) => {
+    switch (item.itemType) {
+      case 'set': return `/sets/${item.id}`
+      case 'pitch': return `/pitches/${item.id}`
+      case 'task':
+      case 'requirement': return `/requirements/${item.id}`
       default: return '#'
     }
   }
@@ -102,11 +118,11 @@ function KpiDrillDownModal({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="active" className="flex items-center gap-2">
               <CheckSquare className="h-4 w-4" />
-              Active / On Track
+              Active ({activeItems.length})
             </TabsTrigger>
             <TabsTrigger value="past_due" className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-500" />
-              Past Due
+              Past Due ({pastDueItems.length})
             </TabsTrigger>
           </TabsList>
 
@@ -118,7 +134,7 @@ function KpiDrillDownModal({
                     <Skeleton key={i} className="h-12 w-full" />
                   ))}
                 </div>
-              ) : !items?.length ? (
+              ) : !items.length ? (
                 <div className="text-center text-muted-foreground py-12">
                   <CheckSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   <p>No {activeTab === 'past_due' ? 'past due' : 'active'} {type} found</p>
@@ -134,66 +150,34 @@ function KpiDrillDownModal({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((item: Record<string, unknown>) => {
-                      const name = (item.name || item.title) as string
-                      const clientsData = item.clients as Record<string, unknown> | undefined
-                      const setsData = item.sets as Record<string, unknown> | undefined
-                      const setsClientsData = setsData?.clients as Record<string, unknown> | undefined
-                      const clientName = type === 'sets'
-                        ? clientsData?.name as string
-                        : type === 'pitches'
-                        ? setsClientsData?.name as string
-                        : setsClientsData?.name as string
-                      // Use key dates when available, fallback to expected dates
-                      const dueDate = type === 'sets' || type === 'pitches'
-                        ? (item.key_end_date || item.expected_end_date) as string
-                        : (item.key_due_date || item.expected_due_date) as string
-                      // Compute status client-side based on entity type
-                      const status = type === 'tasks' || type === 'requirements'
-                        ? computeRequirementStatus({
-                            completed_date: item.completed_date as string | null,
-                            actual_due_date: item.actual_due_date as string | null,
-                            expected_due_date: item.expected_due_date as string | null,
-                            actual_start_date: item.actual_start_date as string | null,
-                            expected_start_date: item.expected_start_date as string | null,
-                          })
-                        : computeDisplayStatus({
-                            completed_date: item.completed_date as string | null,
-                            actual_start_date: item.actual_start_date as string | null,
-                            expected_start_date: item.expected_start_date as string | null,
-                            actual_end_date: item.actual_end_date as string | null,
-                            expected_end_date: item.expected_end_date as string | null,
-                          })
-
-                      return (
-                        <TableRow
-                          key={item.id as string}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => {
-                            navigate(getItemPath(item as { id: string }))
-                            onOpenChange(false)
-                          }}
-                        >
-                          <TableCell className="font-medium">{name || 'Untitled'}</TableCell>
-                          <TableCell>{clientName || '-'}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={getStatusColor(status)}>
-                              {getStatusLabel(status)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {dueDate ? (
-                              <span className={cn(isPastDueStatus(status) && 'text-red-600 font-medium')}>
-                                {formatDate(dueDate)}
-                                {isPastDueStatus(status) && ' (Past Due)'}
-                              </span>
-                            ) : (
-                              '—'
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                    {items.map((item) => (
+                      <TableRow
+                        key={item.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => {
+                          navigate(getItemPath(item))
+                          onOpenChange(false)
+                        }}
+                      >
+                        <TableCell className="font-medium">{item.name || 'Untitled'}</TableCell>
+                        <TableCell>{item.client_name || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getStatusColor(item.status)}>
+                            {getStatusLabel(item.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {item.dueDate ? (
+                            <span className={cn(isPastDueStatus(item.status) && 'text-red-600 font-medium')}>
+                              {formatDate(item.dueDate)}
+                              {isPastDueStatus(item.status) && ' (Past Due)'}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               )}
@@ -631,14 +615,179 @@ export function DashboardPage() {
   const { profile } = useAuthStore()
   const { currentTenant } = useTenantStore()
 
-  // KPIs data
-  const { data: kpis, isLoading: kpisLoading } = useMyWorkKpis()
+  // Fetch all work items for client-side KPI computation
+  const { data: workItems, isLoading: workItemsLoading } = useMyWorkItems({ limit: 500 })
 
   // Tasks grouped by all 6 priority levels
   const { data: tasks, isLoading: tasksLoading } = useMyTasksByAllPriorities(100)
 
   // Hierarchical work items
   const { hierarchy, byPriority, isLoading: workLoading, totalOrphans } = useMyWorkHierarchy()
+
+  // Compute KPIs and drill-down items client-side
+  // Uses the SAME computeDisplayStatus/computeRequirementStatus functions as detail pages
+  const kpiData = useMemo(() => {
+    if (!workItems) return null
+
+    const sets = workItems.filter(item => item.item_type === 'set')
+    const pitches = workItems.filter(item => item.item_type === 'pitch')
+    const requirements = workItems.filter(item => item.item_type === 'requirement')
+
+    // Filter and transform items for sets/pitches
+    const filterSetPitchItems = (items: typeof sets, itemType: 'set' | 'pitch') => {
+      const activeItems: DrillDownItem[] = []
+      const pastDueItems: DrillDownItem[] = []
+
+      for (const item of items) {
+        // Use the SAME computeDisplayStatus function as detail pages
+        // Pass pre-computed key dates as actual dates (they already represent the key dates)
+        const status = computeDisplayStatus({
+          actual_start_date: item.key_start_date,
+          actual_end_date: item.key_end_date,
+        })
+
+        const drillDownItem: DrillDownItem = {
+          id: item.id,
+          name: item.name,
+          client_name: item.client_name,
+          status,
+          dueDate: item.key_end_date || item.expected_due_date,
+          itemType,
+        }
+
+        // "Active" includes both 'active' and 'on_deck' (operational view)
+        if (status === 'active' || status === 'on_deck') {
+          activeItems.push(drillDownItem)
+        } else if (isPastDueStatus(status)) {
+          pastDueItems.push(drillDownItem)
+        }
+        // 'completed' and 'future' are excluded
+      }
+
+      return { activeItems, pastDueItems }
+    }
+
+    // Filter and transform items for requirements
+    const filterRequirementItems = (items: typeof requirements) => {
+      const activeItems: DrillDownItem[] = []
+      const pastDueItems: DrillDownItem[] = []
+
+      for (const item of items) {
+        // Use the SAME computeRequirementStatus function as detail pages
+        // Pass pre-computed key_due_date as actual_due_date
+        const status = computeRequirementStatus({
+          actual_due_date: item.key_due_date,
+        })
+
+        const drillDownItem: DrillDownItem = {
+          id: item.id,
+          name: item.name,
+          client_name: item.client_name,
+          status,
+          dueDate: item.key_due_date || item.expected_due_date,
+          itemType: 'requirement',
+        }
+
+        // "Active" includes both 'active' and 'on_deck' (operational view)
+        if (status === 'active' || status === 'on_deck') {
+          activeItems.push(drillDownItem)
+        } else if (isPastDueStatus(status)) {
+          pastDueItems.push(drillDownItem)
+        }
+        // 'completed' and 'future' are excluded
+      }
+
+      return { activeItems, pastDueItems }
+    }
+
+    const setsData = filterSetPitchItems(sets, 'set')
+    const pitchesData = filterSetPitchItems(pitches, 'pitch')
+    const requirementsData = filterRequirementItems(requirements)
+
+    return {
+      sets: {
+        active: setsData.activeItems.length,
+        past_due: setsData.pastDueItems.length,
+        activeItems: setsData.activeItems,
+        pastDueItems: setsData.pastDueItems,
+      },
+      pitches: {
+        active: pitchesData.activeItems.length,
+        past_due: pitchesData.pastDueItems.length,
+        activeItems: pitchesData.activeItems,
+        pastDueItems: pitchesData.pastDueItems,
+      },
+      requirements: {
+        active: requirementsData.activeItems.length,
+        past_due: requirementsData.pastDueItems.length,
+        activeItems: requirementsData.activeItems,
+        pastDueItems: requirementsData.pastDueItems,
+      },
+    }
+  }, [workItems])
+
+  // Compute tasks KPI and drill-down items from the dedicated tasks query
+  const tasksData = useMemo(() => {
+    if (!tasks?.all) return { active: 0, past_due: 0, activeItems: [], pastDueItems: [] }
+
+    const activeItems: DrillDownItem[] = []
+    const pastDueItems: DrillDownItem[] = []
+
+    for (const task of tasks.all) {
+      // Use computeRequirementStatus for tasks (which are requirements)
+      const status = computeRequirementStatus({
+        completed_date: task.completed_date || null,
+        actual_due_date: task.actual_due_date || null,
+        expected_due_date: task.expected_due_date || null,
+        actual_start_date: task.actual_start_date || null,
+        expected_start_date: task.expected_start_date || null,
+      })
+
+      const drillDownItem: DrillDownItem = {
+        id: task.id,
+        name: task.title || task.name || 'Untitled',
+        client_name: task.sets?.clients?.name,
+        status,
+        dueDate: task.actual_due_date || task.expected_due_date,
+        itemType: 'task',
+      }
+
+      // "Active" includes both 'active' and 'on_deck' (operational view)
+      if (status === 'active' || status === 'on_deck') {
+        activeItems.push(drillDownItem)
+      } else if (isPastDueStatus(status)) {
+        pastDueItems.push(drillDownItem)
+      }
+    }
+
+    return {
+      active: activeItems.length,
+      past_due: pastDueItems.length,
+      activeItems,
+      pastDueItems,
+    }
+  }, [tasks])
+
+  // Combined KPIs for display
+  const finalKpis = useMemo(() => {
+    if (!kpiData) return null
+    return {
+      sets: { active: kpiData.sets.active, past_due: kpiData.sets.past_due },
+      pitches: { active: kpiData.pitches.active, past_due: kpiData.pitches.past_due },
+      tasks: { active: tasksData.active, past_due: tasksData.past_due },
+      requirements: { active: kpiData.requirements.active, past_due: kpiData.requirements.past_due },
+    }
+  }, [kpiData, tasksData])
+
+  // Drill-down items for the modal
+  const drillDownItems = useMemo(() => ({
+    sets: { activeItems: kpiData?.sets.activeItems || [], pastDueItems: kpiData?.sets.pastDueItems || [] },
+    pitches: { activeItems: kpiData?.pitches.activeItems || [], pastDueItems: kpiData?.pitches.pastDueItems || [] },
+    tasks: { activeItems: tasksData.activeItems, pastDueItems: tasksData.pastDueItems },
+    requirements: { activeItems: kpiData?.requirements.activeItems || [], pastDueItems: kpiData?.requirements.pastDueItems || [] },
+  }), [kpiData, tasksData])
+
+  const kpisLoading = workItemsLoading || tasksLoading
 
   // KPI Drill-down modal state
   const [drillDownModal, setDrillDownModal] = useState<{
@@ -672,8 +821,8 @@ export function DashboardPage() {
         <KpiCard
           title="My Sets"
           icon={Layers}
-          active={kpis?.sets.active || 0}
-          pastDue={kpis?.sets.past_due || 0}
+          active={finalKpis?.sets.active || 0}
+          pastDue={finalKpis?.sets.past_due || 0}
           color="text-purple-600"
           bgColor="bg-purple-100"
           isLoading={kpisLoading}
@@ -682,8 +831,8 @@ export function DashboardPage() {
         <KpiCard
           title="My Pitches"
           icon={Presentation}
-          active={kpis?.pitches.active || 0}
-          pastDue={kpis?.pitches.past_due || 0}
+          active={finalKpis?.pitches.active || 0}
+          pastDue={finalKpis?.pitches.past_due || 0}
           color="text-blue-600"
           bgColor="bg-blue-100"
           isLoading={kpisLoading}
@@ -692,8 +841,8 @@ export function DashboardPage() {
         <KpiCard
           title="My Tasks"
           icon={CheckSquare}
-          active={kpis?.tasks.active || 0}
-          pastDue={kpis?.tasks.past_due || 0}
+          active={finalKpis?.tasks.active || 0}
+          pastDue={finalKpis?.tasks.past_due || 0}
           color="text-green-600"
           bgColor="bg-green-100"
           isLoading={kpisLoading}
@@ -702,8 +851,8 @@ export function DashboardPage() {
         <KpiCard
           title="My Requirements"
           icon={Target}
-          active={kpis?.requirements.active || 0}
-          pastDue={kpis?.requirements.past_due || 0}
+          active={finalKpis?.requirements.active || 0}
+          pastDue={finalKpis?.requirements.past_due || 0}
           color="text-orange-600"
           bgColor="bg-orange-100"
           isLoading={kpisLoading}
@@ -717,6 +866,9 @@ export function DashboardPage() {
         onOpenChange={(open) => setDrillDownModal(prev => ({ ...prev, open }))}
         type={drillDownModal.type}
         title={drillDownModal.title}
+        activeItems={drillDownItems[drillDownModal.type].activeItems}
+        pastDueItems={drillDownItems[drillDownModal.type].pastDueItems}
+        isLoading={kpisLoading}
       />
 
       {/* Main Content: Tasks + My Work */}
