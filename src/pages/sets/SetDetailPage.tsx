@@ -1147,6 +1147,10 @@ export function SetDetailPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}?edit=true`)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => navigate(`/pitches/${pitch.id}`)}>
                                   <ExternalLink className="mr-2 h-4 w-4" />
                                   View Details
