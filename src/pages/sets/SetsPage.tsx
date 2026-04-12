@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSets } from '@/hooks/useSets'
-import { useUIStore } from '@/stores'
+import { useSets, useSetMutations } from '@/hooks/useSets'
+import { useTenantUsers } from '@/hooks/useTenant'
+import { useUIStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,23 +17,156 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Search, Layers, Grid, LayoutGrid, ExternalLink } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
+import { Plus, Search, Layers, Grid, LayoutGrid, ExternalLink, Pencil, X, Loader2, Upload } from 'lucide-react'
+import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
-import type { SetWithRelations } from '@/types/database'
+import { toast } from '@/hooks/use-toast'
+import type { SetWithRelations, UpdateSetInput } from '@/types/database'
+import { cn } from '@/lib/utils'
+
+// Urgency and Importance options for grid edit
+const URGENCY_OPTIONS: SearchableSelectOption[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+]
+
+const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+]
 
 export function SetsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'matrix' | 'list'>('list')
+  const [isGridEditMode, setIsGridEditMode] = useState(false)
+  const [dirtyRows, setDirtyRows] = useState<Map<string, Partial<SetWithRelations>>>(new Map())
+  const [isSaving, setIsSaving] = useState(false)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
+
   const { data: sets, isLoading } = useSets()
+  const { updateSet } = useSetMutations()
+  const { currentTenant } = useTenantStore()
+  const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
   const { openCreateModal, openDetailPanel } = useUIStore()
+
+  // Build user options for lead dropdown
+  const userOptions: SearchableSelectOption[] = useMemo(() => {
+    if (!tenantUsers) return []
+    return tenantUsers.map((user) => ({
+      value: user.user_profiles?.id || user.id,
+      label: user.user_profiles?.full_name || 'Unknown User',
+    }))
+  }, [tenantUsers])
 
   const filteredSets = sets?.filter(
     (set) =>
       set.name.toLowerCase().includes(search.toLowerCase()) ||
       set.projects?.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const dirtyCount = dirtyRows.size
+
+  // Handle cell value changes
+  const handleCellChange = useCallback((rowId: string, key: string, value: unknown) => {
+    setDirtyRows((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(rowId) || {}
+      next.set(rowId, { ...existing, [key]: value } as Partial<SetWithRelations>)
+      return next
+    })
+  }, [])
+
+  // Get the current value for a cell (edited value or original)
+  const getCellValue = useCallback(
+    (row: SetWithRelations, key: string): unknown => {
+      const edited = dirtyRows.get(row.id)
+      if (edited && key in edited) {
+        return edited[key as keyof Partial<SetWithRelations>]
+      }
+      return row[key as keyof SetWithRelations]
+    },
+    [dirtyRows]
+  )
+
+  // Check if row has unsaved changes
+  const isDirty = useCallback(
+    (rowId: string) => dirtyRows.has(rowId),
+    [dirtyRows]
+  )
+
+  // Discard all changes
+  const handleDiscard = useCallback(() => {
+    setDirtyRows(new Map())
+  }, [])
+
+  // Save all changes
+  const handleSaveAll = useCallback(async () => {
+    if (dirtyRows.size === 0) return
+    setIsSaving(true)
+
+    try {
+      const promises = Array.from(dirtyRows.entries()).map(([id, changes]) => {
+        // Map the changes to UpdateSetInput format
+        const updateData: UpdateSetInput = {}
+
+        if ('name' in changes) updateData.name = changes.name as string
+        if ('description' in changes) updateData.description = changes.description as string
+        if ('urgency' in changes) updateData.urgency = changes.urgency as 'low' | 'medium' | 'high'
+        if ('importance' in changes) updateData.importance = changes.importance as 'low' | 'medium' | 'high'
+        if ('lead_id' in changes) updateData.lead_id = changes.lead_id as string | null
+
+        return updateSet.mutateAsync({ id, ...updateData })
+      })
+
+      await Promise.all(promises)
+      setDirtyRows(new Map())
+      toast({
+        title: 'Changes saved',
+        description: `${promises.length} ${promises.length === 1 ? 'set' : 'sets'} updated successfully.`,
+      })
+    } catch (error) {
+      console.error('Failed to save changes:', error)
+      toast({
+        title: 'Failed to save changes',
+        description: 'Some updates may have failed. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }, [dirtyRows, updateSet])
+
+  // Toggle grid edit mode with confirmation if dirty
+  const handleToggleGridEdit = useCallback(() => {
+    if (isGridEditMode && dirtyRows.size > 0) {
+      setShowExitConfirm(true)
+    } else {
+      setIsGridEditMode(!isGridEditMode)
+    }
+  }, [isGridEditMode, dirtyRows.size])
+
+  // Confirm exit without saving
+  const confirmExit = useCallback(() => {
+    setDirtyRows(new Map())
+    setIsGridEditMode(false)
+    setShowExitConfirm(false)
+  }, [])
 
   const getMatrixSets = (urgency: string, importance: string) => {
     return filteredSets?.filter(
@@ -67,6 +201,54 @@ export function SetsPage() {
     </div>
   )
 
+  // Render editable or read-only cell
+  const renderEditableCell = (
+    set: SetWithRelations,
+    key: string,
+    type: 'text' | 'select',
+    options?: SearchableSelectOption[],
+    fallbackRender?: () => React.ReactNode
+  ) => {
+    const value = getCellValue(set, key)
+
+    if (!isGridEditMode) {
+      return fallbackRender ? fallbackRender() : (value as React.ReactNode) || '—'
+    }
+
+    if (type === 'select' && options) {
+      return (
+        <SearchableSelect
+          options={options}
+          value={value as string}
+          onValueChange={(newValue) => handleCellChange(set.id, key, newValue)}
+          placeholder="Select..."
+          clearable
+          triggerClassName="h-8 text-sm"
+        />
+      )
+    }
+
+    return (
+      <Input
+        type="text"
+        value={(value as string) || ''}
+        onChange={(e) => handleCellChange(set.id, key, e.target.value)}
+        className="h-8 text-sm"
+        onClick={(e) => e.stopPropagation()}
+      />
+    )
+  }
+
+  // Render read-only cell with styling for grid edit mode
+  const renderReadOnlyCell = (content: React.ReactNode) => {
+    if (!isGridEditMode) return content
+    return (
+      <span className="bg-muted/50 px-2 py-1.5 rounded cursor-not-allowed text-muted-foreground block text-sm">
+        {content}
+      </span>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -81,7 +263,7 @@ export function SetsPage() {
         </Button>
       </div>
 
-      {/* Search and View Toggle */}
+      {/* Search, View Toggle, and Grid Edit Toggle */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -98,6 +280,7 @@ export function SetsPage() {
             size="icon"
             className="rounded-r-none"
             onClick={() => setViewMode('matrix')}
+            disabled={isGridEditMode}
           >
             <LayoutGrid className="h-4 w-4" />
           </Button>
@@ -106,10 +289,40 @@ export function SetsPage() {
             size="icon"
             className="rounded-l-none"
             onClick={() => setViewMode('list')}
+            disabled={isGridEditMode}
           >
             <Grid className="h-4 w-4" />
           </Button>
         </div>
+        {viewMode === 'list' && (
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkUpload(true)}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Import
+            </Button>
+            <Button
+              variant={isGridEditMode ? 'default' : 'outline'}
+              onClick={handleToggleGridEdit}
+              className="gap-2"
+            >
+              {isGridEditMode ? (
+                <>
+                  <X className="h-4 w-4" />
+                  Exit Grid Edit
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Grid Edit
+                </>
+              )}
+            </Button>
+          </>
+        )}
       </div>
 
       {isLoading ? (
@@ -228,9 +441,11 @@ export function SetsPage() {
                     <TableHead>Client</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Set Name</TableHead>
+                    <TableHead>Urgency</TableHead>
+                    <TableHead>Importance</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Assigned To</TableHead>
+                    <TableHead>Lead</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -238,31 +453,62 @@ export function SetsPage() {
                   {filteredSets?.map((set) => (
                     <TableRow
                       key={set.id}
-                      className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                      onClick={() => openDetailPanel('set', set.id)}
-                      onDoubleClick={() => navigate(`/sets/${set.id}`)}
+                      className={cn(
+                        'cursor-pointer hover:bg-muted/50 min-h-[44px]',
+                        isDirty(set.id) && 'border-l-2 border-l-primary bg-primary/5'
+                      )}
+                      onClick={() => !isGridEditMode && openDetailPanel('set', set.id)}
+                      onDoubleClick={() => !isGridEditMode && navigate(`/sets/${set.id}`)}
                     >
                       <TableCell>
-                        {/* Show direct client if available, otherwise show project's client */}
-                        {set.clients?.name || set.projects?.clients?.name || '—'}
+                        {/* Client - Read-only (nested relation) */}
+                        {renderReadOnlyCell(set.clients?.name || set.projects?.clients?.name || '—')}
                       </TableCell>
                       <TableCell>
-                        {set.projects?.name || '—'}
+                        {/* Project - Read-only (nested relation) */}
+                        {renderReadOnlyCell(set.projects?.name || '—')}
                       </TableCell>
                       <TableCell className="font-medium">
+                        {/* Set Name - Editable */}
                         <div className="flex items-center gap-2">
-                          {set.name}
-                          {set.display_id && (
-                            <Badge variant="outline" className="font-mono text-xs">
+                          {renderEditableCell(set, 'name', 'text', undefined, () => (
+                            <span className="flex items-center gap-2">
+                              {set.name}
+                              {set.display_id && (
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  #{set.display_id}
+                                </Badge>
+                              )}
+                            </span>
+                          ))}
+                          {isGridEditMode && set.display_id && (
+                            <Badge variant="outline" className="font-mono text-xs shrink-0">
                               #{set.display_id}
                             </Badge>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
+                        {/* Urgency - Editable */}
+                        {renderEditableCell(set, 'urgency', 'select', URGENCY_OPTIONS, () => (
+                          <Badge variant="outline" className="capitalize">
+                            {set.urgency}
+                          </Badge>
+                        ))}
+                      </TableCell>
+                      <TableCell>
+                        {/* Importance - Editable */}
+                        {renderEditableCell(set, 'importance', 'select', IMPORTANCE_OPTIONS, () => (
+                          <Badge variant="outline" className="capitalize">
+                            {set.importance}
+                          </Badge>
+                        ))}
+                      </TableCell>
+                      <TableCell>
+                        {/* Priority - Read-only (calculated) */}
                         {(() => {
                           const priority = (set.priority || calculateEisenhowerPriority(set.importance, set.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
-                          return (
+                          return renderReadOnlyCell(
                             <Badge className={getPriorityColor(priority)} variant="outline">
                               P{priority}
                             </Badge>
@@ -270,12 +516,18 @@ export function SetsPage() {
                         })()}
                       </TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(computeDisplayStatus(set))} variant="outline">
-                          {getStatusLabel(computeDisplayStatus(set))}
-                        </Badge>
+                        {/* Status - Read-only (derived) */}
+                        {renderReadOnlyCell(
+                          <Badge className={getStatusColor(computeDisplayStatus(set))} variant="outline">
+                            {getStatusLabel(computeDisplayStatus(set))}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
-                        {set.owner?.full_name || set.lead?.full_name || '—'}
+                        {/* Lead - Editable */}
+                        {renderEditableCell(set, 'lead_id', 'select', userOptions, () => (
+                          <span>{set.lead?.full_name || set.owner?.full_name || '—'}</span>
+                        ))}
                       </TableCell>
                       <TableCell>
                         {/* Mobile-only Open button */}
@@ -300,6 +552,56 @@ export function SetsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Floating Save Bar */}
+      {isGridEditMode && dirtyCount > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg p-4 flex justify-between items-center z-50">
+          <span className="text-sm font-medium">
+            {dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDiscard} disabled={isSaving}>
+              Discard
+            </Button>
+            <Button onClick={handleSaveAll} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save All'
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Dialog */}
+      <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have {dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}.
+              Are you sure you want to exit Grid Edit mode? Your changes will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmExit}>
+              Discard Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        defaultEntity="sets"
+      />
     </div>
   )
 }

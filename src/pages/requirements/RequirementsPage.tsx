@@ -23,7 +23,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Search, CheckSquare, Kanban, List, GripVertical, MoreVertical, ExternalLink, Edit, Info } from 'lucide-react'
+import { Plus, Search, CheckSquare, Kanban, List, GripVertical, MoreVertical, ExternalLink, Edit, Info, Upload } from 'lucide-react'
+import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { formatDate, getInitials, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeRequirementStatus, getStatusLabel, getStatusColor, isPastDueStatus } from '@/utils/statusUtils'
 import type { RequirementWithRelations, ComputedStatus } from '@/types/database'
@@ -41,6 +42,7 @@ export function RequirementsPage() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
   const { data: requirements, isLoading } = useRequirements()
   const { openCreateModal, openDetailPanel } = useUIStore()
 
@@ -171,6 +173,14 @@ export function RequirementsPage() {
             <List className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowBulkUpload(true)}
+          className="gap-2"
+        >
+          <Upload className="h-4 w-4" />
+          Import
+        </Button>
       </div>
 
       {isLoading ? (
@@ -344,6 +354,13 @@ export function RequirementsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        defaultEntity="requirements"
+      />
     </div>
   )
 }
