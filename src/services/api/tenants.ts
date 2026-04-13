@@ -164,11 +164,12 @@ export const tenantsApi = {
     userId: string,
     role: TenantUser['role']
   ): Promise<void> => {
-    const { error } = await supabase
-      .from('tenant_users')
-      .update({ role })
-      .eq('tenant_id', tenantId)
-      .eq('user_id', userId)
+    // Use RPC function with SECURITY DEFINER to bypass RLS recursion
+    const { error } = await supabase.rpc('update_tenant_user_role', {
+      p_tenant_id: tenantId,
+      p_user_id: userId,
+      p_role: role,
+    })
 
     if (error) throw error
   },

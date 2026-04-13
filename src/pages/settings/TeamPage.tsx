@@ -15,6 +15,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -33,6 +35,12 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -41,11 +49,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Plus, Users, Loader2, Eye, EyeOff, Copy, Check, AlertCircle } from 'lucide-react'
+import { Plus, Users, Loader2, Eye, EyeOff, Copy, Check, AlertCircle, MoreHorizontal, Pencil } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import { isValidEmail } from '@/lib/security'
-import type { UserRole } from '@/types/database'
+import type { UserRole, TenantUserWithProfile } from '@/types/database'
+
+// Roles that OrgAdmins can assign (sys_admin and client_user are NOT included)
+const ORG_ADMIN_ASSIGNABLE_ROLES = [
+  { value: 'org_user', label: 'Org User', description: 'Standard team member with full access to tenant data' },
+  { value: 'org_admin', label: 'Org Admin', description: 'Can manage team members and tenant settings' },
+]
 
 // Error message parser for user creation
 function parseUserCreationError(error: unknown): string {
@@ -71,13 +85,13 @@ function parseUserCreationError(error: unknown): string {
 }
 
 // Form schema for creating a user
-// OrgAdmins can only create org_user - role is hardcoded
+// OrgAdmins can assign org_user or org_admin (NOT sys_admin or client_user)
 const createUserSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email('Valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  role: z.literal('org_user'), // Hardcoded - OrgAdmins cannot select roles
+  role: z.enum(['org_admin', 'org_user']),
   phone: z.string().optional(),
   sendWelcomeEmail: z.boolean(),
 })
@@ -89,6 +103,9 @@ export function TeamPage() {
   const [createUserOpen, setCreateUserOpen] = useState(false)
   const [showPassword, setShowPassword] = useState(true)
   const [passwordCopied, setPasswordCopied] = useState(false)
+  // Edit role dialog state
+  const [editingUser, setEditingUser] = useState<TenantUserWithProfile | null>(null)
+  const [editingRole, setEditingRole] = useState<string>('')
   const { data: users, isLoading, refetch: refetchUsers } = useTenantUsers()
   const { role: currentUserRole, isLoading: roleLoading } = useUserRole()
   const { currentTenant } = useTenantStore()
@@ -257,6 +274,48 @@ export function TeamPage() {
     }
 
     createUserMutation.mutate(data)
+  }
+
+  // Update user role mutation
+  const updateUserRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: UserRole }) => {
+      if (!currentTenantId) {
+        throw new Error('No tenant selected')
+      }
+      return tenantsApi.updateUserRole(currentTenantId, userId, role)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenantUsers'] })
+      refetchUsers()
+      toast({
+        title: 'Role updated',
+        description: `User role has been updated to ${editingRole.replace('_', ' ')}.`,
+      })
+      setEditingUser(null)
+      setEditingRole('')
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to update role',
+        description: error.message || 'An unexpected error occurred',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  // Open edit dialog for a user
+  const openEditDialog = (user: TenantUserWithProfile) => {
+    setEditingUser(user)
+    setEditingRole(user.role)
+  }
+
+  // Handle save role
+  const handleSaveRole = () => {
+    if (!editingUser || !editingRole) return
+    updateUserRoleMutation.mutate({
+      userId: editingUser.user_id,
+      role: editingRole as UserRole,
+    })
   }
 
   const getRoleBadgeColor = (role: string) => {
@@ -440,23 +499,25 @@ export function TeamPage() {
                     )}
                   />
 
-                  {/* Role is hardcoded to org_user - OrgAdmins cannot select roles */}
-                  {/* Only SysAdmins can change roles via Admin Portal */}
                   <FormField
                     control={createUserForm.control}
                     name="role"
-                    render={() => (
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>User Role</FormLabel>
-                        <div className="flex items-center gap-2 h-10">
-                          <Badge className="bg-blue-100 text-blue-800">Team Member</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            (Role assigned automatically)
-                          </span>
-                        </div>
+                        <FormLabel>Role *</FormLabel>
+                        <FormControl>
+                          <SearchableSelect
+                            options={ORG_ADMIN_ASSIGNABLE_ROLES}
+                            value={field.value}
+                            onValueChange={(value) => field.onChange(value || 'org_user')}
+                            placeholder="Select role..."
+                            clearable={false}
+                          />
+                        </FormControl>
                         <FormDescription>
-                          Contact a System Administrator to change user roles.
+                          Org Admin can manage team and settings. Org User has standard access. Client User has limited portal access.
                         </FormDescription>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -601,9 +662,23 @@ export function TeamPage() {
                     <TableCell>{formatDate(user.created_at)}</TableCell>
                     {isAdmin && (
                       <TableCell>
-                        <Button variant="ghost" size="sm">
-                          Edit
-                        </Button>
+                        {/* Only show edit for non-client users (org_user, org_admin) */}
+                        {user.role !== 'client_user' && user.role !== 'sys_admin' ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit Role
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
                       </TableCell>
                     )}
                   </TableRow>
@@ -613,6 +688,58 @@ export function TeamPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Role Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={(open) => {
+        if (!open) {
+          setEditingUser(null)
+          setEditingRole('')
+        }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit User Role</DialogTitle>
+            <DialogDescription>
+              {editingUser?.user_profiles?.full_name || 'User'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <SearchableSelect
+                options={ORG_ADMIN_ASSIGNABLE_ROLES}
+                value={editingRole}
+                onValueChange={(value) => setEditingRole(value || '')}
+                placeholder="Select role..."
+                clearable={false}
+              />
+              <p className="text-sm text-muted-foreground">
+                Changing the role will immediately affect the user's permissions.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingUser(null)
+                setEditingRole('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveRole}
+              disabled={updateUserRoleMutation.isPending || !editingRole || editingRole === editingUser?.role}
+            >
+              {updateUserRoleMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Save Role
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
