@@ -810,7 +810,7 @@ export function DashboardPage() {
       {/* Welcome Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          Welcome back, {profile?.full_name?.split(' ')[0] || 'User'}
+          Welcome back, {profile?.first_name || profile?.full_name?.split(' ')[0] || 'there'}
         </h1>
         <p className="text-muted-foreground mt-1">
           Here's your work overview in {currentTenant?.name}

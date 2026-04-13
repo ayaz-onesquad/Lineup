@@ -143,7 +143,11 @@ export function TopNav() {
                     <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
                   )}
                   <AvatarFallback>
-                    {getInitials(profile?.full_name || 'User')}
+                    {getInitials(
+                      profile?.first_name && profile?.last_name
+                        ? `${profile.first_name} ${profile.last_name}`
+                        : profile?.full_name || 'User'
+                    )}
                   </AvatarFallback>
                 </Avatar>
               </Button>

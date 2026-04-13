@@ -23,7 +23,8 @@ import { getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
 const profileSchema = z.object({
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
+  first_name: z.string().min(1, 'First name is required'),
+  last_name: z.string().min(1, 'Last name is required'),
 })
 
 type ProfileForm = z.infer<typeof profileSchema>
@@ -37,27 +38,34 @@ export function SettingsPage() {
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      full_name: profile?.full_name || '',
+      first_name: profile?.first_name || '',
+      last_name: profile?.last_name || '',
     },
   })
 
   // Reset form when profile loads/changes
   useEffect(() => {
-    if (profile?.full_name) {
+    if (profile) {
       form.reset({
-        full_name: profile.full_name,
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
       })
     }
-  }, [profile?.id, profile?.full_name, form])
+  }, [profile?.id, form])
 
   const onSubmit = async (data: ProfileForm) => {
     if (!user?.id || !profile) return
 
     setIsSaving(true)
     try {
-      const trimmedName = data.full_name.trim()
+      const firstName = data.first_name.trim()
+      const lastName = data.last_name.trim()
+      const fullName = `${firstName} ${lastName}`.trim()
+
       const updatedProfile = await authApi.updateUserProfile(user.id, {
-        full_name: trimmedName,
+        first_name: firstName,
+        last_name: lastName,
+        full_name: fullName,
       })
 
       // Update authStore so rest of app reflects change immediately
@@ -107,7 +115,11 @@ export function SettingsPage() {
                 <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
               )}
               <AvatarFallback className="text-lg">
-                {getInitials(profile?.full_name || 'User')}
+                {getInitials(
+                  profile?.first_name && profile?.last_name
+                    ? `${profile.first_name} ${profile.last_name}`
+                    : profile?.full_name || 'User'
+                )}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -124,25 +136,40 @@ export function SettingsPage() {
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="full_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name <span className="text-red-500">*</span></FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Jane" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name <span className="text-red-500">*</span></FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Smith" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div>
                 <FormLabel>Email</FormLabel>
-                <Input value={user?.email || ''} disabled className="mt-2 bg-muted" />
+                <Input value={user?.email || ''} disabled className="mt-2 bg-muted cursor-not-allowed" />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Email cannot be changed
+                  Email address cannot be changed here.
                 </p>
               </div>
 
