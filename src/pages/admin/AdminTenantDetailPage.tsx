@@ -55,6 +55,7 @@ import {
   Power,
   AlertTriangle,
   Key,
+  Edit,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
@@ -157,6 +158,11 @@ export function AdminTenantDetailPage() {
   const [selectedUserForReset, setSelectedUserForReset] = useState<TenantUserWithProfile | null>(null)
   const [showResetPassword, setShowResetPassword] = useState(true)
   const [resetPasswordCopied, setResetPasswordCopied] = useState(false)
+
+  // Edit user state
+  const [editingUser, setEditingUser] = useState<TenantUserWithProfile | null>(null)
+  const [editRole, setEditRole] = useState<string>('')
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   // Copy password to clipboard
   const copyPassword = () => {
@@ -341,6 +347,31 @@ export function AdminTenantDetailPage() {
     resetPasswordForm.reset()
     setShowResetPassword(true)
     setIsResetPasswordOpen(true)
+  }
+
+  // Edit user handlers
+  const openEditUserDialog = (user: TenantUserWithProfile) => {
+    setEditingUser(user)
+    setEditRole(user.role)
+  }
+
+  const handleSaveUserEdit = async () => {
+    if (!editingUser || !tenantId) return
+    setIsSavingEdit(true)
+    try {
+      await tenantsApi.updateUserRole(tenantId, editingUser.user_id, editRole as UserRole)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants', tenantId, 'users'] })
+      toast({ title: 'User updated successfully' })
+      setEditingUser(null)
+    } catch (err) {
+      toast({
+        title: 'Failed to update user',
+        description: err instanceof Error ? err.message : 'An error occurred',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSavingEdit(false)
+    }
   }
 
   // Step 1: Deactivate tenant (blocks user login)
@@ -1065,14 +1096,24 @@ export function AdminTenantDetailPage() {
                       </TableCell>
                       <TableCell>{formatDate(user.created_at)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openResetPasswordDialog(user)}
-                        >
-                          <Key className="mr-2 h-4 w-4" />
-                          Reset Password
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditUserDialog(user)}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openResetPasswordDialog(user)}
+                          >
+                            <Key className="mr-2 h-4 w-4" />
+                            Reset Password
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1173,6 +1214,44 @@ export function AdminTenantDetailPage() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) setEditingUser(null) }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit User
+            </DialogTitle>
+            <DialogDescription>
+              {editingUser?.user_profiles?.full_name || 'Unknown User'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Role *</label>
+              <SearchableSelect
+                options={ROLE_OPTIONS}
+                value={editRole}
+                onValueChange={(value) => setEditRole(value || 'org_user')}
+                placeholder="Select role..."
+              />
+              <p className="text-sm text-muted-foreground">
+                {ROLE_OPTIONS.find(r => r.value === editRole)?.description}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingUser(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveUserEdit} disabled={isSavingEdit}>
+              {isSavingEdit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
