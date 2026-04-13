@@ -280,25 +280,25 @@ export function BulkUploadModal({
         try {
           switch (entityType) {
             case 'sets':
-              await createSet.mutateAsync(mergedData as CreateSetInput)
+              await createSet.mutateAsync(mergedData as unknown as CreateSetInput)
               break
             case 'pitches':
-              await createPitch.mutateAsync(mergedData as CreatePitchInput)
+              await createPitch.mutateAsync(mergedData as unknown as CreatePitchInput)
               break
             case 'requirements':
-              await createRequirement.mutateAsync(mergedData as CreateRequirementInput)
+              await createRequirement.mutateAsync(mergedData as unknown as CreateRequirementInput)
               break
             case 'phases':
-              await createPhase.mutateAsync(mergedData as CreatePhaseInput)
+              await createPhase.mutateAsync(mergedData as unknown as CreatePhaseInput)
               break
             case 'projects':
-              await createProject.mutateAsync(mergedData as CreateProjectInput)
+              await createProject.mutateAsync(mergedData as unknown as CreateProjectInput)
               break
             case 'clients':
-              await createClient.mutateAsync(mergedData as CreateClientInput)
+              await createClient.mutateAsync(mergedData as unknown as CreateClientInput)
               break
             case 'contacts':
-              await createContact.mutateAsync(mergedData as CreateContactInput)
+              await createContact.mutateAsync(mergedData as unknown as CreateContactInput)
               break
           }
           return { success: true, idx }

@@ -307,22 +307,22 @@ export function RequirementsPage() {
             </Select>
             <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
               <Button
-                variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+                variant="secondary"
                 size="icon"
                 className="rounded-r-none"
                 onClick={() => setViewMode('kanban')}
                 aria-label="Kanban view"
-                aria-pressed={viewMode === 'kanban'}
+                aria-pressed={true}
               >
                 <Kanban className="h-4 w-4" aria-hidden="true" />
               </Button>
               <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                variant="ghost"
                 size="icon"
                 className="rounded-l-none"
                 onClick={() => setViewMode('list')}
                 aria-label="List view"
-                aria-pressed={viewMode === 'list'}
+                aria-pressed={false}
               >
                 <List className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -425,7 +425,7 @@ export function RequirementsPage() {
               </Select>
               <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
                 <Button
-                  variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+                  variant="ghost"
                   size="icon"
                   className="rounded-r-none"
                   onClick={() => setViewMode('kanban')}
@@ -434,7 +434,7 @@ export function RequirementsPage() {
                   <Kanban className="h-4 w-4" aria-hidden="true" />
                 </Button>
                 <Button
-                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                  variant="secondary"
                   size="icon"
                   className="rounded-l-none"
                   onClick={() => setViewMode('list')}

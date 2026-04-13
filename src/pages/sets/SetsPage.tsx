@@ -233,7 +233,7 @@ export function SetsPage() {
             </div>
             <div className="flex items-center border rounded-md">
               <Button
-                variant={viewMode === 'matrix' ? 'secondary' : 'ghost'}
+                variant="secondary"
                 size="icon"
                 className="rounded-r-none"
                 onClick={() => setViewMode('matrix')}
@@ -241,7 +241,7 @@ export function SetsPage() {
                 <LayoutGrid className="h-4 w-4" />
               </Button>
               <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                variant="ghost"
                 size="icon"
                 className="rounded-l-none"
                 onClick={() => setViewMode('list')}
@@ -383,7 +383,7 @@ export function SetsPage() {
               </div>
               <div className="flex items-center border rounded-md">
                 <Button
-                  variant={viewMode === 'matrix' ? 'secondary' : 'ghost'}
+                  variant="ghost"
                   size="icon"
                   className="rounded-r-none"
                   onClick={() => setViewMode('matrix')}
@@ -391,7 +391,7 @@ export function SetsPage() {
                   <LayoutGrid className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                  variant="secondary"
                   size="icon"
                   className="rounded-l-none"
                   onClick={() => setViewMode('list')}
