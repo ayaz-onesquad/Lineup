@@ -55,6 +55,7 @@ import {
   Copy,
   Check,
   UserCheck,
+  MapPin,
 } from 'lucide-react'
 import { formatDate, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
@@ -71,6 +72,13 @@ const contactFormSchema = z.object({
   phone: z.string().optional(),
   role: z.string().optional(),
   relationship: z.string().optional(),
+  // Address fields
+  address_line1: z.string().optional(),
+  address_line2: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  postal_code: z.string().optional(),
 })
 
 type ContactFormValues = z.infer<typeof contactFormSchema>
@@ -194,6 +202,12 @@ export function ContactDetailPage() {
       phone: contact?.phone || '',
       role: contact?.role || '',
       relationship: contact?.relationship || '',
+      address_line1: contact?.address_line1 || '',
+      address_line2: contact?.address_line2 || '',
+      city: contact?.city || '',
+      state: contact?.state || '',
+      country: contact?.country || '',
+      postal_code: contact?.postal_code || '',
     },
   })
 
@@ -207,6 +221,12 @@ export function ContactDetailPage() {
         phone: contact.phone || '',
         role: contact.role || '',
         relationship: contact.relationship || '',
+        address_line1: contact.address_line1 || '',
+        address_line2: contact.address_line2 || '',
+        city: contact.city || '',
+        state: contact.state || '',
+        country: contact.country || '',
+        postal_code: contact.postal_code || '',
       })
     }
   }, [contact?.id, isEditing])
@@ -231,6 +251,12 @@ export function ContactDetailPage() {
         phone: data.phone || undefined,
         role: (data.role as ContactRole) || undefined,
         relationship: data.relationship || undefined,
+        address_line1: data.address_line1 || undefined,
+        address_line2: data.address_line2 || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        country: data.country || undefined,
+        postal_code: data.postal_code || undefined,
       })
       setIsEditing(false)
     } finally {
@@ -246,6 +272,12 @@ export function ContactDetailPage() {
       phone: contact?.phone || '',
       role: contact?.role || '',
       relationship: contact?.relationship || '',
+      address_line1: contact?.address_line1 || '',
+      address_line2: contact?.address_line2 || '',
+      city: contact?.city || '',
+      state: contact?.state || '',
+      country: contact?.country || '',
+      postal_code: contact?.postal_code || '',
     })
     setIsEditing(false)
   }
@@ -505,6 +537,79 @@ export function ContactDetailPage() {
                   updater={contact.updater}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Address Section - Editable */}
+          <Card className="card-carbon">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                Address
+              </h3>
+              {!isEditing && !contact.address_line1 && !contact.address_line2 && !contact.city && !contact.state && !contact.country && !contact.postal_code ? (
+                <p className="text-muted-foreground">No address on file</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Address Line 1 & 2 - Full Width */}
+                  <div className="grid grid-cols-1 gap-4">
+                    <ViewEditField
+                      type="text"
+                      label="Address Line 1"
+                      isEditing={isEditing}
+                      value={form.watch('address_line1') || ''}
+                      onChange={(v) => form.setValue('address_line1', v)}
+                      placeholder="Street address"
+                    />
+                    <ViewEditField
+                      type="text"
+                      label="Address Line 2"
+                      isEditing={isEditing}
+                      value={form.watch('address_line2') || ''}
+                      onChange={(v) => form.setValue('address_line2', v)}
+                      placeholder="Apt, suite, unit, etc."
+                    />
+                  </div>
+                  {/* City & State - Side by Side */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <ViewEditField
+                      type="text"
+                      label="City"
+                      isEditing={isEditing}
+                      value={form.watch('city') || ''}
+                      onChange={(v) => form.setValue('city', v)}
+                      placeholder="City"
+                    />
+                    <ViewEditField
+                      type="text"
+                      label="State / Province"
+                      isEditing={isEditing}
+                      value={form.watch('state') || ''}
+                      onChange={(v) => form.setValue('state', v)}
+                      placeholder="State or province"
+                    />
+                  </div>
+                  {/* Country & Postal Code - Side by Side */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <ViewEditField
+                      type="text"
+                      label="Country"
+                      isEditing={isEditing}
+                      value={form.watch('country') || ''}
+                      onChange={(v) => form.setValue('country', v)}
+                      placeholder="Country"
+                    />
+                    <ViewEditField
+                      type="text"
+                      label="Postal Code"
+                      isEditing={isEditing}
+                      value={form.watch('postal_code') || ''}
+                      onChange={(v) => form.setValue('postal_code', v)}
+                      placeholder="ZIP / Postal code"
+                    />
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

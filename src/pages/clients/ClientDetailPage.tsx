@@ -91,9 +91,12 @@ import {
   Presentation,
   MessageSquare,
   Swords,
+  ChevronUp,
+  MapPin,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
@@ -121,6 +124,13 @@ const contactFormSchema = z.object({
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   phone: z.string().optional(),
   relationship: z.string().optional(),
+  // Address fields
+  address_line1: z.string().optional(),
+  address_line2: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  postal_code: z.string().optional(),
 })
 
 type ContactFormValues = z.infer<typeof contactFormSchema>
@@ -175,6 +185,7 @@ export function ClientDetailPage() {
   const [linkContactDialogOpen, setLinkContactDialogOpen] = useState(false)
   const [selectedContactToLink, setSelectedContactToLink] = useState<string>('')
   const [unlinkContactId, setUnlinkContactId] = useState<string | null>(null)
+  const [addressSectionOpen, setAddressSectionOpen] = useState(false)
 
   // Relationship dialog state (for editing is_primary/role on client_contacts)
   const [relationshipDialogOpen, setRelationshipDialogOpen] = useState(false)
@@ -204,6 +215,12 @@ export function ClientDetailPage() {
       email: '',
       phone: '',
       relationship: '',
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      state: '',
+      country: '',
+      postal_code: '',
     },
   })
 
@@ -286,6 +303,12 @@ export function ClientDetailPage() {
         email: contact.email || '',
         phone: contact.phone || '',
         relationship: contact.relationship || '',
+        address_line1: contact.address_line1 || '',
+        address_line2: contact.address_line2 || '',
+        city: contact.city || '',
+        state: contact.state || '',
+        country: contact.country || '',
+        postal_code: contact.postal_code || '',
       })
     } else {
       setEditingContact(null)
@@ -295,6 +318,12 @@ export function ClientDetailPage() {
         email: '',
         phone: '',
         relationship: '',
+        address_line1: '',
+        address_line2: '',
+        city: '',
+        state: '',
+        country: '',
+        postal_code: '',
       })
     }
     setContactDialogOpen(true)
@@ -319,6 +348,12 @@ export function ClientDetailPage() {
         email: data.email || undefined,
         phone: data.phone || undefined,
         relationship: data.relationship || undefined,
+        address_line1: data.address_line1 || undefined,
+        address_line2: data.address_line2 || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        country: data.country || undefined,
+        postal_code: data.postal_code || undefined,
       }
       await updateContact.mutateAsync({ id: editingContact.id, ...input })
     } else {
@@ -330,6 +365,12 @@ export function ClientDetailPage() {
         phone: data.phone || undefined,
         relationship: data.relationship || undefined,
         is_primary: contacts?.length === 0, // First contact is primary by default
+        address_line1: data.address_line1 || undefined,
+        address_line2: data.address_line2 || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        country: data.country || undefined,
+        postal_code: data.postal_code || undefined,
       }
       await createContact.mutateAsync(input)
     }
@@ -1504,6 +1545,112 @@ export function ClientDetailPage() {
                   </FormItem>
                 )}
               />
+
+              {/* Collapsible Address Section */}
+              <Collapsible open={addressSectionOpen} onOpenChange={setAddressSectionOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full flex items-center justify-between px-0 hover:bg-transparent"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <MapPin className="h-4 w-4" />
+                      Address (Optional)
+                    </span>
+                    {addressSectionOpen ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-2">
+                  <FormField
+                    control={contactForm.control}
+                    name="address_line1"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address Line 1</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Street address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={contactForm.control}
+                    name="address_line2"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address Line 2</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Apt, suite, unit, etc." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={contactForm.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <FormControl>
+                            <Input placeholder="City" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={contactForm.control}
+                      name="state"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>State / Province</FormLabel>
+                          <FormControl>
+                            <Input placeholder="State" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={contactForm.control}
+                      name="country"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Country</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Country" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={contactForm.control}
+                      name="postal_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Postal Code</FormLabel>
+                          <FormControl>
+                            <Input placeholder="ZIP / Postal code" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setContactDialogOpen(false)}>
                   Cancel

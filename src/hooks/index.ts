@@ -67,6 +67,7 @@ export {
   useMyTasksByAllPriorities,
   useKpiDrillDownItems,
   useMyWorkHierarchy,
+  useAssignedByMeRequirements,
 } from './useMyWork'
 
 // Documents hooks

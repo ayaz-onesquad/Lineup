@@ -65,6 +65,13 @@ export interface Contact {
   phone?: string
   role?: ContactRole
   relationship?: string
+  // Address fields
+  address_line1?: string
+  address_line2?: string
+  city?: string
+  state?: string
+  country?: string
+  postal_code?: string
   // is_primary is now in client_contacts join table, NOT here
   created_by: string
   updated_by?: string
@@ -642,6 +649,13 @@ export interface CreateContactInput {
   role?: ContactRole
   relationship?: string
   is_primary?: boolean
+  // Address fields
+  address_line1?: string
+  address_line2?: string
+  city?: string
+  state?: string
+  country?: string
+  postal_code?: string
 }
 
 // For linking existing contacts to clients

@@ -473,3 +473,69 @@ export function useMyWorkHierarchy() {
     totalOrphans: orphanPitchList.length + orphanReqs.length,
   }
 }
+
+/**
+ * Get requirements that the current user assigned to OTHER team members
+ * Filter: created_by = currentUser.auth_id AND assigned_to_id IS NOT NULL AND assigned_to_id != currentUserProfileId
+ */
+export function useAssignedByMeRequirements(limit: number = 50) {
+  const { user } = useAuthStore()
+  const { currentTenant } = useTenantStore()
+  const { data: userProfileId } = useUserProfileId()
+
+  return useQuery({
+    queryKey: ['assigned-by-me', currentTenant?.id, user?.id, userProfileId, limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('requirements')
+        .select(`
+          *,
+          sets:set_id (id, name, client_id, clients:client_id (id, name)),
+          pitches:pitch_id (id, name),
+          assigned_to:assigned_to_id (id, full_name, avatar_url)
+        `)
+        .eq('tenant_id', currentTenant!.id)
+        .eq('created_by', user!.id)
+        .not('assigned_to_id', 'is', null)
+        .neq('assigned_to_id', userProfileId!)
+        .is('deleted_at', null)
+        .eq('is_template', false)
+        .not('status', 'in', '("completed","cancelled")')
+        .order('priority', { ascending: true })
+        .order('expected_due_date', { ascending: true, nullsFirst: false })
+        .limit(limit)
+
+      if (error) throw error
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      // Split into active and past due
+      const active: typeof data = []
+      const pastDue: typeof data = []
+
+      for (const req of data || []) {
+        const dueDate = req.actual_due_date || req.expected_due_date
+        if (dueDate) {
+          const due = new Date(dueDate)
+          due.setHours(0, 0, 0, 0)
+          if (due < today) {
+            pastDue.push(req)
+          } else {
+            active.push(req)
+          }
+        } else {
+          // No due date = active
+          active.push(req)
+        }
+      }
+
+      return {
+        active,
+        pastDue,
+        all: data || [],
+      }
+    },
+    enabled: !!currentTenant?.id && !!user?.id && !!userProfileId,
+  })
+}

@@ -4,6 +4,7 @@ import {
   useMyWorkHierarchy,
   useMyWorkItems,
 } from '@/hooks'
+import { AssignedByMeWidget } from '@/components/dashboard/AssignedByMeWidget'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -1004,6 +1005,9 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tasks I Assigned Section */}
+      <AssignedByMeWidget />
     </div>
   )
 }
