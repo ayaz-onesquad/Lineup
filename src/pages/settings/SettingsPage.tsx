@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuthStore, useTenantStore } from '@/stores'
+import { authApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,9 +17,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { User, Building2, Shield, ChevronRight, Key } from 'lucide-react'
+import { User, Building2, Shield, ChevronRight, Key, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { getInitials } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 
 const profileSchema = z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -26,8 +29,10 @@ const profileSchema = z.object({
 type ProfileForm = z.infer<typeof profileSchema>
 
 export function SettingsPage() {
-  const { user, profile, role } = useAuthStore()
+  const { user, profile, role, setProfile } = useAuthStore()
   const { currentTenant } = useTenantStore()
+  const { toast } = useToast()
+  const [isSaving, setIsSaving] = useState(false)
 
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -36,9 +41,45 @@ export function SettingsPage() {
     },
   })
 
+  // Reset form when profile loads/changes
+  useEffect(() => {
+    if (profile?.full_name) {
+      form.reset({
+        full_name: profile.full_name,
+      })
+    }
+  }, [profile?.id, profile?.full_name, form])
+
   const onSubmit = async (data: ProfileForm) => {
-    // Update profile logic here
-    console.log('Update profile:', data)
+    if (!user?.id || !profile) return
+
+    setIsSaving(true)
+    try {
+      const trimmedName = data.full_name.trim()
+      const updatedProfile = await authApi.updateUserProfile(user.id, {
+        full_name: trimmedName,
+      })
+
+      // Update authStore so rest of app reflects change immediately
+      setProfile({
+        ...profile,
+        ...updatedProfile,
+      })
+
+      toast({
+        title: 'Profile updated',
+        description: 'Your profile has been saved successfully.',
+      })
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+      toast({
+        title: 'Failed to update profile',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -105,7 +146,10 @@ export function SettingsPage() {
                 </p>
               </div>
 
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
             </form>
           </Form>
         </CardContent>
