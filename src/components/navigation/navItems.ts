@@ -18,6 +18,7 @@ import {
   DollarSign,
   Swords,
   Zap,
+  Bell,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -65,6 +66,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Settings', path: '/settings', icon: Settings, group: 'Settings', requiredRole: 'org_admin', exact: true },
   { label: 'Team', path: '/settings/team', icon: UsersRound, group: 'Settings', requiredRole: 'org_admin' },
   { label: 'Security', path: '/settings/security', icon: Shield, group: 'Settings', requiredRole: 'org_admin' },
+  { label: 'Notifications', path: '/settings/notifications', icon: Bell, group: 'Settings', requiredRole: 'org_admin' },
 ]
 
 /** All group names in display order */

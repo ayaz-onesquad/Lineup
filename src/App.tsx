@@ -25,6 +25,7 @@ import { RequirementDetailPage } from '@/pages/requirements/RequirementDetailPag
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { TeamPage } from '@/pages/settings/TeamPage'
 import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage'
+import { NotificationsSettingsPage } from '@/pages/settings/NotificationsSettingsPage'
 
 // V2 Pages
 import { LeadsPage } from '@/pages/leads/LeadsPage'
@@ -55,6 +56,8 @@ import { AdminLoginPage } from '@/pages/admin/AdminLoginPage'
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
 import { AdminTenantDetailPage } from '@/pages/admin/AdminTenantDetailPage'
 import { SupportDashboardPage } from '@/pages/admin/SupportDashboardPage'
+import { AdminNotificationsPage } from '@/pages/admin/AdminNotificationsPage'
+import { AdminNotificationLogPage } from '@/pages/admin/AdminNotificationLogPage'
 
 // Support Tickets
 import { MyTicketsPage } from '@/pages/tickets/MyTicketsPage'
@@ -143,6 +146,7 @@ function App() {
               <Route path="/settings/security" element={<SecuritySettingsPage />} />
               <Route path="/settings/team" element={<TeamPage />} />
               <Route path="/settings/document-catalog" element={<DocumentCatalogPage />} />
+              <Route path="/settings/notifications" element={<NotificationsSettingsPage />} />
               <Route path="/my-tickets" element={<MyTicketsPage />} />
               {/* Password Manager - org_admin only (RLS enforced at DB level) */}
               <Route path="/passwords" element={<PasswordsPage />} />
@@ -182,6 +186,8 @@ function App() {
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/tenants/:tenantId" element={<AdminTenantDetailPage />} />
               <Route path="/admin/support" element={<SupportDashboardPage />} />
+              <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
+              <Route path="/admin/notifications/log" element={<AdminNotificationLogPage />} />
             </Route>
 
               {/* Redirects */}
