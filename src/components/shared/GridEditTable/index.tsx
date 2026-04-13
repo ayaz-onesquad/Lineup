@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,54 +20,36 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from '@/hooks/use-toast'
+import type { GridColumn, GridEditTableProps } from './types'
 
-export type ColumnType = 'text' | 'select' | 'date' | 'number'
-
-export interface GridColumn<T> {
-  key: keyof T | string
-  header: string
-  editable?: boolean
-  type?: ColumnType
-  options?: SearchableSelectOption[]
-  render?: (row: T) => React.ReactNode
-  getValue?: (row: T) => string | number | undefined
-  width?: string
-}
-
-export interface GridEditTableProps<T extends { id: string }> {
-  columns: GridColumn<T>[]
-  data: T[]
-  isGridEditMode: boolean
-  onSave: (dirtyRows: Map<string, Partial<T>>) => Promise<void>
-  onRowClick?: (row: T) => void
-  onRowDoubleClick?: (row: T) => void
-  isLoading?: boolean
-  emptyMessage?: string
-  emptyIcon?: React.ReactNode
-  emptyAction?: React.ReactNode
-}
+export type { GridColumn, GridColumnType, GridEditTableProps } from './types'
 
 export function GridEditTable<T extends { id: string }>({
   columns,
   data,
-  isGridEditMode,
+  isLoading = false,
   onSave,
   onRowClick,
   onRowDoubleClick,
-  isLoading = false,
   emptyMessage = 'No data found',
   emptyIcon,
   emptyAction,
+  children,
+  showGridEditToggle = true,
+  toolbarActions,
 }: GridEditTableProps<T>) {
+  // Internal state management
+  const [isGridEditMode, setIsGridEditMode] = useState(false)
   const [dirtyRows, setDirtyRows] = useState<Map<string, Partial<T>>>(new Map())
   const [isSaving, setIsSaving] = useState(false)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
-  const [pendingExitCallback, setPendingExitCallback] = useState<(() => void) | null>(null)
 
   const dirtyCount = dirtyRows.size
 
+  // Handle cell value changes
   const handleCellChange = useCallback((rowId: string, key: keyof T | string, value: unknown) => {
     setDirtyRows((prev) => {
       const next = new Map(prev)
@@ -77,20 +59,49 @@ export function GridEditTable<T extends { id: string }>({
     })
   }, [])
 
+  // Discard all changes
   const handleDiscard = useCallback(() => {
     setDirtyRows(new Map())
   }, [])
 
+  // Save all changes
   const handleSaveAll = useCallback(async () => {
     if (dirtyRows.size === 0) return
     setIsSaving(true)
     try {
       await onSave(dirtyRows)
       setDirtyRows(new Map())
+      toast({
+        title: 'Changes saved',
+        description: `${dirtyRows.size} ${dirtyRows.size === 1 ? 'record' : 'records'} updated successfully.`,
+      })
+    } catch (error) {
+      console.error('Failed to save changes:', error)
+      toast({
+        title: 'Failed to save changes',
+        description: 'Some updates may have failed. Please try again.',
+        variant: 'destructive',
+      })
     } finally {
       setIsSaving(false)
     }
   }, [dirtyRows, onSave])
+
+  // Toggle grid edit mode with confirmation if dirty
+  const handleToggleGridEdit = useCallback(() => {
+    if (isGridEditMode && dirtyRows.size > 0) {
+      setShowExitConfirm(true)
+    } else {
+      setIsGridEditMode(!isGridEditMode)
+    }
+  }, [isGridEditMode, dirtyRows.size])
+
+  // Confirm exit without saving
+  const confirmExit = useCallback(() => {
+    setDirtyRows(new Map())
+    setIsGridEditMode(false)
+    setShowExitConfirm(false)
+  }, [])
 
   // Get the current value for a cell (edited value or original)
   const getCellValue = useCallback(
@@ -118,27 +129,13 @@ export function GridEditTable<T extends { id: string }>({
     [dirtyRows]
   )
 
+  // Check if row has unsaved changes
   const isDirty = useCallback(
-    (rowId: string) => {
-      return dirtyRows.has(rowId)
-    },
+    (rowId: string) => dirtyRows.has(rowId),
     [dirtyRows]
   )
 
-  const confirmExit = useCallback(() => {
-    setDirtyRows(new Map())
-    setShowExitConfirm(false)
-    if (pendingExitCallback) {
-      pendingExitCallback()
-      setPendingExitCallback(null)
-    }
-  }, [pendingExitCallback])
-
-  const cancelExit = useCallback(() => {
-    setShowExitConfirm(false)
-    setPendingExitCallback(null)
-  }, [])
-
+  // Render a cell based on column config and edit mode
   const renderCell = useCallback(
     (row: T, column: GridColumn<T>) => {
       const isEditable = isGridEditMode && column.editable
@@ -153,7 +150,7 @@ export function GridEditTable<T extends { id: string }>({
         }
         return (
           <span className={cn(
-            isGridEditMode && 'bg-muted/50 px-2 py-1.5 rounded cursor-not-allowed text-muted-foreground block'
+            isGridEditMode && 'bg-muted/30 px-2 py-1.5 rounded cursor-not-allowed text-muted-foreground block'
           )}>
             {value as React.ReactNode}
           </span>
@@ -185,6 +182,7 @@ export function GridEditTable<T extends { id: string }>({
                 handleCellChange(row.id, column.key, e.target.value || null)
               }
               className="h-8 text-sm"
+              onClick={(e) => e.stopPropagation()}
             />
           )
 
@@ -201,6 +199,7 @@ export function GridEditTable<T extends { id: string }>({
                 )
               }
               className="h-8 text-sm"
+              onClick={(e) => e.stopPropagation()}
             />
           )
 
@@ -214,6 +213,7 @@ export function GridEditTable<T extends { id: string }>({
                 handleCellChange(row.id, column.key, e.target.value)
               }
               className="h-8 text-sm"
+              onClick={(e) => e.stopPropagation()}
             />
           )
       }
@@ -224,6 +224,7 @@ export function GridEditTable<T extends { id: string }>({
   // Memoize columns to prevent re-renders
   const tableColumns = useMemo(() => columns, [columns])
 
+  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -232,56 +233,86 @@ export function GridEditTable<T extends { id: string }>({
     )
   }
 
-  if (data.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        {emptyIcon}
-        <p className="text-muted-foreground mt-4">{emptyMessage}</p>
-        {emptyAction && <div className="mt-4">{emptyAction}</div>}
-      </div>
-    )
-  }
-
   return (
     <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {tableColumns.map((column) => (
-              <TableHead
-                key={String(column.key)}
-                style={column.width ? { width: column.width } : undefined}
-              >
-                {column.header}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((row) => (
-            <TableRow
-              key={row.id}
-              className={cn(
-                'cursor-pointer hover:bg-muted/50',
-                isDirty(row.id) && 'border-l-2 border-l-primary bg-primary/5'
-              )}
-              onClick={() => !isGridEditMode && onRowClick?.(row)}
-              onDoubleClick={() => !isGridEditMode && onRowDoubleClick?.(row)}
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-4 flex-1">
+          {children}
+        </div>
+        <div className="flex items-center gap-2">
+          {toolbarActions}
+          {showGridEditToggle && (
+            <Button
+              variant={isGridEditMode ? 'default' : 'outline'}
+              onClick={handleToggleGridEdit}
+              className="gap-2"
             >
-              {tableColumns.map((column) => (
-                <TableCell key={String(column.key)}>
-                  {renderCell(row, column)}
-                </TableCell>
+              {isGridEditMode ? (
+                <>
+                  <X className="h-4 w-4" />
+                  Exit Grid Edit
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Grid Edit
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {data.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 border rounded-lg">
+          {emptyIcon}
+          <p className="text-muted-foreground mt-4">{emptyMessage}</p>
+          {emptyAction && <div className="mt-4">{emptyAction}</div>}
+        </div>
+      ) : (
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {tableColumns.map((column) => (
+                  <TableHead
+                    key={String(column.key)}
+                    style={column.width ? { width: column.width } : undefined}
+                  >
+                    {column.header}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className={cn(
+                    'cursor-pointer hover:bg-muted/50 min-h-[44px]',
+                    isDirty(row.id) && 'border-l-2 border-l-primary bg-primary/5'
+                  )}
+                  onClick={() => !isGridEditMode && onRowClick?.(row)}
+                  onDoubleClick={() => !isGridEditMode && onRowDoubleClick?.(row)}
+                >
+                  {tableColumns.map((column) => (
+                    <TableCell key={String(column.key)}>
+                      {renderCell(row, column)}
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Floating Save Bar */}
       {isGridEditMode && dirtyCount > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg p-4 flex justify-between items-center z-50">
-          <span className="text-sm font-medium">
+          <span className="text-sm text-muted-foreground">
             {dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}
           </span>
           <div className="flex gap-2">
@@ -313,9 +344,7 @@ export function GridEditTable<T extends { id: string }>({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelExit}>
-              Keep Editing
-            </AlertDialogCancel>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
             <AlertDialogAction onClick={confirmExit}>
               Discard Changes
             </AlertDialogAction>
@@ -324,28 +353,4 @@ export function GridEditTable<T extends { id: string }>({
       </AlertDialog>
     </>
   )
-}
-
-// Hook to manage grid edit mode with exit confirmation
-export function useGridEditMode() {
-  const [isGridEditMode, setIsGridEditMode] = useState(false)
-  const [exitRequestCallback, setExitRequestCallback] = useState<(() => void) | null>(null)
-
-  const toggleGridEditMode = useCallback(() => {
-    setIsGridEditMode((prev) => !prev)
-  }, [])
-
-  const requestExitGridEditMode = useCallback((callback?: () => void) => {
-    if (callback) {
-      setExitRequestCallback(() => callback)
-    }
-    return exitRequestCallback
-  }, [exitRequestCallback])
-
-  return {
-    isGridEditMode,
-    setIsGridEditMode,
-    toggleGridEditMode,
-    requestExitGridEditMode,
-  }
 }

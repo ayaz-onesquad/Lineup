@@ -20,7 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2, Edit, Info } from 'lucide-react'
+import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2, Edit, Info, Upload } from 'lucide-react'
+import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { formatDate, cn } from '@/lib/utils'
 import { Link, useNavigate } from 'react-router-dom'
 import { MobileActionBar } from '@/components/shared'
@@ -28,6 +29,7 @@ import { MobileActionBar } from '@/components/shared'
 export function ClientsPage() {
   const [search, setSearch] = useState('')
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
   const navigate = useNavigate()
   const { data: clients, isLoading } = useClients()
   const { deleteClient } = useClientMutations()
@@ -68,6 +70,14 @@ export function ClientsPage() {
             className="pl-9"
           />
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowBulkUpload(true)}
+          className="gap-2"
+        >
+          <Upload className="h-4 w-4" />
+          Import
+        </Button>
       </div>
 
       {/* Client List */}
@@ -241,6 +251,13 @@ export function ClientsPage() {
           }}
         />
       )}
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        defaultEntity="clients"
+      />
     </div>
   )
 }

@@ -599,9 +599,9 @@ export function RequirementDetailPage() {
 
         {/* Details Tab - Organized sections */}
         <TabsContent value="details" className="mt-6 space-y-6">
-          {/* Parent Info Section */}
-          <Card className="card-carbon">
-            <CardContent className="pt-6">
+          {/* Parent Info Section - overflow-visible allows SearchableSelect popovers to render above card */}
+          <Card className="card-carbon overflow-visible">
+            <CardContent className="pt-6 overflow-visible">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <CheckSquare className="h-5 w-5 text-muted-foreground" />
                 Requirement Information

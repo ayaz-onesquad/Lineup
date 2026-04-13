@@ -30,7 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, FolderKanban, Grid, List, MoreVertical, ExternalLink, Edit, Building2, User } from 'lucide-react'
+import { Plus, Search, FolderKanban, Grid, List, MoreVertical, ExternalLink, Edit, Building2, User, Upload } from 'lucide-react'
+import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { getHealthColor, formatDate, cn } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 
@@ -39,6 +40,7 @@ export function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
   const navigate = useNavigate()
   const { data: projects, isLoading } = useProjects()
   const { openCreateModal, openDetailPanel } = useUIStore()
@@ -112,6 +114,14 @@ export function ProjectsPage() {
             <List className="h-4 w-4" />
           </Button>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowBulkUpload(true)}
+          className="gap-2"
+        >
+          <Upload className="h-4 w-4" />
+          Import
+        </Button>
       </div>
 
       {/* Projects Grid/List */}
@@ -304,6 +314,13 @@ export function ProjectsPage() {
           }}
         />
       )}
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        defaultEntity="projects"
+      />
     </div>
   )
 }

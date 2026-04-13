@@ -19,7 +19,7 @@ import type {
 // TYPES
 // ============================================================================
 
-export type BulkUploadEntityType = 'sets' | 'pitches' | 'requirements' | 'phases'
+export type BulkUploadEntityType = 'sets' | 'pitches' | 'requirements' | 'phases' | 'projects' | 'clients' | 'contacts'
 
 export type ReferenceEntityType = 'client' | 'project' | 'phase' | 'set' | 'pitch' | 'user'
 
@@ -138,6 +138,34 @@ export const ENTITY_FIELD_DEFINITIONS: Record<BulkUploadEntityType, FieldDefinit
     { key: 'expected_start_date', displayName: 'Expected Start Date', type: 'date', required: false, aliases: ['start date', 'start'] },
     { key: 'expected_end_date', displayName: 'Expected End Date', type: 'date', required: false, aliases: ['end date', 'end', 'due'] },
     { key: 'show_in_client_portal', displayName: 'Show in Client Portal', type: 'boolean', required: false },
+  ],
+  projects: [
+    { key: 'name', displayName: 'Name', type: 'string', required: true, aliases: ['project name', 'title'] },
+    { key: 'description', displayName: 'Description', type: 'string', required: false, aliases: ['desc', 'details'] },
+    { key: 'client_id', displayName: 'Client ID', type: 'uuid', required: true, aliases: ['client'], refType: 'client' },
+    { key: 'project_code', displayName: 'Project Code', type: 'string', required: false, aliases: ['code', 'project id'] },
+    { key: 'expected_start_date', displayName: 'Expected Start Date', type: 'date', required: false, aliases: ['start date', 'start'] },
+    { key: 'expected_end_date', displayName: 'Expected End Date', type: 'date', required: false, aliases: ['end date', 'end', 'due'] },
+    { key: 'lead_id', displayName: 'Lead ID', type: 'uuid', required: false, aliases: ['lead', 'owner', 'project lead'], refType: 'user' },
+    { key: 'show_in_client_portal', displayName: 'Show in Client Portal', type: 'boolean', required: false },
+  ],
+  clients: [
+    { key: 'name', displayName: 'Name', type: 'string', required: true, aliases: ['client name', 'display name'] },
+    { key: 'company_name', displayName: 'Company Name', type: 'string', required: true, aliases: ['company', 'business name'] },
+    { key: 'email', displayName: 'Email', type: 'string', required: false, aliases: ['email address', 'contact email'] },
+    { key: 'phone', displayName: 'Phone', type: 'string', required: false, aliases: ['phone number', 'tel'] },
+    { key: 'website', displayName: 'Website', type: 'string', required: false, aliases: ['url', 'web', 'site'] },
+    { key: 'industry', displayName: 'Industry', type: 'string', required: false, aliases: ['sector', 'business type'] },
+    { key: 'location', displayName: 'Location', type: 'string', required: false, aliases: ['city', 'address'] },
+    { key: 'notes', displayName: 'Notes', type: 'string', required: false },
+  ],
+  contacts: [
+    { key: 'first_name', displayName: 'First Name', type: 'string', required: true, aliases: ['fname', 'given name'] },
+    { key: 'last_name', displayName: 'Last Name', type: 'string', required: true, aliases: ['lname', 'surname', 'family name'] },
+    { key: 'client_id', displayName: 'Client ID', type: 'uuid', required: false, aliases: ['client', 'company'], refType: 'client' },
+    { key: 'email', displayName: 'Email', type: 'string', required: false, aliases: ['email address'] },
+    { key: 'phone', displayName: 'Phone', type: 'string', required: false, aliases: ['phone number', 'mobile'] },
+    { key: 'title', displayName: 'Title', type: 'string', required: false, aliases: ['job title', 'position', 'role'] },
   ],
 }
 
@@ -778,4 +806,7 @@ export const ENTITY_DISPLAY_NAMES: Record<BulkUploadEntityType, string> = {
   pitches: 'Pitches',
   requirements: 'Requirements',
   phases: 'Phases',
+  projects: 'Projects',
+  clients: 'Clients',
+  contacts: 'Contacts',
 }

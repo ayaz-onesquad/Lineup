@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { usePitches } from '@/hooks/usePitches'
-import { useUIStore } from '@/stores'
+import { usePitches, usePitchMutations } from '@/hooks/usePitches'
+import { useTenantUsers } from '@/hooks/useTenant'
+import { useUIStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,34 +10,34 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import {
   Plus,
   Search,
   Presentation,
-  MoreVertical,
-  ExternalLink,
   Filter,
   CheckCircle,
   PlayCircle,
+  Upload,
 } from 'lucide-react'
+import { BulkUploadModal } from '@/components/shared/BulkUpload'
+import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
 import { getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
-import { SearchableSelect } from '@/components/ui/searchable-select'
-import type { PriorityScore } from '@/types/database'
+import type { PitchWithRelations, UpdatePitchInput, PriorityScore } from '@/types/database'
+
+// Urgency and Importance options
+const URGENCY_OPTIONS: SearchableSelectOption[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+]
+
+const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+]
 
 // Computed status options (status is now READ-ONLY calculated from dates)
 const STATUS_OPTIONS = [
@@ -51,10 +52,23 @@ const STATUS_OPTIONS = [
 export function PitchesPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
 
   const navigate = useNavigate()
   const { data: pitches, isLoading } = usePitches()
+  const { updatePitch } = usePitchMutations()
+  const { currentTenant } = useTenantStore()
+  const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
   const { openCreateModal, openDetailPanel } = useUIStore()
+
+  // Build user options for lead dropdown
+  const userOptions: SearchableSelectOption[] = useMemo(() => {
+    if (!tenantUsers) return []
+    return tenantUsers.map((user) => ({
+      value: user.user_profiles?.id || user.id,
+      label: user.user_profiles?.full_name || 'Unknown User',
+    }))
+  }, [tenantUsers])
 
   // Filter pitches
   const filteredPitches = useMemo(() => {
@@ -86,13 +100,147 @@ export function PitchesPage() {
     }
   }, [pitches])
 
-  const handleRowClick = (pitchId: string) => {
-    openDetailPanel('pitch', pitchId)
-  }
+  // Grid columns definition
+  const columns: GridColumn<PitchWithRelations>[] = useMemo(() => [
+    {
+      key: 'clients.name',
+      header: 'Client',
+      editable: false, // Nested relation
+      render: (row) => {
+        const set = row.sets
+        const project = set?.projects
+        const client = project?.clients || set?.clients
+        return client?.name || '—'
+      },
+    },
+    {
+      key: 'sets.projects.name',
+      header: 'Project',
+      editable: false, // Nested relation
+      render: (row) => row.sets?.projects?.name || '—',
+    },
+    {
+      key: 'sets.name',
+      header: 'Set',
+      editable: false, // Nested relation
+      render: (row) => row.sets?.name || '—',
+    },
+    {
+      key: 'name',
+      header: 'Pitch Name',
+      editable: true,
+      type: 'text',
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{row.name}</span>
+          {row.pitch_id_display && (
+            <Badge variant="outline" className="font-mono text-xs">
+              {row.pitch_id_display}
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'urgency',
+      header: 'Urgency',
+      editable: true,
+      type: 'select',
+      options: URGENCY_OPTIONS,
+      render: (row) => (
+        <Badge variant="outline" className="capitalize">
+          {row.urgency || '—'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'importance',
+      header: 'Importance',
+      editable: true,
+      type: 'select',
+      options: IMPORTANCE_OPTIONS,
+      render: (row) => (
+        <Badge variant="outline" className="capitalize">
+          {row.importance || '—'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      editable: false, // Computed from dates
+      render: (row) => (
+        <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
+          {getStatusLabel(computeDisplayStatus(row))}
+        </Badge>
+      ),
+    },
+    {
+      key: 'lead_id',
+      header: 'Lead',
+      editable: true,
+      type: 'select',
+      options: userOptions,
+      render: (row) => row.lead ? (
+        <div className="flex items-center gap-2">
+          <Avatar className="h-6 w-6">
+            <AvatarImage src={row.lead.avatar_url} />
+            <AvatarFallback className="text-xs">
+              {row.lead.full_name
+                ?.split(' ')
+                .map((n) => n[0])
+                .join('')}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-sm">{row.lead.full_name}</span>
+        </div>
+      ) : '—',
+    },
+    {
+      key: 'completion_percentage',
+      header: 'Progress',
+      editable: false, // Calculated field
+      render: (row) => (
+        <div className="flex items-center gap-2 min-w-[100px]">
+          <Progress value={row.completion_percentage} className="h-2 flex-1" />
+          <span className="text-xs text-muted-foreground w-8">
+            {row.completion_percentage}%
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'priority',
+      header: 'Priority',
+      editable: false, // Calculated field
+      render: (row) => row.priority ? (
+        <Badge className={getPriorityColor(row.priority as PriorityScore)}>
+          {row.priority} - {getPriorityLabel(row.priority as PriorityScore)}
+        </Badge>
+      ) : '—',
+    },
+  ], [userOptions])
 
-  const handleRowDoubleClick = (pitchId: string) => {
-    navigate(`/pitches/${pitchId}`)
-  }
+  // Handle grid save
+  const handleGridSave = useCallback(async (dirtyRows: Map<string, Partial<PitchWithRelations>>) => {
+    const updates = Array.from(dirtyRows.entries())
+    const results = await Promise.allSettled(
+      updates.map(([id, changes]) => {
+        const updateData: UpdatePitchInput = {}
+        if ('name' in changes) updateData.name = changes.name as string
+        if ('description' in changes) updateData.description = changes.description as string
+        if ('urgency' in changes) updateData.urgency = changes.urgency as 'low' | 'medium' | 'high'
+        if ('importance' in changes) updateData.importance = changes.importance as 'low' | 'medium' | 'high'
+        if ('lead_id' in changes) updateData.lead_id = changes.lead_id as string | undefined
+        return updatePitch.mutateAsync({ id, ...updateData })
+      })
+    )
+
+    const failures = results.filter((r) => r.status === 'rejected')
+    if (failures.length > 0) {
+      throw new Error(`${failures.length} updates failed`)
+    }
+  }, [updatePitch])
 
   return (
     <div className="page-carbon p-6 space-y-6">
@@ -153,29 +301,6 @@ export function PitchesPage() {
         </Card>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by name, set, project, or client..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <SearchableSelect
-            options={STATUS_OPTIONS}
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v || '')}
-            placeholder="Status"
-            className="w-40"
-          />
-        </div>
-      </div>
-
       {/* Data Grid */}
       {isLoading ? (
         <div className="space-y-2">
@@ -183,152 +308,87 @@ export function PitchesPage() {
             <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
-      ) : filteredPitches.length === 0 ? (
+      ) : filteredPitches.length === 0 && !search && !statusFilter ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Presentation className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No pitches found</p>
-            {search || statusFilter ? (
-              <Button
-                variant="link"
-                onClick={() => {
-                  setSearch('')
-                  setStatusFilter('')
-                }}
-              >
-                Clear filters
-              </Button>
-            ) : (
-              <Button className="mt-4" onClick={() => openCreateModal('pitch')}>
-                Create First Pitch
-              </Button>
-            )}
+            <Button className="mt-4" onClick={() => openCreateModal('pitch')}>
+              Create First Pitch
+            </Button>
           </CardContent>
         </Card>
       ) : (
         <Card className="card-carbon">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Set</TableHead>
-                  <TableHead>Pitch Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Lead</TableHead>
-                  <TableHead>Progress</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPitches.map((pitch) => {
-                  const set = pitch.sets
-                  const project = set?.projects
-                  const client = project?.clients || set?.clients
-
-                  return (
-                    <TableRow
-                      key={pitch.id}
-                      className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                      onClick={() => handleRowClick(pitch.id)}
-                      onDoubleClick={() => handleRowDoubleClick(pitch.id)}
-                    >
-                      <TableCell className="font-medium">
-                        {client?.name || '—'}
-                      </TableCell>
-                      <TableCell>{project?.name || '—'}</TableCell>
-                      <TableCell>{set?.name || '—'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{pitch.name}</span>
-                          {pitch.pitch_id_display && (
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {pitch.pitch_id_display}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(computeDisplayStatus(pitch))} variant="outline">
-                          {getStatusLabel(computeDisplayStatus(pitch))}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {pitch.lead ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={pitch.lead.avatar_url} />
-                              <AvatarFallback className="text-xs">
-                                {pitch.lead.full_name
-                                  ?.split(' ')
-                                  .map((n) => n[0])
-                                  .join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm">{pitch.lead.full_name}</span>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 min-w-[100px]">
-                          <Progress value={pitch.completion_percentage} className="h-2 flex-1" />
-                          <span className="text-xs text-muted-foreground w-8">
-                            {pitch.completion_percentage}%
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {pitch.priority && (
-                          <Badge className={getPriorityColor(pitch.priority as PriorityScore)}>
-                            {pitch.priority} - {getPriorityLabel(pitch.priority as PriorityScore)}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="z-50">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                navigate(`/pitches/${pitch.id}`)
-                              }}
-                            >
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              Open Details
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        {/* Mobile-only Open button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 md:hidden"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate(`/pitches/${pitch.id}`)
-                          }}
-                          title="Open"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+          <CardContent className="p-4">
+            <GridEditTable
+              columns={columns}
+              data={filteredPitches}
+              isLoading={isLoading}
+              onSave={handleGridSave}
+              onRowClick={(row) => openDetailPanel('pitch', row.id)}
+              onRowDoubleClick={(row) => navigate(`/pitches/${row.id}`)}
+              emptyMessage="No pitches found"
+              emptyIcon={<Presentation className="h-12 w-12 text-muted-foreground" />}
+              emptyAction={
+                search || statusFilter ? (
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      setSearch('')
+                      setStatusFilter('')
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Button onClick={() => openCreateModal('pitch')}>
+                    Create First Pitch
+                  </Button>
+                )
+              }
+              toolbarActions={
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBulkUpload(true)}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import
+                </Button>
+              }
+            >
+              {/* Search and Filters */}
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, set, project, or client..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <SearchableSelect
+                  options={STATUS_OPTIONS}
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v || '')}
+                  placeholder="Status"
+                  className="w-40"
+                />
+              </div>
+            </GridEditTable>
           </CardContent>
         </Card>
       )}
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        defaultEntity="pitches"
+      />
     </div>
   )
 }

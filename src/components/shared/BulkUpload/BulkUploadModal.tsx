@@ -46,11 +46,17 @@ import { useSetMutations } from '@/hooks/useSets'
 import { usePitchMutations } from '@/hooks/usePitches'
 import { useRequirementMutations } from '@/hooks/useRequirements'
 import { usePhaseMutations } from '@/hooks/usePhases'
+import { useProjectMutations } from '@/hooks/useProjects'
+import { useClientMutations } from '@/hooks/useClients'
+import { useContactMutations } from '@/hooks/useContacts'
 import type {
   CreateSetInput,
   CreatePitchInput,
   CreateRequirementInput,
   CreatePhaseInput,
+  CreateProjectInput,
+  CreateClientInput,
+  CreateContactInput,
 } from '@/types/database'
 
 interface BulkUploadModalProps {
@@ -75,6 +81,9 @@ const ENTITY_OPTIONS = [
   { value: 'pitches', label: 'Pitches' },
   { value: 'requirements', label: 'Requirements' },
   { value: 'phases', label: 'Phases' },
+  { value: 'projects', label: 'Projects' },
+  { value: 'clients', label: 'Clients' },
+  { value: 'contacts', label: 'Contacts' },
 ]
 
 export function BulkUploadModal({
@@ -109,6 +118,9 @@ export function BulkUploadModal({
   const { createPitch } = usePitchMutations()
   const { createRequirement } = useRequirementMutations()
   const { createPhase } = usePhaseMutations()
+  const { createProject } = useProjectMutations()
+  const { createClient } = useClientMutations()
+  const { createContact } = useContactMutations()
 
   // Reset state when modal closes
   const handleClose = useCallback(() => {
@@ -278,6 +290,15 @@ export function BulkUploadModal({
               break
             case 'phases':
               await createPhase.mutateAsync(mergedData as CreatePhaseInput)
+              break
+            case 'projects':
+              await createProject.mutateAsync(mergedData as CreateProjectInput)
+              break
+            case 'clients':
+              await createClient.mutateAsync(mergedData as CreateClientInput)
+              break
+            case 'contacts':
+              await createContact.mutateAsync(mergedData as CreateContactInput)
               break
           }
           return { success: true, idx }

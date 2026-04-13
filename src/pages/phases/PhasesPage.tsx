@@ -1,37 +1,177 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { usePhases } from '@/hooks'
+import { usePhases, usePhaseMutations } from '@/hooks'
+import { useTenantUsers, useTenant } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Search, Calendar, Building2, ExternalLink } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { type SearchableSelectOption } from '@/components/ui/searchable-select'
+import { Search, Calendar, Building2, Upload } from 'lucide-react'
+import { BulkUploadModal } from '@/components/shared/BulkUpload'
+import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { formatDate } from '@/lib/utils'
-import type { EnhancedProjectPhase } from '@/types/database'
+import type { EnhancedProjectPhase, UpdatePhaseInput } from '@/types/database'
 
 export function PhasesPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const { data: phases, isLoading } = usePhases()
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
 
-  const filteredPhases = phases?.filter(
+  const { data: phases, isLoading } = usePhases()
+  const { updatePhase } = usePhaseMutations()
+  const { currentTenant } = useTenant()
+  const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
+
+  // Build user options for lead dropdown
+  const userOptions: SearchableSelectOption[] = useMemo(() => {
+    if (!tenantUsers) return []
+    return tenantUsers.map((user) => ({
+      value: user.user_profiles?.id || user.id,
+      label: user.user_profiles?.full_name || 'Unknown User',
+    }))
+  }, [tenantUsers])
+
+  const filteredPhases = useMemo(() => phases?.filter(
     (phase) =>
       phase.name.toLowerCase().includes(search.toLowerCase()) ||
       phase.projects?.name.toLowerCase().includes(search.toLowerCase())
-  )
+  ) || [], [phases, search])
 
-  const handleRowClick = (phase: EnhancedProjectPhase) => {
-    navigate(`/phases/${phase.id}`)
-  }
+  // Grid columns definition
+  const columns: GridColumn<EnhancedProjectPhase>[] = useMemo(() => [
+    {
+      key: 'phase_id_display',
+      header: 'Phase ID',
+      editable: false, // Display ID is read-only
+      render: (row) => (
+        <span className="font-mono text-sm">
+          {row.phase_id_display || `PH-${row.display_id}`}
+        </span>
+      ),
+    },
+    {
+      key: 'projects.clients.name',
+      header: 'Client',
+      editable: false, // Nested relation
+      render: (row) => row.projects?.clients?.id ? (
+        <Link
+          to={`/clients/${row.projects.clients.id}`}
+          className="flex items-center gap-2 hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Building2 className="h-3 w-3 text-muted-foreground" />
+          {row.projects.clients.name || '—'}
+        </Link>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
+    },
+    {
+      key: 'projects.name',
+      header: 'Project',
+      editable: false, // Nested relation
+      render: (row) => row.projects ? (
+        <Link
+          to={`/projects/${row.project_id}`}
+          className="hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.projects.name}
+        </Link>
+      ) : '-',
+    },
+    {
+      key: 'name',
+      header: 'Phase Name',
+      editable: true,
+      type: 'text',
+      render: (row) => <span className="font-medium">{row.name}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      editable: false, // Computed from dates
+      render: (row) => (
+        <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
+          {getStatusLabel(computeDisplayStatus(row))}
+        </Badge>
+      ),
+    },
+    {
+      key: 'lead_id',
+      header: 'Lead',
+      editable: true,
+      type: 'select',
+      options: userOptions,
+      render: (row) => row.lead?.full_name || '-',
+    },
+    {
+      key: 'expected_start_date',
+      header: 'Start Date',
+      editable: true,
+      type: 'date',
+      render: (row) => row.expected_start_date ? (
+        <div className="flex items-center gap-2">
+          <Calendar className="h-3 w-3 text-muted-foreground" />
+          {formatDate(row.expected_start_date)}
+        </div>
+      ) : '—',
+    },
+    {
+      key: 'expected_end_date',
+      header: 'End Date',
+      editable: true,
+      type: 'date',
+      render: (row) => row.expected_end_date ? (
+        <div className="flex items-center gap-2">
+          <Calendar className="h-3 w-3 text-muted-foreground" />
+          {formatDate(row.expected_end_date)}
+        </div>
+      ) : '—',
+    },
+    {
+      key: 'completion_percentage',
+      header: 'Progress',
+      editable: false, // Calculated field
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${row.completion_percentage}%` }}
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {row.completion_percentage}%
+          </span>
+        </div>
+      ),
+    },
+  ], [userOptions])
+
+  // Handle grid save
+  const handleGridSave = useCallback(async (dirtyRows: Map<string, Partial<EnhancedProjectPhase>>) => {
+    const updates = Array.from(dirtyRows.entries())
+    const results = await Promise.allSettled(
+      updates.map(([id, changes]) => {
+        const updateData: UpdatePhaseInput = {}
+        if ('name' in changes) updateData.name = changes.name as string
+        if ('description' in changes) updateData.description = changes.description as string
+        if ('lead_id' in changes) updateData.lead_id = changes.lead_id as string | undefined
+        if ('expected_start_date' in changes) updateData.expected_start_date = changes.expected_start_date as string | undefined
+        if ('expected_end_date' in changes) updateData.expected_end_date = changes.expected_end_date as string | undefined
+        return updatePhase.mutateAsync({ id, data: updateData })
+      })
+    )
+
+    const failures = results.filter((r) => r.status === 'rejected')
+    if (failures.length > 0) {
+      throw new Error(`${failures.length} updates failed`)
+    }
+  }, [updatePhase])
 
   return (
     <div className="space-y-6">
@@ -45,20 +185,6 @@ export function PhasesPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search phases..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
-
-      {/* Table */}
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -66,116 +192,48 @@ export function PhasesPage() {
           ))}
         </div>
       ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Phase ID</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead>Phase Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Lead</TableHead>
-                <TableHead>Expected End Date</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPhases?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    No phases found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredPhases?.map((phase) => (
-                  <TableRow
-                    key={phase.id}
-                    className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                    onClick={() => handleRowClick(phase)}
-                    onDoubleClick={() => navigate(`/phases/${phase.id}`)}
-                  >
-                    <TableCell>
-                      <span className="font-mono text-sm">
-                        {phase.phase_id_display || `PH-${phase.display_id}`}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {phase.projects?.clients?.id ? (
-                        <Link
-                          to={`/clients/${phase.projects.clients.id}`}
-                          className="flex items-center gap-2 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Building2 className="h-3 w-3 text-muted-foreground" />
-                          {phase.projects.clients.name || '—'}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {phase.projects ? (
-                        <Link
-                          to={`/projects/${phase.project_id}`}
-                          className="hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {phase.projects.name}
-                        </Link>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">{phase.name}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(computeDisplayStatus(phase))} variant="outline">
-                        {getStatusLabel(computeDisplayStatus(phase))}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{phase.lead?.full_name || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        {formatDate(phase.expected_end_date)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all"
-                            style={{ width: `${phase.completion_percentage}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {phase.completion_percentage}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {/* Mobile-only Open button */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 md:hidden"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/phases/${phase.id}`)
-                        }}
-                        title="Open"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <Card className="card-carbon">
+          <CardContent className="p-4">
+            <GridEditTable
+              columns={columns}
+              data={filteredPhases}
+              isLoading={isLoading}
+              onSave={handleGridSave}
+              onRowClick={(row) => navigate(`/phases/${row.id}`)}
+              onRowDoubleClick={(row) => navigate(`/phases/${row.id}`)}
+              emptyMessage="No phases found"
+              toolbarActions={
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBulkUpload(true)}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import
+                </Button>
+              }
+            >
+              {/* Search */}
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search phases..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </GridEditTable>
+          </CardContent>
+        </Card>
       )}
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        defaultEntity="phases"
+      />
     </div>
   )
 }

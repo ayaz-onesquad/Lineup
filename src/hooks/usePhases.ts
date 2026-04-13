@@ -80,11 +80,18 @@ export function usePhaseMutations() {
     mutationFn: (input: CreatePhaseInput) =>
       phasesApi.create(currentTenantId!, user!.id, input),
     onSuccess: (data) => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: phaseKeys.byTenant(currentTenantId!) })
+      console.log('[createPhase] onSuccess called with data:', data)
+      console.log('[createPhase] project_id:', data.project_id)
+      // Invalidate all phases queries to refresh any list view
+      queryClient.invalidateQueries({ queryKey: phaseKeys.all })
+      // Invalidate project-specific cache
       if (data.project_id) {
+        console.log('[createPhase] Invalidating project hierarchy:', ['project', data.project_id, 'hierarchy'])
         queryClient.invalidateQueries({ queryKey: phaseKeys.byProject(data.project_id) })
-        queryClient.invalidateQueries({ queryKey: ['projects', data.project_id] })
+        // Invalidate the project hierarchy query (used by ProjectDetailPage)
+        queryClient.invalidateQueries({ queryKey: ['project', data.project_id, 'hierarchy'] })
+      } else {
+        console.warn('[createPhase] No project_id in response!')
       }
       toast({
         title: 'Phase created',
@@ -103,14 +110,21 @@ export function usePhaseMutations() {
   const updatePhase = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdatePhaseInput }) =>
       phasesApi.update(id, user!.id, data),
-    onSuccess: async (data) => {
-      // Force immediate refetch for instant UI update
-      await queryClient.refetchQueries({ queryKey: phaseKeys.detail(data.id) })
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: phaseKeys.byTenant(currentTenantId!) })
+    onSuccess: (data, variables) => {
+      // Immediately update cache with mutation response for instant UI update
+      queryClient.setQueryData(
+        phaseKeys.detail(variables.id),
+        (oldData: Record<string, unknown> | undefined) => oldData ? { ...oldData, ...data } : data
+      )
+      // Invalidate to refetch enriched data in background
+      queryClient.invalidateQueries({ queryKey: phaseKeys.detail(variables.id) })
+      // Invalidate all phases list queries
+      queryClient.invalidateQueries({ queryKey: phaseKeys.all })
+      // Invalidate project-specific cache
       if (data.project_id) {
         queryClient.invalidateQueries({ queryKey: phaseKeys.byProject(data.project_id) })
-        queryClient.invalidateQueries({ queryKey: ['projects', data.project_id] })
+        // Invalidate the project hierarchy query (used by ProjectDetailPage)
+        queryClient.invalidateQueries({ queryKey: ['project', data.project_id, 'hierarchy'] })
       }
       toast({
         title: 'Phase updated',
@@ -131,10 +145,11 @@ export function usePhaseMutations() {
     onSuccess: (_, variables) => {
       // Invalidate all phase queries (prefix match)
       queryClient.invalidateQueries({ queryKey: phaseKeys.all })
-      // Also invalidate the project-specific cache if projectId was provided
+      // Invalidate the project-specific cache if projectId was provided
       if (variables.projectId) {
         queryClient.invalidateQueries({ queryKey: phaseKeys.byProject(variables.projectId) })
-        queryClient.invalidateQueries({ queryKey: ['projects', variables.projectId] })
+        // Invalidate the project hierarchy query (used by ProjectDetailPage)
+        queryClient.invalidateQueries({ queryKey: ['project', variables.projectId, 'hierarchy'] })
       }
       toast({
         title: 'Phase deleted',
@@ -156,6 +171,8 @@ export function usePhaseMutations() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: phaseKeys.byProject(variables.projectId) })
       queryClient.invalidateQueries({ queryKey: phaseKeys.byTenant(currentTenantId!) })
+      // Invalidate the project hierarchy query (used by ProjectDetailPage)
+      queryClient.invalidateQueries({ queryKey: ['project', variables.projectId, 'hierarchy'] })
       toast({
         title: 'Phases reordered',
         description: 'Phase order has been updated successfully.',
