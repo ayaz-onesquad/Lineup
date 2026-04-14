@@ -81,7 +81,8 @@ export function SearchableSelect({
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
-    onValueChange(undefined)
+    e.preventDefault()
+    onValueChange('')
   }
 
   // Loading state
@@ -119,11 +120,14 @@ export function SearchableSelect({
             </span>
             <div className="flex items-center gap-1 ml-2 shrink-0">
               {clearable && value && (
-                <X
-                  className="h-4 w-4 opacity-50 hover:opacity-100"
+                <button
+                  type="button"
                   onClick={handleClear}
+                  className="p-0 m-0 bg-transparent border-none cursor-pointer"
                   aria-label="Clear selection"
-                />
+                >
+                  <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+                </button>
               )}
               <ChevronsUpDown className="h-4 w-4 opacity-50" aria-hidden="true" />
             </div>

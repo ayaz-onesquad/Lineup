@@ -109,6 +109,16 @@ export function RequirementDetailPage() {
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
 
+  // URL-persisted tab state (survives page refresh)
+  const activeTab = searchParams.get('tab') || 'details'
+  const handleTabChange = (value: string) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      newParams.set('tab', value)
+      return newParams
+    }, { replace: true })
+  }
+
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -323,7 +333,12 @@ export function RequirementDetailPage() {
   useEffect(() => {
     if (shouldEditOnLoad && requirement && !isEditing) {
       setIsEditing(true)
-      setSearchParams({}, { replace: true })
+      // Clear edit param but preserve tab
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev)
+        newParams.delete('edit')
+        return newParams
+      }, { replace: true })
     }
   }, [shouldEditOnLoad, requirement])
 
@@ -583,7 +598,7 @@ export function RequirementDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="details">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="details" className="gap-2">
             <CheckSquare className="h-4 w-4" />

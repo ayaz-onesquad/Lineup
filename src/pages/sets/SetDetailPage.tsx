@@ -121,6 +121,16 @@ export function SetDetailPage() {
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
 
+  // URL-persisted tab state (survives page refresh)
+  const activeTab = searchParams.get('tab') || 'details'
+  const handleTabChange = (value: string) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      newParams.set('tab', value)
+      return newParams
+    }, { replace: true })
+  }
+
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   // Cascade dialog state for parent re-assignment
@@ -314,8 +324,12 @@ export function SetDetailPage() {
   useEffect(() => {
     if (shouldEditOnLoad && set && !isEditing) {
       setIsEditing(true)
-      // Clear the query param after entering edit mode
-      setSearchParams({}, { replace: true })
+      // Clear edit param but preserve tab
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev)
+        newParams.delete('edit')
+        return newParams
+      }, { replace: true })
     }
   }, [shouldEditOnLoad, set])
 
@@ -654,7 +668,7 @@ export function SetDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="details">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="details" className="gap-2">
             <Layers className="h-4 w-4" />
@@ -1021,7 +1035,12 @@ export function SetDetailPage() {
           <RequirementsTabbedPanel
             requirements={requirements}
             isLoading={requirementsLoading}
-            createContext={{ set_id: set.id, client_id: set.client_id || set.projects?.client_id }}
+            createContext={{
+              set_id: set.id,
+              client_id: set.client_id || set.projects?.client_id,
+              project_id: set.project_id,
+              phase_id: set.phase_id,
+            }}
             showSetColumn={false}
             showProjectColumn={false}
           />

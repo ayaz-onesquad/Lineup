@@ -162,6 +162,16 @@ export function ClientDetailPage() {
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
 
+  // URL-persisted tab state (survives page refresh)
+  const activeTab = searchParams.get('tab') || 'details'
+  const handleTabChange = (value: string) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      newParams.set('tab', value)
+      return newParams
+    }, { replace: true })
+  }
+
   const { data: client, isLoading: clientLoading } = useClient(safeClientId)
   const { data: projects, isLoading: projectsLoading } = useProjectsByClient(safeClientId)
   const { data: contacts, isLoading: contactsLoading } = useContacts(safeClientId)
@@ -255,8 +265,12 @@ export function ClientDetailPage() {
   useEffect(() => {
     if (shouldEditOnLoad && client && !isEditing) {
       setIsEditing(true)
-      // Clear the query param after entering edit mode
-      setSearchParams({}, { replace: true })
+      // Clear the edit param after entering edit mode, but preserve tab
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev)
+        newParams.delete('edit')
+        return newParams
+      }, { replace: true })
     }
   }, [shouldEditOnLoad, client])
 
@@ -564,11 +578,20 @@ export function ClientDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="details">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="details" className="gap-2">
             <Building2 className="h-4 w-4" />
             Details
+          </TabsTrigger>
+          <TabsTrigger value="contacts" className="gap-2">
+            <Users className="h-4 w-4" />
+            Contacts
+            {contacts && contacts.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {contacts.length}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="projects" className="gap-2">
             <FolderKanban className="h-4 w-4" />
@@ -585,15 +608,6 @@ export function ClientDetailPage() {
             {clientPhases && clientPhases.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5">
                 {clientPhases.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="contacts" className="gap-2">
-            <Users className="h-4 w-4" />
-            Contacts
-            {contacts && contacts.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {contacts.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -628,13 +642,13 @@ export function ClientDetailPage() {
             <FileText className="h-4 w-4" />
             Documents
           </TabsTrigger>
-          <TabsTrigger value="discussions" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Discussions
-          </TabsTrigger>
           <TabsTrigger value="notes" className="gap-2">
             <FileText className="h-4 w-4" />
             Notes
+          </TabsTrigger>
+          <TabsTrigger value="discussions" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Discussions
           </TabsTrigger>
           <TabsTrigger value="competitors" className="gap-2">
             <Swords className="h-4 w-4" />

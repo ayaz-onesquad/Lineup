@@ -40,6 +40,7 @@ interface RequirementsTabbedPanelProps {
     set_id?: string
     pitch_id?: string
     project_id?: string
+    phase_id?: string
   }
   // Optional custom create handler (overrides createContext behavior)
   onCreateClick?: () => void

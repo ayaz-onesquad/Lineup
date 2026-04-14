@@ -129,6 +129,16 @@ export function ProjectDetailPage() {
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
 
+  // URL-persisted tab state (survives page refresh)
+  const activeTab = searchParams.get('tab') || 'details'
+  const handleTabChange = (value: string) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      newParams.set('tab', value)
+      return newParams
+    }, { replace: true })
+  }
+
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set())
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set())
   const [isEditing, setIsEditing] = useState(false)
@@ -260,8 +270,12 @@ export function ProjectDetailPage() {
   useEffect(() => {
     if (shouldEditOnLoad && project && !isEditing) {
       setIsEditing(true)
-      // Clear the query param after entering edit mode
-      setSearchParams({}, { replace: true })
+      // Clear the edit param after entering edit mode, but preserve tab
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev)
+        newParams.delete('edit')
+        return newParams
+      }, { replace: true })
     }
   }, [shouldEditOnLoad, project])
 
@@ -580,7 +594,7 @@ export function ProjectDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="details">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="details" className="gap-2">
             <Building2 className="h-4 w-4" />

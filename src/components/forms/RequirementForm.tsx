@@ -5,7 +5,9 @@ import { z } from 'zod'
 import { useRequirementMutations } from '@/hooks/useRequirements'
 import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
-import { useSets, useSetsByProject } from '@/hooks/useSets'
+import { useSets, useSetsByProject, useSetsByPhase } from '@/hooks/useSets'
+import { usePhasesByProject } from '@/hooks/usePhases'
+import { usePitchesBySet } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
@@ -36,8 +38,11 @@ const requirementSchema = z.object({
   // Filter fields (not persisted)
   client_id: z.string().optional(),
   project_id: z.string().optional(),
+  phase_id: z.string().optional(),
   // Actual fields - Set is optional (can be assigned later), Client is required contextually
   set_id: z.string().optional(),
+  pitch_id: z.string().optional(),
+  is_task: z.boolean(),
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   requirement_type: z.enum([
@@ -81,7 +86,10 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     defaultValues: {
       client_id: defaultValues?.client_id || '',
       project_id: defaultValues?.project_id || '',
+      phase_id: defaultValues?.phase_id || '',
       set_id: defaultValues?.set_id || '',
+      pitch_id: defaultValues?.pitch_id || '',
+      is_task: defaultValues?.is_task ?? false,
       title: '',
       description: '',
       requirement_type: 'task',
@@ -102,10 +110,15 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   // Watch filter fields for cascading
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' })
   const selectedProjectId = useWatch({ control: form.control, name: 'project_id' })
+  const selectedPhaseId = useWatch({ control: form.control, name: 'phase_id' })
+  const selectedSetId = useWatch({ control: form.control, name: 'set_id' })
   const requiresReview = useWatch({ control: form.control, name: 'requires_review' })
 
-  // Fetch sets by project when project is selected
+  // Fetch phases by project, sets by project/phase, pitches by set
+  const { data: projectPhases } = usePhasesByProject(selectedProjectId || '')
   const { data: projectSets } = useSetsByProject(selectedProjectId || '')
+  const { data: phaseSets } = useSetsByPhase(selectedPhaseId || '')
+  const { data: setPitches } = usePitchesBySet(selectedSetId || '')
 
   // Filter projects by selected client
   const filteredProjects = useMemo(() => {
@@ -114,8 +127,13 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     return allProjects.filter((p) => p.client_id === selectedClientId)
   }, [allProjects, selectedClientId])
 
-  // Get sets - either from project-specific query or filter all sets
+  // Get sets - filter by phase > project > client (cascading)
   const filteredSets = useMemo(() => {
+    // Phase-specific sets take priority
+    if (selectedPhaseId && phaseSets) {
+      return phaseSets
+    }
+    // Project-specific sets
     if (selectedProjectId && projectSets) {
       return projectSets
     }
@@ -128,12 +146,31 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       return allSets.filter((s) => s.project_id && projectIds.includes(s.project_id))
     }
     return allSets
-  }, [allSets, projectSets, selectedProjectId, selectedClientId, filteredProjects])
+  }, [allSets, projectSets, phaseSets, selectedProjectId, selectedPhaseId, selectedClientId, filteredProjects])
+
+  // Build phase options for selected project
+  const phaseOptions = useMemo(() =>
+    projectPhases?.map((p) => ({
+      value: p.id,
+      label: p.name,
+      description: `Order: ${p.phase_order}`,
+    })) || [],
+    [projectPhases]
+  )
+
+  // Build pitch options for selected set
+  const pitchOptions = useMemo(() =>
+    setPitches?.map((p) => ({
+      value: p.id,
+      label: p.name,
+    })) || [],
+    [setPitches]
+  )
 
   // Reset dependent fields when parent changes
   useEffect(() => {
     if (selectedClientId) {
-      // Reset project and set when client changes
+      // Reset project, phase, set, pitch when client changes
       const currentProject = form.getValues('project_id')
       const currentSet = form.getValues('set_id')
 
@@ -141,7 +178,9 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
         const projectStillValid = filteredProjects.some((p) => p.id === currentProject)
         if (!projectStillValid) {
           form.setValue('project_id', '')
+          form.setValue('phase_id', '')
           form.setValue('set_id', '')
+          form.setValue('pitch_id', '')
         }
       }
 
@@ -149,6 +188,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
         const setStillValid = filteredSets.some((s) => s.id === currentSet)
         if (!setStillValid) {
           form.setValue('set_id', '')
+          form.setValue('pitch_id', '')
         }
       }
     }
@@ -156,15 +196,37 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
 
   useEffect(() => {
     if (selectedProjectId) {
+      // Reset phase and set when project changes
+      const currentPhase = form.getValues('phase_id')
       const currentSet = form.getValues('set_id')
+      if (currentPhase) {
+        const phaseStillValid = projectPhases?.some((p) => p.id === currentPhase)
+        if (!phaseStillValid) {
+          form.setValue('phase_id', '')
+        }
+      }
       if (currentSet) {
         const setStillValid = filteredSets.some((s) => s.id === currentSet)
         if (!setStillValid) {
           form.setValue('set_id', '')
+          form.setValue('pitch_id', '')
         }
       }
     }
-  }, [selectedProjectId, filteredSets, form])
+  }, [selectedProjectId, projectPhases, filteredSets, form])
+
+  // Reset pitch when set changes
+  useEffect(() => {
+    if (selectedSetId) {
+      const currentPitch = form.getValues('pitch_id')
+      if (currentPitch) {
+        const pitchStillValid = setPitches?.some((p) => p.id === currentPitch)
+        if (!pitchStillValid) {
+          form.setValue('pitch_id', '')
+        }
+      }
+    }
+  }, [selectedSetId, setPitches, form])
 
   // Initialize from defaultValues - client_id auto-population
   useEffect(() => {
@@ -188,7 +250,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     }
   }, [defaultValues?.project_id, defaultValues?.client_id, allProjects, form])
 
-  // Initialize from defaultValues - find client and project from set
+  // Initialize from defaultValues - find client, project, and phase from set
   useEffect(() => {
     if (defaultValues?.set_id && allSets && allProjects) {
       const set = allSets.find((s) => s.id === defaultValues.set_id)
@@ -198,9 +260,27 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
           form.setValue('client_id', project.client_id)
           form.setValue('project_id', project.id)
         }
+        // Also set phase_id if the set has one
+        if (set.phase_id) {
+          form.setValue('phase_id', set.phase_id)
+        }
       }
     }
   }, [defaultValues?.set_id, allSets, allProjects, form])
+
+  // Initialize phase_id directly from defaultValues
+  useEffect(() => {
+    if (defaultValues?.phase_id && !form.getValues('phase_id')) {
+      form.setValue('phase_id', defaultValues.phase_id)
+    }
+  }, [defaultValues?.phase_id, form])
+
+  // Initialize pitch_id directly from defaultValues
+  useEffect(() => {
+    if (defaultValues?.pitch_id && !form.getValues('pitch_id')) {
+      form.setValue('pitch_id', defaultValues.pitch_id)
+    }
+  }, [defaultValues?.pitch_id, form])
 
   // Scroll to first error on validation failure
   const { scrollToFirstError } = useScrollToError(form.formState.errors)
@@ -212,12 +292,14 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       return
     }
     // Extract only the fields we need (exclude filter fields, but include client_id for context)
-    const { project_id, client_id, ...rest } = data
+    const { project_id, phase_id, client_id, ...rest } = data
     // Ensure client_id is passed as string (already validated above)
     const requirementData = {
       ...rest,
       client_id: client_id as string,
       set_id: rest.set_id || undefined, // Convert empty string to undefined
+      pitch_id: rest.pitch_id || undefined, // Convert empty string to undefined
+      is_task: rest.is_task,
     }
     await createRequirement.mutateAsync(requirementData)
     form.reset()
@@ -260,7 +342,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
-        {/* Cascading Filters - Client is required, Set/Project are optional */}
+        {/* Cascading Filters - Client is required, others optional */}
         <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
@@ -307,6 +389,30 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
 
           <FormField
             control={form.control}
+            name="phase_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phase</FormLabel>
+                <FormControl>
+                  <SearchableSelect
+                    options={phaseOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="Select phase (optional)"
+                    searchPlaceholder="Search phases..."
+                    emptyMessage={selectedProjectId ? "No phases found." : "Select a project first."}
+                    clearable
+                    disabled={!selectedProjectId || phaseOptions.length === 0}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <FormField
+            control={form.control}
             name="set_id"
             render={({ field }) => (
               <FormItem>
@@ -327,7 +433,71 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
               </FormItem>
             )}
           />
+
+          <FormField
+            control={form.control}
+            name="pitch_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pitch</FormLabel>
+                <FormControl>
+                  <SearchableSelect
+                    options={pitchOptions}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value || '')}
+                    placeholder="Select pitch (optional)"
+                    searchPlaceholder="Search pitches..."
+                    emptyMessage={selectedSetId ? "No pitches found." : "Select a set first."}
+                    clearable
+                    disabled={!selectedSetId || pitchOptions.length === 0}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="requirement_type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Type</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="task">Task</SelectItem>
+                    <SelectItem value="open_item">Open Item</SelectItem>
+                    <SelectItem value="technical">Technical</SelectItem>
+                    <SelectItem value="support">Support</SelectItem>
+                    <SelectItem value="internal_deliverable">Internal Deliverable</SelectItem>
+                    <SelectItem value="client_deliverable">Client Deliverable</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
+
+        <FormField
+          control={form.control}
+          name="is_task"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+              <FormLabel>Mark as Task</FormLabel>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -362,32 +532,6 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="requirement_type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Type</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="task">Task</SelectItem>
-                    <SelectItem value="open_item">Open Item</SelectItem>
-                    <SelectItem value="technical">Technical</SelectItem>
-                    <SelectItem value="support">Support</SelectItem>
-                    <SelectItem value="internal_deliverable">Internal Deliverable</SelectItem>
-                    <SelectItem value="client_deliverable">Client Deliverable</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           <FormField
             control={form.control}
             name="assigned_to_id"

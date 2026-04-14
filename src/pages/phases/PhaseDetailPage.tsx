@@ -95,6 +95,16 @@ export function PhaseDetailPage() {
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
 
+  // URL-persisted tab state (survives page refresh)
+  const activeTab = searchParams.get('tab') || 'details'
+  const handleTabChange = (value: string) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      newParams.set('tab', value)
+      return newParams
+    }, { replace: true })
+  }
+
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -242,8 +252,12 @@ export function PhaseDetailPage() {
   useEffect(() => {
     if (shouldEditOnLoad && phase && !isEditing) {
       setIsEditing(true)
-      // Clear the query param after entering edit mode
-      setSearchParams({}, { replace: true })
+      // Clear edit param but preserve tab
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev)
+        newParams.delete('edit')
+        return newParams
+      }, { replace: true })
     }
   }, [shouldEditOnLoad, phase])
 
@@ -475,7 +489,7 @@ export function PhaseDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="details">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="details" className="gap-2">
             <Building2 className="h-4 w-4" />
