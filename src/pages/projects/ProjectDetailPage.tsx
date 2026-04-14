@@ -682,7 +682,10 @@ export function ProjectDetailPage() {
           <div className="flex justify-end mb-4">
             <Button
               variant="outline"
-              onClick={() => openCreateModal('set', { project_id: project.id })}
+              onClick={() => openCreateModal('set', {
+                project_id: project.id,
+                client_id: project.client_id,
+              })}
             >
               <Plus className="mr-2 h-4 w-4" />
               Add Set
@@ -726,7 +729,10 @@ export function ProjectDetailPage() {
                 <p className="text-muted-foreground">No sets yet</p>
                 <Button
                   className="mt-4"
-                  onClick={() => openCreateModal('set', { project_id: project.id })}
+                  onClick={() => openCreateModal('set', {
+                    project_id: project.id,
+                    client_id: project.client_id,
+                  })}
                 >
                   Create First Set
                 </Button>

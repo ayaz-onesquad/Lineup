@@ -8,6 +8,7 @@ import { useTenantUsers } from '@/hooks/useTenant'
 import { useProjectsByClient } from '@/hooks/useProjects'
 import { useContacts, useContactMutations, useUnlinkedContacts } from '@/hooks/useContacts'
 import { useSetsByClient } from '@/hooks/useSets'
+import { usePhasesByClient } from '@/hooks/usePhases'
 import { useRequirementsByClient } from '@/hooks/useRequirements'
 import { usePitchesByClient } from '@/hooks/usePitches'
 import { useCompetitorsByClient } from '@/hooks/useCompetitors'
@@ -165,6 +166,7 @@ export function ClientDetailPage() {
   const { data: projects, isLoading: projectsLoading } = useProjectsByClient(safeClientId)
   const { data: contacts, isLoading: contactsLoading } = useContacts(safeClientId)
   const { data: clientSets, isLoading: setsLoading } = useSetsByClient(safeClientId)
+  const { data: clientPhases, isLoading: phasesLoading } = usePhasesByClient(safeClientId)
   const { data: clientRequirements, isLoading: requirementsLoading } = useRequirementsByClient(safeClientId)
   const { data: clientPitches, isLoading: pitchesLoading } = usePitchesByClient(safeClientId)
   const { data: competitorsByClient, isLoading: competitorsLoading } = useCompetitorsByClient(safeClientId)
@@ -574,6 +576,15 @@ export function ClientDetailPage() {
             {projects && projects.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5">
                 {projects.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="phases" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Phases
+            {clientPhases && clientPhases.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {clientPhases.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -1046,6 +1057,142 @@ export function ClientDetailPage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Phases Tab - All phases from client's projects */}
+        <TabsContent value="phases" className="mt-6">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => openCreateModal('phase', { client_id: safeClientId })}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Phase
+            </Button>
+          </div>
+          {phasesLoading ? (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Due Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[1, 2, 3].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : !clientPhases || clientPhases.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Layers className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No phases yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create projects and add phases to see them here
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="card-carbon">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientPhases.map((phase) => {
+                      const status = computeDisplayStatus(phase)
+                      return (
+                        <TableRow
+                          key={phase.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onDoubleClick={() => navigate(`/phases/${phase.id}`)}
+                        >
+                          <TableCell>
+                            <span className="font-mono text-xs">{phase.phase_id_display || phase.display_id}</span>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <button
+                              className="text-left hover:underline font-medium"
+                              onClick={() => navigate(`/phases/${phase.id}`)}
+                            >
+                              {phase.name}
+                            </button>
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              className="text-left hover:underline text-muted-foreground"
+                              onClick={() => navigate(`/projects/${phase.project_id}`)}
+                            >
+                              {phase.projects?.name || '—'}
+                            </button>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {phase.lead?.full_name || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {phase.expected_end_date
+                              ? formatDate(phase.expected_end_date)
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(`/phases/${phase.id}`)}>
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Phase
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigate(`/phases/${phase.id}?edit=true`)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Phase
+                                </DropdownMenuItem>
+                                {phase.project_id && (
+                                  <DropdownMenuItem onClick={() => navigate(`/projects/${phase.project_id}`)}>
+                                    <FolderKanban className="mr-2 h-4 w-4" />
+                                    View Project
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

@@ -9,6 +9,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   AlertDialog,
@@ -20,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Loader2, Pencil, X } from 'lucide-react'
+import { Loader2, Pencil, X, MoreVertical, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import type { GridColumn, GridEditTableProps } from './types'
@@ -34,6 +40,8 @@ export function GridEditTable<T extends { id: string }>({
   onSave,
   onRowClick,
   onRowDoubleClick,
+  onDelete,
+  deleteLabel = 'item',
   emptyMessage = 'No data found',
   emptyIcon,
   emptyAction,
@@ -46,6 +54,8 @@ export function GridEditTable<T extends { id: string }>({
   const [dirtyRows, setDirtyRows] = useState<Map<string, Partial<T>>>(new Map())
   const [isSaving, setIsSaving] = useState(false)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
+  const [deleteRow, setDeleteRow] = useState<T | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const dirtyCount = dirtyRows.size
 
@@ -102,6 +112,29 @@ export function GridEditTable<T extends { id: string }>({
     setIsGridEditMode(false)
     setShowExitConfirm(false)
   }, [])
+
+  // Handle delete confirmation
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteRow || !onDelete) return
+    setIsDeleting(true)
+    try {
+      await onDelete(deleteRow)
+      toast({
+        title: 'Deleted',
+        description: `The ${deleteLabel} has been deleted.`,
+      })
+    } catch (error) {
+      console.error('Failed to delete:', error)
+      toast({
+        title: 'Delete failed',
+        description: `Failed to delete ${deleteLabel}. Please try again.`,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeleting(false)
+      setDeleteRow(null)
+    }
+  }, [deleteRow, onDelete, deleteLabel])
 
   // Get the current value for a cell (edited value or original)
   const getCellValue = useCallback(
@@ -284,6 +317,9 @@ export function GridEditTable<T extends { id: string }>({
                     {column.header}
                   </TableHead>
                 ))}
+                {onDelete && (
+                  <TableHead style={{ width: '50px' }}></TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -302,6 +338,29 @@ export function GridEditTable<T extends { id: string }>({
                       {renderCell(row, column)}
                     </TableCell>
                   ))}
+                  {onDelete && (
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="z-50">
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeleteRow(row)
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -347,6 +406,35 @@ export function GridEditTable<T extends { id: string }>({
             <AlertDialogCancel>Keep Editing</AlertDialogCancel>
             <AlertDialogAction onClick={confirmExit}>
               Discard Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteRow} onOpenChange={(open) => !open && setDeleteRow(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteLabel}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this {deleteLabel}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

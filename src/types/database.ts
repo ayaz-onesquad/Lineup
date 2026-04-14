@@ -786,10 +786,20 @@ export interface CreateRequirementInput {
   show_in_client_portal?: boolean
 }
 
-export interface UpdateRequirementInput extends Partial<CreateRequirementInput> {
+export interface UpdateRequirementInput extends Omit<Partial<CreateRequirementInput>, 'client_id' | 'set_id' | 'pitch_id' | 'assigned_to_id' | 'reviewer_id' | 'lead_id' | 'secondary_lead_id' | 'pm_id'> {
+  // FK fields can be explicitly set to null to clear them
+  client_id?: string | null
+  set_id?: string | null
+  pitch_id?: string | null
+  assigned_to_id?: string | null
+  reviewer_id?: string | null
+  lead_id?: string | null
+  secondary_lead_id?: string | null
+  pm_id?: string | null
+  // Status fields
   status?: RequirementStatus
   review_status?: ReviewStatus
-  actual_start_date?: string
+  actual_start_date?: string | null
   actual_hours?: number
   reviewed_at?: string
 }

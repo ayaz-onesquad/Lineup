@@ -42,6 +42,7 @@ export {
 export {
   usePhases,
   usePhasesByProject,
+  usePhasesByClient,
   usePhaseById,
   usePhaseTemplates,
   usePhaseMutations,

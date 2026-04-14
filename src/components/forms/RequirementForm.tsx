@@ -58,6 +58,7 @@ const requirementSchema = z.object({
   assigned_to_id: z.string().optional(),
   requires_document: z.boolean(),
   requires_review: z.boolean(),
+  reviewer_id: z.string().optional(),
   show_in_client_portal: z.boolean(),
 })
 
@@ -78,8 +79,8 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   const form = useForm<RequirementFormData>({
     resolver: zodResolver(requirementSchema),
     defaultValues: {
-      client_id: '',
-      project_id: '',
+      client_id: defaultValues?.client_id || '',
+      project_id: defaultValues?.project_id || '',
       set_id: defaultValues?.set_id || '',
       title: '',
       description: '',
@@ -93,6 +94,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       assigned_to_id: '',
       requires_document: false,
       requires_review: false,
+      reviewer_id: '',
       show_in_client_portal: false,
     },
   })
@@ -100,6 +102,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   // Watch filter fields for cascading
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' })
   const selectedProjectId = useWatch({ control: form.control, name: 'project_id' })
+  const requiresReview = useWatch({ control: form.control, name: 'requires_review' })
 
   // Fetch sets by project when project is selected
   const { data: projectSets } = useSetsByProject(selectedProjectId || '')
@@ -170,6 +173,20 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       form.setValue('client_id', defaultValues.client_id)
     }
   }, [defaultValues?.client_id, form])
+
+  // Initialize from defaultValues - derive client_id from project_id
+  useEffect(() => {
+    // If client_id is already set via defaultValues, don't override
+    if (defaultValues?.client_id) return
+
+    // If project_id is provided, derive client_id from project
+    if (defaultValues?.project_id && allProjects) {
+      const project = allProjects.find((p) => p.id === defaultValues.project_id)
+      if (project?.client_id && !form.getValues('client_id')) {
+        form.setValue('client_id', project.client_id)
+      }
+    }
+  }, [defaultValues?.project_id, defaultValues?.client_id, allProjects, form])
 
   // Initialize from defaultValues - find client and project from set
   useEffect(() => {
@@ -539,6 +556,33 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
               </FormItem>
             )}
           />
+
+          {requiresReview && (
+            <FormField
+              control={form.control}
+              name="reviewer_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reviewer</FormLabel>
+                  <FormControl>
+                    <SearchableSelect
+                      options={userOptions}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value || '')}
+                      placeholder="Select reviewer..."
+                      searchPlaceholder="Search team..."
+                      emptyMessage="No team members found."
+                      clearable
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Person responsible for reviewing this requirement
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}

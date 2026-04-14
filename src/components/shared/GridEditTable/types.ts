@@ -34,6 +34,10 @@ export interface GridEditTableProps<T extends { id: string }> {
   onRowClick?: (row: T) => void
   /** Double-click handler (navigates to detail page) */
   onRowDoubleClick?: (row: T) => void
+  /** Delete handler - when provided, shows delete action in row menu */
+  onDelete?: (row: T) => Promise<void>
+  /** Label for delete confirmation dialog */
+  deleteLabel?: string
   /** Message shown when data is empty */
   emptyMessage?: string
   /** Icon shown in empty state */

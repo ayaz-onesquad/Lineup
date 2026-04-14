@@ -136,12 +136,20 @@ export function useRequirementMutations() {
   const updateRequirement = useMutation({
     mutationFn: ({ id, ...input }: { id: string } & UpdateRequirementInput) =>
       requirementsApi.update(id, user!.id, input),
-    onSuccess: async (_, variables) => {
-      // Force immediate refetch for instant UI update
-      await queryClient.refetchQueries({ queryKey: ['requirement', variables.id] })
+    onSuccess: async (updatedData, variables) => {
+      // Invalidate queries first to mark them stale
       queryClient.invalidateQueries({ queryKey: ['requirements'] })
       queryClient.invalidateQueries({ queryKey: ['sets'] })
       queryClient.invalidateQueries({ queryKey: ['project'] })
+      // Force immediate refetch for instant UI update with full relations
+      await queryClient.refetchQueries({ queryKey: ['requirement', variables.id] })
+      // Also invalidate parent entity queries if parent changed
+      if (updatedData?.set_id) {
+        queryClient.invalidateQueries({ queryKey: ['set', updatedData.set_id] })
+      }
+      if (updatedData?.client_id) {
+        queryClient.invalidateQueries({ queryKey: ['client', updatedData.client_id] })
+      }
       toast({
         title: 'Requirement updated',
         description: 'The requirement has been updated successfully.',

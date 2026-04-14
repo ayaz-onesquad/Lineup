@@ -40,6 +40,17 @@ export function usePhasesByProject(projectId: string, includeTemplates = false) 
 }
 
 /**
+ * Get phases by client ID (via projects)
+ */
+export function usePhasesByClient(clientId: string | undefined, includeTemplates = false) {
+  return useQuery({
+    queryKey: ['phases', 'client', clientId, includeTemplates],
+    queryFn: () => phasesApi.getByClient(clientId!, includeTemplates),
+    enabled: !!clientId,
+  })
+}
+
+/**
  * Get phase by ID with tenant security
  */
 export function usePhaseById(id: string) {

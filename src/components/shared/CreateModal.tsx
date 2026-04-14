@@ -93,6 +93,7 @@ export function CreateModal() {
       }
       setShowSuccess(false)
       setCreateAnother(false)
+      setSelectedType('')  // Reset selected type so form unmounts and remounts with fresh defaultValues
       closeCreateModal()
     }
   }

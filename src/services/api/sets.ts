@@ -189,7 +189,8 @@ export const setsApi = {
       .from('sets')
       .select(`
         *,
-        project_phases (*)
+        project_phases (*),
+        lead:lead_id (id, full_name, avatar_url)
       `)
       .eq('project_id', projectId)
       .is('deleted_at', null)
@@ -202,7 +203,11 @@ export const setsApi = {
   getByPhaseId: async (phaseId: string): Promise<SetWithRelations[]> => {
     const { data, error } = await supabase
       .from('sets')
-      .select('*')
+      .select(`
+        *,
+        lead:lead_id (id, full_name, avatar_url),
+        owner:owner_id (id, full_name, avatar_url)
+      `)
       .eq('phase_id', phaseId)
       .is('deleted_at', null)
       .order('set_order', { ascending: true })

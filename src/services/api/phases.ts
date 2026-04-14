@@ -177,6 +177,41 @@ export const phasesApi = {
   },
 
   /**
+   * Get phases by client ID (via projects)
+   */
+  getByClient: async (clientId: string, includeTemplates = false): Promise<EnhancedProjectPhase[]> => {
+    // First get all projects for this client
+    const { data: projects, error: projectsError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('client_id', clientId)
+      .is('deleted_at', null)
+
+    if (projectsError) throw projectsError
+    if (!projects || projects.length === 0) return []
+
+    const projectIds = projects.map((p) => p.id)
+
+    let query = supabase
+      .from('project_phases')
+      .select(PHASE_SELECT)
+      .in('project_id', projectIds)
+      .is('deleted_at', null)
+      .order('order_key', { ascending: true })
+
+    if (!includeTemplates) {
+      query = query.eq('is_template', false)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    // Enrich with user profiles
+    return enrichPhasesWithProfiles(data || [])
+  },
+
+  /**
    * Get all template phases
    */
   getTemplates: async (tenantId: string): Promise<EnhancedProjectPhase[]> => {

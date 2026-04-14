@@ -67,7 +67,7 @@ const navItems: NavItemType[] = [
       { href: '/admin/notifications/log', label: 'Send Log', icon: Activity },
     ],
   },
-  { href: '/admin/support', label: 'Support Tickets', icon: LifeBuoy, disabled: true },
+  { href: '/admin/support', label: 'Support Tickets', icon: LifeBuoy },
   { href: '/admin/users', label: 'Users', icon: Users, disabled: true },
 ]
 

@@ -11,7 +11,23 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { type SearchableSelectOption } from '@/components/ui/searchable-select'
-import { Plus, Search, CheckSquare, Kanban, List, GripVertical, Info, Upload } from 'lucide-react'
+import { Plus, Search, CheckSquare, Kanban, List, GripVertical, Info, Upload, MoreVertical, Trash2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
 import { formatDate, getInitials, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
@@ -45,9 +61,10 @@ export function RequirementsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [deleteRequirementId, setDeleteRequirementId] = useState<string | null>(null)
 
   const { data: requirements, isLoading } = useRequirements()
-  const { updateRequirement } = useRequirementMutations()
+  const { updateRequirement, deleteRequirement } = useRequirementMutations()
   const { currentTenant } = useTenantStore()
   const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
   const { openCreateModal, openDetailPanel } = useUIStore()
@@ -192,6 +209,18 @@ export function RequirementsPage() {
     },
   ], [userOptions])
 
+  // Handle delete for GridEditTable
+  const handleDelete = useCallback(async (row: RequirementWithRelations) => {
+    await deleteRequirement.mutateAsync(row.id)
+  }, [deleteRequirement])
+
+  // Handle delete confirmation for Kanban view
+  const handleConfirmKanbanDelete = useCallback(async () => {
+    if (!deleteRequirementId) return
+    await deleteRequirement.mutateAsync(deleteRequirementId)
+    setDeleteRequirementId(null)
+  }, [deleteRequirementId, deleteRequirement])
+
   // Handle grid save
   const handleGridSave = useCallback(async (dirtyRows: Map<string, Partial<RequirementWithRelations>>) => {
     const updates = Array.from(dirtyRows.entries())
@@ -229,6 +258,25 @@ export function RequirementsPage() {
             {req.sets?.projects?.name} • {req.sets?.name}
           </p>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1 -mt-1">
+              <MoreVertical className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-50">
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={(e) => {
+                e.stopPropagation()
+                setDeleteRequirementId(req.id)
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div className="flex items-center justify-between mt-3">
         <Badge variant="outline" className="text-xs">
@@ -381,6 +429,8 @@ export function RequirementsPage() {
               onSave={handleGridSave}
               onRowClick={(row) => openDetailPanel('requirement', row.id)}
               onRowDoubleClick={(row) => navigate(`/requirements/${row.id}`)}
+              onDelete={handleDelete}
+              deleteLabel="requirement"
               emptyMessage="No requirements found"
               emptyIcon={<CheckSquare className="h-12 w-12 text-muted-foreground" />}
               emptyAction={
@@ -454,6 +504,27 @@ export function RequirementsPage() {
         onClose={() => setShowBulkUpload(false)}
         defaultEntity="requirements"
       />
+
+      {/* Delete Confirmation Dialog for Kanban view */}
+      <AlertDialog open={!!deleteRequirementId} onOpenChange={(open) => !open && setDeleteRequirementId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Requirement</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this requirement? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmKanbanDelete}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -289,6 +289,7 @@ export function RequirementDetailPage() {
   }, [isEditing, watchedActualDueDate, watchedExpectedDueDate, requirement?.actual_due_date, requirement?.expected_due_date])
 
   // Reset form when requirement data loads - status is computed
+  // Dependencies include parent FK fields to ensure form updates when they change
   useEffect(() => {
     if (requirement && !isEditing) {
       form.reset({
@@ -316,7 +317,7 @@ export function RequirementDetailPage() {
         requirement_order: requirement.requirement_order ?? undefined,
       })
     }
-  }, [requirement?.id, requirement?.updated_at, isEditing])
+  }, [requirement?.id, requirement?.updated_at, requirement?.client_id, requirement?.set_id, requirement?.pitch_id, isEditing])
 
   // Auto-enter edit mode when ?edit=true is in URL
   useEffect(() => {
@@ -337,13 +338,18 @@ export function RequirementDetailPage() {
     setIsSaving(true)
     try {
       // Status is computed from dates, not editable
+      // Convert empty strings to null for FK fields - undefined is omitted from JSON
+      // and won't update the column, but null explicitly clears the field
+      const toNullableFK = (val: string | undefined | null): string | null =>
+        val?.trim() ? val.trim() : null
+
       await updateRequirement.mutateAsync({
         id: requirementId,
         title: data.title,
         description: data.description,
-        client_id: data.client_id,
-        set_id: data.set_id || undefined,
-        pitch_id: data.pitch_id || undefined,
+        client_id: toNullableFK(data.client_id),
+        set_id: toNullableFK(data.set_id),
+        pitch_id: toNullableFK(data.pitch_id),
         requirement_type: data.requirement_type as RequirementType,
         is_task: data.is_task,
         urgency: data.urgency as UrgencyLevel,
@@ -351,8 +357,8 @@ export function RequirementDetailPage() {
         requires_document: data.requires_document,
         requires_review: data.requires_review,
         review_status: data.review_status as ReviewStatus,
-        assigned_to_id: data.assigned_to_id || undefined,
-        reviewer_id: data.reviewer_id || undefined,
+        assigned_to_id: toNullableFK(data.assigned_to_id),
+        reviewer_id: toNullableFK(data.reviewer_id),
         expected_due_date: toNullableDate(data.expected_due_date),
         actual_due_date: toNullableDate(data.actual_due_date),
         completed_date: toNullableDate(data.completed_date),
