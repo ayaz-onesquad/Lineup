@@ -36,8 +36,6 @@ import {
   Layers,
   Edit,
   X,
-  Save,
-  Loader2,
   Calendar,
   Users,
   ListOrdered,
@@ -53,7 +51,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
 
@@ -83,6 +81,9 @@ type PhaseFormValues = z.infer<typeof phaseFormSchema>
 export function PhaseDetailPage() {
   const { phaseId } = useParams<{ phaseId: string }>()
   const navigate = useNavigate()
+
+  // Calculate next record ID for Save & Next functionality
+  const nextRecordId = phaseId ? getNextRecordId(phaseId) : null
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: phase, isLoading } = usePhaseById(phaseId!)
   const { data: sets, isLoading: setsLoading } = useSetsByPhase(phaseId!)
@@ -267,9 +268,9 @@ export function PhaseDetailPage() {
   const toNullableDate = (val: string | undefined | null): string | undefined =>
     val?.trim() ? val.trim() : (null as unknown as undefined)
 
-  const handleSavePhase = async (data: PhaseFormValues) => {
-    if (!phaseId) return
-    setIsSaving(true)
+  // Core save logic - returns true on success for Save & Next navigation
+  const executeSave = async (data: PhaseFormValues): Promise<boolean> => {
+    if (!phaseId) return false
     try {
       // Status is computed from dates, not editable
       // completed_date triggers auto-fill of completed_by via database trigger
@@ -294,8 +295,32 @@ export function PhaseDetailPage() {
       // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
       // record?.updated_at handle form reset when fresh data arrives from query cache
       setIsEditing(false)
+      return true
     } catch (error) {
       console.error('Failed to save phase:', error)
+      return false
+    }
+  }
+
+  // Save & Close handler
+  const handleSaveAndClose = async (data: PhaseFormValues) => {
+    setIsSaving(true)
+    try {
+      await executeSave(data)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Save & Next handler
+  const handleSaveAndNext = async (data: PhaseFormValues) => {
+    if (!nextRecordId) return
+    setIsSaving(true)
+    try {
+      const success = await executeSave(data)
+      if (success) {
+        navigate(`/phases/${nextRecordId}?edit=true`)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -400,18 +425,12 @@ export function PhaseDetailPage() {
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={form.handleSubmit(handleSavePhase)}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Save
-                </Button>
+                <SaveSplitButton
+                  onSaveClose={form.handleSubmit(handleSaveAndClose)}
+                  onSaveNext={form.handleSubmit(handleSaveAndNext)}
+                  isSaving={isSaving}
+                  hasNext={!!nextRecordId}
+                />
               </>
             ) : (
               <>

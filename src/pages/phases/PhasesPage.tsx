@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePhases, usePhaseMutations } from '@/hooks'
 import { useTenantUsers, useTenant } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
@@ -11,17 +12,21 @@ import { type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { Search, Calendar, Building2, Upload } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
+import { BulkActionBar, storeListContext } from '@/components/shared'
+import { toast } from '@/hooks/use-toast'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { formatDate } from '@/lib/utils'
 import type { EnhancedProjectPhase, UpdatePhaseInput } from '@/types/database'
 
 export function PhasesPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
 
   const { data: phases, isLoading } = usePhases()
-  const { updatePhase } = usePhaseMutations()
+  const { updatePhase, deletePhase } = usePhaseMutations()
   const { currentTenant } = useTenant()
   const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
 
@@ -39,6 +44,39 @@ export function PhasesPage() {
       phase.name.toLowerCase().includes(search.toLowerCase()) ||
       phase.projects?.name.toLowerCase().includes(search.toLowerCase())
   ) || [], [phases, search])
+
+  // Navigate to phase detail and store list context for Save & Next
+  const navigateToPhase = useCallback((id: string, editMode = false) => {
+    const ids = filteredPhases.map((p) => p.id)
+    storeListContext(ids, 'phases')
+    navigate(`/phases/${id}${editMode ? '?edit=true' : ''}`)
+  }, [filteredPhases, navigate])
+
+  // Get selected rows for bulk actions
+  const selectedRows = useMemo(() => {
+    return filteredPhases.filter((phase) => rowSelection[phase.id])
+  }, [filteredPhases, rowSelection])
+
+  // Handle bulk delete
+  const handleBulkDelete = useCallback(async (ids: string[]) => {
+    const results = await Promise.allSettled(
+      ids.map((id) => deletePhase.mutateAsync({ id }))
+    )
+    const failures = results.filter((r) => r.status === 'rejected')
+    await queryClient.invalidateQueries({ queryKey: ['phases'] })
+    if (failures.length > 0) {
+      toast({
+        title: 'Some deletions failed',
+        description: `${ids.length - failures.length} of ${ids.length} phases deleted.`,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Phases deleted',
+        description: `${ids.length} phase${ids.length !== 1 ? 's' : ''} deleted successfully.`,
+      })
+    }
+  }, [deletePhase, queryClient])
 
   // Grid columns definition
   const columns: GridColumn<EnhancedProjectPhase>[] = useMemo(() => [
@@ -199,8 +237,8 @@ export function PhasesPage() {
               data={filteredPhases}
               isLoading={isLoading}
               onSave={handleGridSave}
-              onRowClick={(row) => navigate(`/phases/${row.id}`)}
-              onRowDoubleClick={(row) => navigate(`/phases/${row.id}`)}
+              onRowClick={(row) => navigateToPhase(row.id)}
+              onRowDoubleClick={(row) => navigateToPhase(row.id)}
               emptyMessage="No phases found"
               toolbarActions={
                 <Button
@@ -212,6 +250,9 @@ export function PhasesPage() {
                   Import
                 </Button>
               }
+              enableSelection
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
             >
               {/* Search */}
               <div className="relative flex-1 max-w-sm">
@@ -233,6 +274,16 @@ export function PhasesPage() {
         isOpen={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         defaultEntity="phases"
+      />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedRows={selectedRows}
+        entityName="phase"
+        entityPath="phases"
+        onClearSelection={() => setRowSelection({})}
+        onDelete={handleBulkDelete}
+        onNavigate={navigate}
       />
     </div>
   )

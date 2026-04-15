@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePitches, usePitchMutations } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
@@ -22,6 +23,8 @@ import {
 } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
+import { BulkActionBar } from '@/components/shared/BulkActionBar'
+import { toast } from '@/hooks/use-toast'
 import { getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import type { PitchWithRelations, UpdatePitchInput, PriorityScore } from '@/types/database'
@@ -53,10 +56,12 @@ export function PitchesPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
 
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: pitches, isLoading } = usePitches()
-  const { updatePitch } = usePitchMutations()
+  const { updatePitch, deletePitch } = usePitchMutations()
   const { currentTenant } = useTenantStore()
   const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
   const { openCreateModal, openDetailPanel } = useUIStore()
@@ -99,6 +104,32 @@ export function PitchesPage() {
       pastDue: pitches.filter((p) => computeDisplayStatus(p) === 'past_due').length,
     }
   }, [pitches])
+
+  // Get selected rows for bulk actions
+  const selectedRows = useMemo(() => {
+    return filteredPitches.filter((pitch) => rowSelection[pitch.id])
+  }, [filteredPitches, rowSelection])
+
+  // Handle bulk delete
+  const handleBulkDelete = useCallback(async (ids: string[]) => {
+    const results = await Promise.allSettled(
+      ids.map((id) => deletePitch.mutateAsync(id))
+    )
+    const failures = results.filter((r) => r.status === 'rejected')
+    await queryClient.invalidateQueries({ queryKey: ['pitches'] })
+    if (failures.length > 0) {
+      toast({
+        title: 'Some deletions failed',
+        description: `${ids.length - failures.length} of ${ids.length} pitches deleted.`,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Pitches deleted',
+        description: `${ids.length} pitch${ids.length !== 1 ? 'es' : ''} deleted successfully.`,
+      })
+    }
+  }, [deletePitch, queryClient])
 
   // Grid columns definition
   const columns: GridColumn<PitchWithRelations>[] = useMemo(() => [
@@ -357,6 +388,9 @@ export function PitchesPage() {
                   Import
                 </Button>
               }
+              enableSelection
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
             >
               {/* Search and Filters */}
               <div className="relative flex-1 max-w-sm">
@@ -388,6 +422,16 @@ export function PitchesPage() {
         isOpen={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         defaultEntity="pitches"
+      />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedRows={selectedRows}
+        entityName="pitch"
+        entityPath="pitches"
+        onClearSelection={() => setRowSelection({})}
+        onDelete={handleBulkDelete}
+        onNavigate={navigate}
       />
     </div>
   )

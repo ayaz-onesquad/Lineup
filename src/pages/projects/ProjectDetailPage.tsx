@@ -54,8 +54,6 @@ import {
   Building2,
   Edit,
   X,
-  Save,
-  Loader2,
   MoreVertical,
   MoreHorizontal,
   ExternalLink,
@@ -69,7 +67,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
 import { DraggablePhasesTable } from '@/components/phases/DraggablePhasesTable'
@@ -99,6 +97,9 @@ type ProjectFormValues = z.infer<typeof projectFormSchema>
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+
+  // Calculate next record ID for Save & Next functionality
+  const nextRecordId = projectId ? getNextRecordId(projectId) : null
   const queryClient = useQueryClient()
   const { currentTenant } = useTenantStore()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -338,8 +339,9 @@ export function ProjectDetailPage() {
   }
 
   // The actual save logic (separated so cascade dialog can call it)
-  const executeSave = async (data: ProjectFormValues, cascade: boolean) => {
-    if (!projectId) return
+  // Returns true on success for Save & Next navigation
+  const executeSave = async (data: ProjectFormValues, cascade: boolean): Promise<boolean> => {
+    if (!projectId) return false
     setIsSaving(true)
     try {
       // Status is computed from dates, not editable
@@ -390,6 +392,29 @@ export function ProjectDetailPage() {
       // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
       // record?.updated_at handle form reset when fresh data arrives from query cache
       setIsEditing(false)
+      return true
+    } catch (error) {
+      console.error('Failed to save project:', error)
+      return false
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Save & Close handler (goes through cascade dialog if needed)
+  const handleSaveAndClose = async (data: ProjectFormValues) => {
+    await handleSaveProject(data)
+  }
+
+  // Save & Next handler (skips cascade dialog for simplicity)
+  const handleSaveAndNext = async (data: ProjectFormValues) => {
+    if (!nextRecordId) return
+    setIsSaving(true)
+    try {
+      const success = await executeSave(data, false) // Skip cascade for Save & Next
+      if (success) {
+        navigate(`/projects/${nextRecordId}?edit=true`)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -485,18 +510,12 @@ export function ProjectDetailPage() {
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={form.handleSubmit(handleSaveProject)}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Save
-                </Button>
+                <SaveSplitButton
+                  onSaveClose={form.handleSubmit(handleSaveAndClose)}
+                  onSaveNext={form.handleSubmit(handleSaveAndNext)}
+                  isSaving={isSaving}
+                  hasNext={!!nextRecordId}
+                />
               </>
             ) : (
               <>

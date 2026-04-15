@@ -81,7 +81,6 @@ import {
   Trash2,
   Loader2,
   MoreVertical,
-  Save,
   X,
   ExternalLink,
   Layers,
@@ -101,7 +100,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -154,6 +153,9 @@ const THREAT_COLORS: Record<string, string> = {
 export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
   const navigate = useNavigate()
+
+  // Calculate next record ID for Save & Next functionality
+  const nextRecordId = clientId ? getNextRecordId(clientId) : null
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Guard: clientId is required for this page
@@ -274,9 +276,9 @@ export function ClientDetailPage() {
     }
   }, [shouldEditOnLoad, client])
 
-  const handleSaveClient = async (data: ClientFormValues) => {
-    if (!safeClientId) return
-    setIsSaving(true)
+  // Core save logic - returns true on success for Save & Next navigation
+  const executeSave = async (data: ClientFormValues): Promise<boolean> => {
+    if (!safeClientId) return false
     try {
       await updateClient.mutateAsync({
         id: safeClientId,
@@ -290,6 +292,32 @@ export function ClientDetailPage() {
         referral_source: data.referral_source as ReferralSource | undefined,
       })
       setIsEditing(false)
+      return true
+    } catch (error) {
+      console.error('Failed to save client:', error)
+      return false
+    }
+  }
+
+  // Save & Close handler
+  const handleSaveAndClose = async (data: ClientFormValues) => {
+    setIsSaving(true)
+    try {
+      await executeSave(data)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Save & Next handler
+  const handleSaveAndNext = async (data: ClientFormValues) => {
+    if (!nextRecordId) return
+    setIsSaving(true)
+    try {
+      const success = await executeSave(data)
+      if (success) {
+        navigate(`/clients/${nextRecordId}?edit=true`)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -504,18 +532,12 @@ export function ClientDetailPage() {
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={clientForm.handleSubmit(handleSaveClient)}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Save
-                </Button>
+                <SaveSplitButton
+                  onSaveClose={clientForm.handleSubmit(handleSaveAndClose)}
+                  onSaveNext={clientForm.handleSubmit(handleSaveAndNext)}
+                  isSaving={isSaving}
+                  hasNext={!!nextRecordId}
+                />
               </>
             ) : (
               <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>

@@ -11,6 +11,7 @@ import {
   Presentation,
   FileText,
   StickyNote,
+  MessageSquare,
   ListOrdered,
   Shield,
   UsersRound,
@@ -55,6 +56,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Templates', path: '/templates', icon: LayoutTemplate, group: 'Assets' },
   { label: 'Documents', path: '/documents', icon: FileText, group: 'Assets' },
   { label: 'Notes', path: '/notes', icon: StickyNote, group: 'Assets' },
+  { label: 'Discussions', path: '/discussions', icon: MessageSquare, group: 'Assets' },
 
   // Management - org_admin only
   { label: 'Financials', path: '/financials', icon: DollarSign, group: 'Management', requiredRole: 'org_admin' },

@@ -50,4 +50,10 @@ export interface GridEditTableProps<T extends { id: string }> {
   showGridEditToggle?: boolean
   /** Optional additional toolbar actions (rendered before Grid Edit toggle) */
   toolbarActions?: React.ReactNode
+  /** Enable row selection with checkboxes. Default: false */
+  enableSelection?: boolean
+  /** Controlled row selection state - map of row.id to boolean */
+  rowSelection?: Record<string, boolean>
+  /** Callback when row selection changes */
+  onRowSelectionChange?: (selection: Record<string, boolean>) => void
 }

@@ -81,7 +81,12 @@ export {
 } from './useDocuments'
 
 // Discussions hooks
-export { useEntityDiscussions, useDiscussionMutations } from './useDiscussions'
+export {
+  useEntityDiscussions,
+  useDiscussionMutations,
+  useAllDiscussions,
+  useMyOpenDiscussions,
+} from './useDiscussions'
 
 // Status updates hooks
 export {

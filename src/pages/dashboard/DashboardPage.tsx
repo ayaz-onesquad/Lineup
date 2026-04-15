@@ -3,6 +3,7 @@ import {
   useMyTasksByAllPriorities,
   useMyWorkHierarchy,
   useMyWorkItems,
+  useMyOpenDiscussions,
 } from '@/hooks'
 import { AssignedByMeWidget } from '@/components/dashboard/AssignedByMeWidget'
 import { useAuthStore, useTenantStore } from '@/stores'
@@ -45,12 +46,40 @@ import {
   ListChecks,
   ArrowRight,
   Timer,
+  MessageSquare,
+  Users,
+  FolderKanban,
+  ListOrdered,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/services/supabase'
 import { formatDate } from '@/lib/utils'
+import { formatDistanceToNow } from 'date-fns'
 import { computeDisplayStatus, computeRequirementStatus, getStatusLabel, getStatusColor, isPastDueStatus } from '@/utils/statusUtils'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import type { MyWorkItem } from '@/types/database'
+import type { MyWorkItem, EntityType } from '@/types/database'
+
+// Entity type config for badges (partial - only for discussion-supported entities)
+const ENTITY_TYPE_CONFIG: Partial<Record<EntityType, { label: string; icon: React.ElementType; color: string }>> = {
+  client: { label: 'Client', icon: Users, color: 'bg-blue-100 text-blue-700' },
+  project: { label: 'Project', icon: FolderKanban, color: 'bg-purple-100 text-purple-700' },
+  phase: { label: 'Phase', icon: ListOrdered, color: 'bg-indigo-100 text-indigo-700' },
+  set: { label: 'Set', icon: Layers, color: 'bg-pink-100 text-pink-700' },
+  pitch: { label: 'Pitch', icon: Presentation, color: 'bg-cyan-100 text-cyan-700' },
+  requirement: { label: 'Requirement', icon: CheckSquare, color: 'bg-orange-100 text-orange-700' },
+  lead: { label: 'Lead', icon: Target, color: 'bg-green-100 text-green-700' },
+}
+
+const ENTITY_URL_MAP: Partial<Record<EntityType, string>> = {
+  client: '/clients',
+  project: '/projects',
+  phase: '/phases',
+  set: '/sets',
+  pitch: '/pitches',
+  requirement: '/requirements',
+  lead: '/leads',
+}
 
 // Priority level configuration for 6-level Eisenhower Matrix (aligned with CLAUDE.md standards)
 const PRIORITY_LEVELS = [
@@ -612,6 +641,142 @@ function RequirementRow({
   )
 }
 
+// My Open Discussions Widget
+function MyOpenDiscussionsWidget() {
+  const { user } = useAuthStore()
+  const { currentTenant } = useTenantStore()
+  const navigate = useNavigate()
+
+  const { data: discussions, isLoading } = useMyOpenDiscussions(user?.id, currentTenant?.id, 10)
+
+  // Collect unique entity IDs by type for batch name resolution
+  const entityIdsByType = useMemo(() => {
+    const map: Record<string, Set<string>> = {}
+    discussions?.forEach(d => {
+      if (!map[d.entity_type]) map[d.entity_type] = new Set()
+      map[d.entity_type].add(d.entity_id)
+    })
+    return map
+  }, [discussions])
+
+  // Batch fetch entity names
+  const { data: entityNames } = useQuery({
+    queryKey: ['entity-names-dashboard', Object.fromEntries(
+      Object.entries(entityIdsByType).map(([k, v]) => [k, Array.from(v)])
+    )],
+    queryFn: async () => {
+      const nameMap = new Map<string, string>()
+
+      if (entityIdsByType.client?.size) {
+        const { data } = await supabase.from('clients').select('id, name').in('id', Array.from(entityIdsByType.client))
+        data?.forEach(c => nameMap.set(c.id, c.name))
+      }
+      if (entityIdsByType.project?.size) {
+        const { data } = await supabase.from('projects').select('id, name').in('id', Array.from(entityIdsByType.project))
+        data?.forEach(p => nameMap.set(p.id, p.name))
+      }
+      if (entityIdsByType.phase?.size) {
+        const { data } = await supabase.from('phases').select('id, name').in('id', Array.from(entityIdsByType.phase))
+        data?.forEach(p => nameMap.set(p.id, p.name))
+      }
+      if (entityIdsByType.set?.size) {
+        const { data } = await supabase.from('sets').select('id, name').in('id', Array.from(entityIdsByType.set))
+        data?.forEach(s => nameMap.set(s.id, s.name))
+      }
+      if (entityIdsByType.pitch?.size) {
+        const { data } = await supabase.from('pitches').select('id, name').in('id', Array.from(entityIdsByType.pitch))
+        data?.forEach(p => nameMap.set(p.id, p.name))
+      }
+      if (entityIdsByType.requirement?.size) {
+        const { data } = await supabase.from('requirements').select('id, title').in('id', Array.from(entityIdsByType.requirement))
+        data?.forEach(r => nameMap.set(r.id, r.title || 'Untitled'))
+      }
+      if (entityIdsByType.lead?.size) {
+        const { data } = await supabase.from('leads').select('id, company_name').in('id', Array.from(entityIdsByType.lead))
+        data?.forEach(l => nameMap.set(l.id, l.company_name || 'Untitled'))
+      }
+
+      return nameMap
+    },
+    enabled: !!discussions && discussions.length > 0,
+  })
+
+  const handleRowClick = (discussion: NonNullable<typeof discussions>[0]) => {
+    const basePath = ENTITY_URL_MAP[discussion.entity_type as EntityType] || '/clients'
+    navigate(`${basePath}/${discussion.entity_id}?tab=discussions`)
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">My Open Discussions</CardTitle>
+          </div>
+          <Link
+            to="/discussions"
+            className="text-xs text-muted-foreground hover:text-primary hover:underline"
+          >
+            View all
+          </Link>
+        </div>
+        <CardDescription>Unresolved discussions you started</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="space-y-2 p-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : !discussions?.length ? (
+          <div className="text-center text-muted-foreground py-8 px-4">
+            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No open discussions</p>
+            <p className="text-xs mt-1">Start a discussion from any entity's detail page</p>
+          </div>
+        ) : (
+          <ScrollArea className="h-[280px]">
+            <div className="divide-y">
+              {discussions.map((discussion) => {
+                const config = ENTITY_TYPE_CONFIG[discussion.entity_type as EntityType]
+                const Icon = config?.icon || MessageSquare
+                const entityName = entityNames?.get(discussion.entity_id) || discussion.entity_id.slice(0, 8)
+
+                return (
+                  <div
+                    key={discussion.id}
+                    className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => handleRowClick(discussion)}
+                  >
+                    <Badge
+                      variant="secondary"
+                      className={cn('text-xs gap-1 shrink-0', config?.color)}
+                    >
+                      <Icon className="h-3 w-3" />
+                    </Badge>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{entityName}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {discussion.content.slice(0, 60)}
+                        {discussion.content.length > 60 && '...'}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatDistanceToNow(new Date(discussion.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function DashboardPage() {
   const { profile } = useAuthStore()
   const { currentTenant } = useTenantStore()
@@ -1006,8 +1171,11 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Tasks I Assigned Section */}
-      <AssignedByMeWidget />
+      {/* Bottom Section: Assigned By Me + My Open Discussions */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <AssignedByMeWidget />
+        <MyOpenDiscussionsWidget />
+      </div>
     </div>
   )
 }

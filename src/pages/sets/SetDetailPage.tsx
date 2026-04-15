@@ -55,8 +55,6 @@ import {
   FolderKanban,
   Edit,
   X,
-  Save,
-  Loader2,
   MoreVertical,
   ExternalLink,
   Calendar,
@@ -70,7 +68,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
 
@@ -133,6 +131,10 @@ export function SetDetailPage() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Get next record ID from sessionStorage for Save & Next functionality
+  const nextRecordId = setId ? getNextRecordId(setId) : null
+
   // Cascade dialog state for parent re-assignment
   const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false)
   const [pendingSaveData, setPendingSaveData] = useState<SetFormValues | null>(null)
@@ -461,6 +463,39 @@ export function SetDetailPage() {
     setIsEditing(false)
   }
 
+  // Save & Next: save and navigate to next record in edit mode
+  // Note: Skips cascade dialog - parent changes don't cascade when using Save & Next
+  const handleSaveAndNext = async (data: SetFormValues) => {
+    if (!setId || !nextRecordId) return
+    setIsSaving(true)
+    try {
+      await updateSet.mutateAsync({
+        id: setId,
+        name: data.name,
+        description: data.description,
+        client_id: data.client_id,
+        project_id: data.project_id || null,
+        phase_id: data.phase_id || null,
+        urgency: data.urgency as UrgencyLevel,
+        importance: data.importance as ImportanceLevel,
+        expected_start_date: data.expected_start_date?.trim() || null,
+        expected_end_date: data.expected_end_date?.trim() || null,
+        actual_start_date: data.actual_start_date?.trim() || null,
+        actual_end_date: data.actual_end_date?.trim() || null,
+        completion_date: data.completed_date?.trim() || null,
+        lead_id: data.lead_id || null,
+        secondary_lead_id: data.secondary_lead_id || null,
+        pm_id: data.pm_id || null,
+        budget_days: data.budget_days,
+        budget_hours: data.budget_hours,
+        set_order: data.set_order,
+      })
+      navigate(`/sets/${nextRecordId}?edit=true`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="page-carbon p-6 space-y-6">
@@ -566,18 +601,12 @@ export function SetDetailPage() {
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={form.handleSubmit(handleSaveSet)}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Save
-                </Button>
+                <SaveSplitButton
+                  onSaveClose={form.handleSubmit(handleSaveSet)}
+                  onSaveNext={form.handleSubmit(handleSaveAndNext)}
+                  isSaving={isSaving}
+                  hasNext={!!nextRecordId}
+                />
               </>
             ) : (
               <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRequirements, useRequirementMutations } from '@/hooks/useRequirements'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
@@ -11,11 +12,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { type SearchableSelectOption } from '@/components/ui/searchable-select'
-import { Plus, Search, CheckSquare, Kanban, List, GripVertical, Info, Upload, MoreVertical, Trash2 } from 'lucide-react'
+import { Plus, Search, CheckSquare, Kanban, List, GripVertical, Info, Upload, MoreVertical, Trash2, Eye, Edit } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -30,6 +32,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
+import { BulkActionBar, storeListContext } from '@/components/shared'
+import { toast } from '@/hooks/use-toast'
 import { formatDate, getInitials, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeRequirementStatus, getStatusLabel, getStatusColor, isPastDueStatus } from '@/utils/statusUtils'
 import type { RequirementWithRelations, UpdateRequirementInput, ComputedStatus } from '@/types/database'
@@ -57,11 +61,13 @@ const statusColumns: { status: ComputedStatus | 'past_due'; label: string; color
 
 export function RequirementsPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [deleteRequirementId, setDeleteRequirementId] = useState<string | null>(null)
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
 
   const { data: requirements, isLoading } = useRequirements()
   const { updateRequirement, deleteRequirement } = useRequirementMutations()
@@ -86,6 +92,39 @@ export function RequirementsPage() {
     const matchesType = typeFilter === 'all' || req.requirement_type === typeFilter
     return matchesSearch && matchesType
   }) || [], [requirements, search, typeFilter])
+
+  // Navigate to requirement detail and store list context for Save & Next
+  const navigateToRequirement = useCallback((id: string, editMode = false) => {
+    const ids = filteredRequirements.map((r) => r.id)
+    storeListContext(ids, 'requirements')
+    navigate(`/requirements/${id}${editMode ? '?edit=true' : ''}`)
+  }, [filteredRequirements, navigate])
+
+  // Get selected rows for bulk actions
+  const selectedRows = useMemo(() => {
+    return filteredRequirements.filter((req) => rowSelection[req.id])
+  }, [filteredRequirements, rowSelection])
+
+  // Handle bulk delete
+  const handleBulkDelete = useCallback(async (ids: string[]) => {
+    const results = await Promise.allSettled(
+      ids.map((id) => deleteRequirement.mutateAsync(id))
+    )
+    const failures = results.filter((r) => r.status === 'rejected')
+    await queryClient.invalidateQueries({ queryKey: ['requirements'] })
+    if (failures.length > 0) {
+      toast({
+        title: 'Some deletions failed',
+        description: `${ids.length - failures.length} of ${ids.length} requirements deleted.`,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Requirements deleted',
+        description: `${ids.length} requirement${ids.length !== 1 ? 's' : ''} deleted successfully.`,
+      })
+    }
+  }, [deleteRequirement, queryClient])
 
   // Get requirements by computed status (status is now READ-ONLY calculated from dates)
   const getRequirementsByStatus = (status: ComputedStatus | 'past_due') => {
@@ -248,7 +287,7 @@ export function RequirementsPage() {
       key={req.id}
       className="p-3 rounded-lg border bg-background hover:shadow-md transition-shadow cursor-pointer"
       onClick={() => openDetailPanel('requirement', req.id)}
-      onDoubleClick={() => navigate(`/requirements/${req.id}`)}
+      onDoubleClick={() => navigateToRequirement(req.id)}
     >
       <div className="flex items-start gap-2 mb-2">
         <GripVertical className="h-4 w-4 text-muted-foreground mt-0.5 cursor-grab" />
@@ -265,6 +304,25 @@ export function RequirementsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-50">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                navigateToRequirement(req.id)
+              }}
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              View
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                navigateToRequirement(req.id, true)
+              }}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive"
               onClick={(e) => {
@@ -428,7 +486,7 @@ export function RequirementsPage() {
               isLoading={isLoading}
               onSave={handleGridSave}
               onRowClick={(row) => openDetailPanel('requirement', row.id)}
-              onRowDoubleClick={(row) => navigate(`/requirements/${row.id}`)}
+              onRowDoubleClick={(row) => navigateToRequirement(row.id)}
               onDelete={handleDelete}
               deleteLabel="requirement"
               emptyMessage="No requirements found"
@@ -448,6 +506,9 @@ export function RequirementsPage() {
                   Import
                 </Button>
               }
+              enableSelection
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
             >
               {/* Filters */}
               <div className="relative flex-1 max-w-sm">
@@ -525,6 +586,16 @@ export function RequirementsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedRows={selectedRows}
+        entityName="requirement"
+        entityPath="requirements"
+        onClearSelection={() => setRowSelection({})}
+        onDelete={handleBulkDelete}
+        onNavigate={navigate}
+      />
     </div>
   )
 }

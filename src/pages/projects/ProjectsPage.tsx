@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useProjects } from '@/hooks/useProjects'
+import { useQueryClient } from '@tanstack/react-query'
+import { useProjects, useProjectMutations } from '@/hooks/useProjects'
 import { useUIStore } from '@/stores'
-import { MobileActionBar } from '@/components/shared'
+import { MobileActionBar, BulkActionBar, storeListContext } from '@/components/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -21,6 +23,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -30,10 +33,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, FolderKanban, Grid, List, MoreVertical, ExternalLink, Edit, Building2, User, Upload } from 'lucide-react'
+import { Plus, Search, FolderKanban, Grid, List, MoreVertical, Edit, Building2, User, Upload, Trash2, Eye } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { getHealthColor, formatDate, cn } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
+import { toast } from '@/hooks/use-toast'
 
 export function ProjectsPage() {
   const [search, setSearch] = useState('')
@@ -41,13 +45,16 @@ export function ProjectsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: projects, isLoading } = useProjects()
+  const { deleteProject } = useProjectMutations()
   const { openCreateModal, openDetailPanel } = useUIStore()
 
   const selectedProject = projects?.find((p) => p.id === selectedRowId) ?? null
 
-  const filteredProjects = projects?.filter((project) => {
+  const filteredProjects = useMemo(() => projects?.filter((project) => {
     const matchesSearch =
       project.name.toLowerCase().includes(search.toLowerCase()) ||
       project.project_code.toLowerCase().includes(search.toLowerCase()) ||
@@ -56,7 +63,64 @@ export function ProjectsPage() {
     const computedStatus = computeDisplayStatus(project)
     const matchesStatus = statusFilter === 'all' || computedStatus === statusFilter
     return matchesSearch && matchesStatus
-  })
+  }) || [], [projects, search, statusFilter])
+
+  // Navigate to project detail and store list context for Save & Next
+  const navigateToProject = useCallback((id: string, editMode = false) => {
+    const ids = filteredProjects.map((p) => p.id)
+    storeListContext(ids, 'projects')
+    navigate(`/projects/${id}${editMode ? '?edit=true' : ''}`)
+  }, [filteredProjects, navigate])
+
+  // Get selected rows for bulk actions
+  const selectedRows = useMemo(() => {
+    return filteredProjects.filter((project) => rowSelection[project.id])
+  }, [filteredProjects, rowSelection])
+
+  // Selection helpers
+  const isAllSelected = filteredProjects.length > 0 && selectedRows.length === filteredProjects.length
+  const isSomeSelected = selectedRows.length > 0 && selectedRows.length < filteredProjects.length
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    const newSelection: Record<string, boolean> = {}
+    if (checked) {
+      filteredProjects.forEach((project) => {
+        newSelection[project.id] = true
+      })
+    }
+    setRowSelection(newSelection)
+  }, [filteredProjects])
+
+  const handleSelectRow = useCallback((rowId: string, checked: boolean) => {
+    const newSelection = { ...rowSelection }
+    if (checked) {
+      newSelection[rowId] = true
+    } else {
+      delete newSelection[rowId]
+    }
+    setRowSelection(newSelection)
+  }, [rowSelection])
+
+  // Handle bulk delete
+  const handleBulkDelete = useCallback(async (ids: string[]) => {
+    const results = await Promise.allSettled(
+      ids.map((id) => deleteProject.mutateAsync(id))
+    )
+    const failures = results.filter((r) => r.status === 'rejected')
+    await queryClient.invalidateQueries({ queryKey: ['projects'] })
+    if (failures.length > 0) {
+      toast({
+        title: 'Some deletions failed',
+        description: `${ids.length - failures.length} of ${ids.length} projects deleted.`,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Projects deleted',
+        description: `${ids.length} project${ids.length !== 1 ? 's' : ''} deleted successfully.`,
+      })
+    }
+  }, [deleteProject, queryClient])
 
   return (
     <div className="space-y-6">
@@ -148,7 +212,7 @@ export function ProjectsPage() {
               key={project.id}
               className="h-full hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => openDetailPanel('project', project.id)}
-              onDoubleClick={() => navigate(`/projects/${project.id}`)}
+              onDoubleClick={() => navigateToProject(project.id)}
             >
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between mb-2">
@@ -194,6 +258,19 @@ export function ProjectsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={isAllSelected}
+                      ref={(el) => {
+                        if (el) {
+                          (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = isSomeSelected
+                        }
+                      }}
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      aria-label="Select all"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Project Name</TableHead>
@@ -208,7 +285,8 @@ export function ProjectsPage() {
                     key={project.id}
                     className={cn(
                       'cursor-pointer hover:bg-muted/50 min-h-[44px]',
-                      selectedRowId === project.id && 'bg-muted'
+                      selectedRowId === project.id && 'bg-muted',
+                      rowSelection[project.id] && 'bg-muted/50'
                     )}
                     onClick={() => {
                       if (window.innerWidth < 768) {
@@ -217,9 +295,18 @@ export function ProjectsPage() {
                         openDetailPanel('project', project.id)
                       }
                     }}
-                    onDoubleClick={() => navigate(`/projects/${project.id}`)}
+                    onDoubleClick={() => navigateToProject(project.id)}
                   >
-                    {/* Actions - FIRST column */}
+                    {/* Checkbox column */}
+                    <TableCell>
+                      <Checkbox
+                        checked={!!rowSelection[project.id]}
+                        onCheckedChange={(checked) => handleSelectRow(project.id, !!checked)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Select row"
+                      />
+                    </TableCell>
+                    {/* Actions column */}
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -228,13 +315,24 @@ export function ProjectsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="z-50">
-                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            View Project
+                          <DropdownMenuItem onClick={() => navigateToProject(project.id)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}?edit=true`)}>
+                          <DropdownMenuItem onClick={() => navigateToProject(project.id, true)}>
                             <Edit className="mr-2 h-4 w-4" />
-                            Edit Project
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteProject.mutate(project.id)
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -305,11 +403,11 @@ export function ProjectsPage() {
           selectedName={selectedProject.name}
           onDeselect={() => setSelectedRowId(null)}
           onOpen={() => {
-            navigate(`/projects/${selectedProject.id}`)
+            navigateToProject(selectedProject.id)
             setSelectedRowId(null)
           }}
           onEdit={() => {
-            navigate(`/projects/${selectedProject.id}?edit=true`)
+            navigateToProject(selectedProject.id, true)
             setSelectedRowId(null)
           }}
         />
@@ -320,6 +418,16 @@ export function ProjectsPage() {
         isOpen={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         defaultEntity="projects"
+      />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedRows={selectedRows}
+        entityName="project"
+        entityPath="projects"
+        onClearSelection={() => setRowSelection({})}
+        onDelete={handleBulkDelete}
+        onNavigate={navigate}
       />
     </div>
   )

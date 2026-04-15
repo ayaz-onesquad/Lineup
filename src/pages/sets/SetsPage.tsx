@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSets, useSetMutations } from '@/hooks/useSets'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
@@ -13,6 +14,8 @@ import { type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { Plus, Search, Layers, Grid, LayoutGrid, Upload } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
+import { BulkActionBar, storeListContext } from '@/components/shared'
+import { toast } from '@/hooks/use-toast'
 import { getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import type { SetWithRelations, UpdateSetInput } from '@/types/database'
@@ -32,12 +35,14 @@ const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
 
 export function SetsPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'matrix' | 'list'>('list')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
 
   const { data: sets, isLoading } = useSets()
-  const { updateSet } = useSetMutations()
+  const { updateSet, deleteSet } = useSetMutations()
   const { currentTenant } = useTenantStore()
   const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
   const { openCreateModal, openDetailPanel } = useUIStore()
@@ -56,6 +61,39 @@ export function SetsPage() {
       set.name.toLowerCase().includes(search.toLowerCase()) ||
       set.projects?.name.toLowerCase().includes(search.toLowerCase())
   ) || [], [sets, search])
+
+  // Navigate to set detail and store list context for Save & Next
+  const navigateToSet = useCallback((id: string, editMode = false) => {
+    const ids = filteredSets.map((s) => s.id)
+    storeListContext(ids, 'sets')
+    navigate(`/sets/${id}${editMode ? '?edit=true' : ''}`)
+  }, [filteredSets, navigate])
+
+  // Get selected rows for bulk actions
+  const selectedRows = useMemo(() => {
+    return filteredSets.filter((set) => rowSelection[set.id])
+  }, [filteredSets, rowSelection])
+
+  // Handle bulk delete
+  const handleBulkDelete = useCallback(async (ids: string[]) => {
+    const results = await Promise.allSettled(
+      ids.map((id) => deleteSet.mutateAsync(id))
+    )
+    const failures = results.filter((r) => r.status === 'rejected')
+    await queryClient.invalidateQueries({ queryKey: ['sets'] })
+    if (failures.length > 0) {
+      toast({
+        title: 'Some deletions failed',
+        description: `${ids.length - failures.length} of ${ids.length} sets deleted.`,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Sets deleted',
+        description: `${ids.length} set${ids.length !== 1 ? 's' : ''} deleted successfully.`,
+      })
+    }
+  }, [deleteSet, queryClient])
 
   // Grid columns definition
   const columns: GridColumn<SetWithRelations>[] = useMemo(() => [
@@ -180,7 +218,7 @@ export function SetsPage() {
       key={set.id}
       className="p-3 rounded-lg border bg-background hover:shadow-md transition-shadow cursor-pointer"
       onClick={() => openDetailPanel('set', set.id)}
-      onDoubleClick={() => navigate(`/sets/${set.id}`)}
+      onDoubleClick={() => navigateToSet(set.id)}
     >
       <div className="flex items-center justify-between mb-2">
         <span className="font-medium text-sm truncate">{set.name}</span>
@@ -352,7 +390,7 @@ export function SetsPage() {
               isLoading={isLoading}
               onSave={handleGridSave}
               onRowClick={(row) => openDetailPanel('set', row.id)}
-              onRowDoubleClick={(row) => navigate(`/sets/${row.id}`)}
+              onRowDoubleClick={(row) => navigateToSet(row.id)}
               emptyMessage="No sets found"
               emptyIcon={<Layers className="h-12 w-12 text-muted-foreground" />}
               emptyAction={
@@ -370,6 +408,9 @@ export function SetsPage() {
                   Import
                 </Button>
               }
+              enableSelection
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
             >
               {/* Search and View Toggle */}
               <div className="relative flex-1 max-w-sm">
@@ -409,6 +450,16 @@ export function SetsPage() {
         isOpen={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         defaultEntity="sets"
+      />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedRows={selectedRows}
+        entityName="set"
+        entityPath="sets"
+        onClearSelection={() => setRowSelection({})}
+        onDelete={handleBulkDelete}
+        onNavigate={navigate}
       />
     </div>
   )

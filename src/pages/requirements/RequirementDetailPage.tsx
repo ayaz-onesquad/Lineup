@@ -25,8 +25,6 @@ import {
   Layers,
   Edit,
   X,
-  Save,
-  Loader2,
   Calendar,
   Users,
   Clock,
@@ -38,7 +36,7 @@ import { computeRequirementStatus, computeKeyDueDate, getStatusLabel, getStatusC
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DiscussionsPanel, DocumentsTab, NotesPanel } from '@/components/shared'
+import { DiscussionsPanel, DocumentsTab, NotesPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
 import type {
   RequirementType,
   ReviewStatus,
@@ -121,6 +119,9 @@ export function RequirementDetailPage() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Get next record ID from sessionStorage for Save & Next functionality
+  const nextRecordId = requirementId ? getNextRecordId(requirementId) : null
 
   // Requirement form - status is computed and not editable
   const form = useForm<RequirementFormValues>({
@@ -348,9 +349,9 @@ export function RequirementDetailPage() {
   const toNullableDate = (val: string | undefined | null): string | undefined =>
     val?.trim() ? val.trim() : (null as unknown as undefined)
 
-  const handleSaveRequirement = async (data: RequirementFormValues) => {
-    if (!requirementId) return
-    setIsSaving(true)
+  // Core save logic - returns true on success
+  const executeSave = async (data: RequirementFormValues): Promise<boolean> => {
+    if (!requirementId) return false
     try {
       // Status is computed from dates, not editable
       // Convert empty strings to null for FK fields - undefined is omitted from JSON
@@ -381,9 +382,36 @@ export function RequirementDetailPage() {
         actual_hours: data.actual_hours,
         requirement_order: data.requirement_order,
       })
-      // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
-      // record?.updated_at handle form reset when fresh data arrives from query cache
-      setIsEditing(false)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Save & Close: save and exit edit mode
+  const handleSaveAndClose = async (data: RequirementFormValues) => {
+    setIsSaving(true)
+    try {
+      const success = await executeSave(data)
+      if (success) {
+        // AFTER_COMMIT: Do NOT reset form here - let the useEffect that watches
+        // record?.updated_at handle form reset when fresh data arrives from query cache
+        setIsEditing(false)
+      }
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Save & Next: save and navigate to next record in edit mode
+  const handleSaveAndNext = async (data: RequirementFormValues) => {
+    if (!nextRecordId) return
+    setIsSaving(true)
+    try {
+      const success = await executeSave(data)
+      if (success) {
+        navigate(`/requirements/${nextRecordId}?edit=true`)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -535,18 +563,12 @@ export function RequirementDetailPage() {
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={form.handleSubmit(handleSaveRequirement)}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Save
-                </Button>
+                <SaveSplitButton
+                  onSaveClose={form.handleSubmit(handleSaveAndClose)}
+                  onSaveNext={form.handleSubmit(handleSaveAndNext)}
+                  isSaving={isSaving}
+                  hasNext={!!nextRecordId}
+                />
               </>
             ) : (
               <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>

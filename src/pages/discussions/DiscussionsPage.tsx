@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { discussionsApi } from '@/services/api/discussions'
+import { supabase } from '@/services/supabase'
 import { useTenantStore } from '@/stores'
-import { useClients } from '@/hooks'
-import { Button } from '@/components/ui/button'
+import { useAllDiscussions } from '@/hooks'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,55 +19,156 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import {
   MessageSquare,
-  Plus,
   Search,
-  MessageCircle,
   Clock,
+  Users,
+  FolderKanban,
+  ListOrdered,
+  Layers,
+  Presentation,
+  CheckSquare,
+  Target,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { getInitials } from '@/lib/utils'
+import { getInitials, cn } from '@/lib/utils'
+import type { EntityType } from '@/types/database'
+
+// Entity type config for badges and icons (partial - only for discussion-supported entities)
+const ENTITY_TYPE_CONFIG: Partial<Record<EntityType, { label: string; icon: React.ElementType; color: string }>> = {
+  client: { label: 'Client', icon: Users, color: 'bg-blue-100 text-blue-700' },
+  project: { label: 'Project', icon: FolderKanban, color: 'bg-purple-100 text-purple-700' },
+  phase: { label: 'Phase', icon: ListOrdered, color: 'bg-indigo-100 text-indigo-700' },
+  set: { label: 'Set', icon: Layers, color: 'bg-pink-100 text-pink-700' },
+  pitch: { label: 'Pitch', icon: Presentation, color: 'bg-cyan-100 text-cyan-700' },
+  requirement: { label: 'Requirement', icon: CheckSquare, color: 'bg-orange-100 text-orange-700' },
+  lead: { label: 'Lead', icon: Target, color: 'bg-green-100 text-green-700' },
+}
+
+// Map entity type to URL path
+const ENTITY_URL_MAP: Partial<Record<EntityType, string>> = {
+  client: '/clients',
+  project: '/projects',
+  phase: '/phases',
+  set: '/sets',
+  pitch: '/pitches',
+  requirement: '/requirements',
+  lead: '/leads',
+}
 
 export function DiscussionsPage() {
   const navigate = useNavigate()
   const { currentTenant } = useTenantStore()
-  const { data: clients } = useClients()
 
   const [search, setSearch] = useState('')
-  const [clientFilter, setClientFilter] = useState<string>('')
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newContent, setNewContent] = useState('')
-  const [newIsInternal, setNewIsInternal] = useState(true)
+  const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | ''>('')
+  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'internal' | 'external'>('all')
 
-  // Fetch all discussions
-  const { data: discussions, isLoading } = useQuery({
-    queryKey: ['discussions', 'all', currentTenant?.id, clientFilter],
-    queryFn: () => discussionsApi.getAll(currentTenant!.id, {
-      clientId: clientFilter || undefined,
-    }),
-    enabled: !!currentTenant?.id,
+  // Fetch all discussions using the new hook
+  const { data: discussions, isLoading } = useAllDiscussions(
+    currentTenant?.id,
+    {
+      entityType: entityTypeFilter || undefined,
+      visibility: visibilityFilter === 'all' ? undefined : visibilityFilter,
+    }
+  )
+
+  // Collect unique entity IDs by type for batch name resolution
+  const entityIdsByType = useMemo(() => {
+    const map: Record<string, Set<string>> = {}
+    discussions?.forEach(d => {
+      if (!map[d.entity_type]) map[d.entity_type] = new Set()
+      map[d.entity_type].add(d.entity_id)
+    })
+    return map
+  }, [discussions])
+
+  // Batch fetch entity names
+  const { data: entityNames } = useQuery({
+    queryKey: ['entity-names', Object.fromEntries(
+      Object.entries(entityIdsByType).map(([k, v]) => [k, Array.from(v)])
+    )],
+    queryFn: async () => {
+      const nameMap = new Map<string, string>()
+
+      // Fetch clients
+      if (entityIdsByType.client?.size) {
+        const { data } = await supabase
+          .from('clients')
+          .select('id, name')
+          .in('id', Array.from(entityIdsByType.client))
+        data?.forEach(c => nameMap.set(c.id, c.name))
+      }
+
+      // Fetch projects
+      if (entityIdsByType.project?.size) {
+        const { data } = await supabase
+          .from('projects')
+          .select('id, name')
+          .in('id', Array.from(entityIdsByType.project))
+        data?.forEach(p => nameMap.set(p.id, p.name))
+      }
+
+      // Fetch phases
+      if (entityIdsByType.phase?.size) {
+        const { data } = await supabase
+          .from('phases')
+          .select('id, name')
+          .in('id', Array.from(entityIdsByType.phase))
+        data?.forEach(p => nameMap.set(p.id, p.name))
+      }
+
+      // Fetch sets
+      if (entityIdsByType.set?.size) {
+        const { data } = await supabase
+          .from('sets')
+          .select('id, name')
+          .in('id', Array.from(entityIdsByType.set))
+        data?.forEach(s => nameMap.set(s.id, s.name))
+      }
+
+      // Fetch pitches
+      if (entityIdsByType.pitch?.size) {
+        const { data } = await supabase
+          .from('pitches')
+          .select('id, name')
+          .in('id', Array.from(entityIdsByType.pitch))
+        data?.forEach(p => nameMap.set(p.id, p.name))
+      }
+
+      // Fetch requirements
+      if (entityIdsByType.requirement?.size) {
+        const { data } = await supabase
+          .from('requirements')
+          .select('id, title')
+          .in('id', Array.from(entityIdsByType.requirement))
+        data?.forEach(r => nameMap.set(r.id, r.title || 'Untitled'))
+      }
+
+      // Fetch leads
+      if (entityIdsByType.lead?.size) {
+        const { data } = await supabase
+          .from('leads')
+          .select('id, company_name')
+          .in('id', Array.from(entityIdsByType.lead))
+        data?.forEach(l => nameMap.set(l.id, l.company_name || 'Untitled'))
+      }
+
+      return nameMap
+    },
+    enabled: !!discussions && discussions.length > 0,
   })
 
-  // Client options for filter
-  const clientOptions = useMemo(() =>
-    [
-      { value: '', label: 'All Clients' },
-      ...(clients?.map(c => ({ value: c.id, label: c.name })) || [])
-    ],
-    [clients]
-  )
+  // Entity type filter options
+  const entityTypeOptions = [
+    { value: '', label: 'All Types' },
+    { value: 'client', label: 'Client' },
+    { value: 'project', label: 'Project' },
+    { value: 'phase', label: 'Phase' },
+    { value: 'set', label: 'Set' },
+    { value: 'pitch', label: 'Pitch' },
+    { value: 'requirement', label: 'Requirement' },
+  ]
 
   // Filter discussions by search
   const filteredDiscussions = useMemo(() => {
@@ -76,37 +176,38 @@ export function DiscussionsPage() {
     if (!search) return discussions
 
     const searchLower = search.toLowerCase()
-    return discussions.filter(d =>
-      d.title?.toLowerCase().includes(searchLower) ||
-      d.content.toLowerCase().includes(searchLower) ||
-      d.author?.full_name?.toLowerCase().includes(searchLower)
-    )
-  }, [discussions, search])
+    return discussions.filter(d => {
+      const entityName = entityNames?.get(d.entity_id) || ''
+      return (
+        d.title?.toLowerCase().includes(searchLower) ||
+        d.content.toLowerCase().includes(searchLower) ||
+        d.author?.full_name?.toLowerCase().includes(searchLower) ||
+        entityName.toLowerCase().includes(searchLower)
+      )
+    })
+  }, [discussions, search, entityNames])
 
-  const handleCreateDiscussion = async () => {
-    if (!currentTenant || !newTitle.trim() || !newContent.trim()) return
-
-    // TODO: Implement create discussion with new fields
-    setShowCreateDialog(false)
-    setNewTitle('')
-    setNewContent('')
-    setNewIsInternal(true)
+  // Navigate to entity detail page with discussions tab
+  const handleRowClick = (discussion: typeof filteredDiscussions[0]) => {
+    const basePath = ENTITY_URL_MAP[discussion.entity_type as EntityType] || '/clients'
+    navigate(`${basePath}/${discussion.entity_id}?tab=discussions`)
   }
+
+  // Visibility filter options
+  const visibilityOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'internal', label: 'Internal Only' },
+    { value: 'external', label: 'External Only' },
+  ]
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Discussions</h1>
-          <p className="text-sm text-muted-foreground">
-            View and participate in all conversations
-          </p>
-        </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Discussion
-        </Button>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Discussions</h1>
+        <p className="text-sm text-muted-foreground">
+          View and participate in all conversations across your workspace
+        </p>
       </div>
 
       {/* Filters */}
@@ -120,15 +221,25 @@ export function DiscussionsPage() {
             className="pl-9"
           />
         </div>
-        <div className="w-[200px]">
+        <div className="w-[180px]">
           <SearchableSelect
-            options={clientOptions}
-            value={clientFilter}
-            onValueChange={(v) => setClientFilter(v || '')}
-            placeholder="Filter by client..."
-            searchPlaceholder="Search clients..."
-            emptyMessage="No clients found."
+            options={entityTypeOptions}
+            value={entityTypeFilter}
+            onValueChange={(v) => setEntityTypeFilter((v || '') as EntityType | '')}
+            placeholder="Entity Type"
+            searchPlaceholder="Search types..."
+            emptyMessage="No types found."
             clearable
+          />
+        </div>
+        <div className="w-[150px]">
+          <SearchableSelect
+            options={visibilityOptions}
+            value={visibilityFilter}
+            onValueChange={(v) => setVisibilityFilter((v || 'all') as 'all' | 'internal' | 'external')}
+            placeholder="Visibility"
+            searchPlaceholder="Filter..."
+            emptyMessage="No options."
           />
         </div>
       </div>
@@ -145,10 +256,9 @@ export function DiscussionsPage() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No discussions found</p>
-            <Button className="mt-4" onClick={() => setShowCreateDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Start a discussion
-            </Button>
+            <p className="text-xs text-muted-foreground mt-1">
+              Start a discussion from any entity's detail page
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -157,131 +267,85 @@ export function DiscussionsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Discussion</TableHead>
-                  <TableHead>Topic</TableHead>
-                  <TableHead>Visibility</TableHead>
-                  <TableHead>Replies</TableHead>
-                  <TableHead>Last Activity</TableHead>
+                  <TableHead className="w-[100px]">Type</TableHead>
+                  <TableHead>Entity</TableHead>
+                  <TableHead className="min-w-[300px]">Discussion</TableHead>
+                  <TableHead className="w-[100px]">Visibility</TableHead>
+                  <TableHead className="w-[120px]">Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDiscussions.map((discussion) => (
-                  <TableRow
-                    key={discussion.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`/discussions/${discussion.id}`)}
-                  >
-                    <TableCell>
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={discussion.author?.avatar_url} />
-                          <AvatarFallback>
-                            {getInitials(discussion.author?.full_name || 'U')}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">
-                            {discussion.title || discussion.content.slice(0, 50)}
-                          </p>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {discussion.author?.full_name}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {discussion.topic_type && (
-                        <Badge variant="outline" className="capitalize">
-                          {discussion.topic_type}
+                {filteredDiscussions.map((discussion) => {
+                  const entityType = discussion.entity_type as EntityType
+                  const config = ENTITY_TYPE_CONFIG[entityType]
+                  const Icon = config?.icon || MessageSquare
+                  const entityName = entityNames?.get(discussion.entity_id) || discussion.entity_id.slice(0, 8)
+
+                  return (
+                    <TableRow
+                      key={discussion.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleRowClick(discussion)}
+                    >
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className={cn('text-xs gap-1', config?.color)}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {config?.label}
                         </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={discussion.visibility === 'external' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {discussion.visibility === 'external' ? 'Client Visible' : 'Internal'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <MessageCircle className="h-4 w-4" />
-                        <span>{discussion.reply_count || 0}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                        <Clock className="h-3 w-3" />
-                        <span>
-                          {formatDistanceToNow(new Date(discussion.updated_at || discussion.created_at), {
-                            addSuffix: true,
-                          })}
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium text-sm hover:underline">
+                          {entityName}
                         </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarImage src={discussion.author?.avatar_url} />
+                            <AvatarFallback className="text-xs">
+                              {getInitials(discussion.author?.full_name || 'U')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-muted-foreground truncate max-w-[300px]">
+                              {discussion.content.slice(0, 80)}
+                              {discussion.content.length > 80 && '...'}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {discussion.author?.full_name}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={discussion.is_internal ? 'secondary' : 'outline'}
+                          className="text-xs"
+                        >
+                          {discussion.is_internal ? 'Internal' : 'External'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                          <Clock className="h-3 w-3" />
+                          <span>
+                            {formatDistanceToNow(new Date(discussion.created_at), {
+                              addSuffix: true,
+                            })}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
       )}
-
-      {/* Create Discussion Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Start New Discussion</DialogTitle>
-            <DialogDescription>
-              Create a new discussion thread.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Discussion title..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Message *</Label>
-              <Textarea
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                placeholder="Start the conversation..."
-                rows={4}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Internal Only</Label>
-                <p className="text-xs text-muted-foreground">
-                  Not visible to clients
-                </p>
-              </div>
-              <Switch
-                checked={newIsInternal}
-                onCheckedChange={setNewIsInternal}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateDiscussion}
-              disabled={!newTitle.trim() || !newContent.trim()}
-            >
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Start Discussion
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -48,6 +49,9 @@ export function GridEditTable<T extends { id: string }>({
   children,
   showGridEditToggle = true,
   toolbarActions,
+  enableSelection = false,
+  rowSelection = {},
+  onRowSelectionChange,
 }: GridEditTableProps<T>) {
   // Internal state management
   const [isGridEditMode, setIsGridEditMode] = useState(false)
@@ -58,6 +62,33 @@ export function GridEditTable<T extends { id: string }>({
   const [isDeleting, setIsDeleting] = useState(false)
 
   const dirtyCount = dirtyRows.size
+
+  // Selection helpers
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length
+  const isAllSelected = data.length > 0 && selectedCount === data.length
+  const isSomeSelected = selectedCount > 0 && selectedCount < data.length
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (!onRowSelectionChange) return
+    const newSelection: Record<string, boolean> = {}
+    if (checked) {
+      data.forEach((row) => {
+        newSelection[row.id] = true
+      })
+    }
+    onRowSelectionChange(newSelection)
+  }, [data, onRowSelectionChange])
+
+  const handleSelectRow = useCallback((rowId: string, checked: boolean) => {
+    if (!onRowSelectionChange) return
+    const newSelection = { ...rowSelection }
+    if (checked) {
+      newSelection[rowId] = true
+    } else {
+      delete newSelection[rowId]
+    }
+    onRowSelectionChange(newSelection)
+  }, [rowSelection, onRowSelectionChange])
 
   // Handle cell value changes
   const handleCellChange = useCallback((rowId: string, key: keyof T | string, value: unknown) => {
@@ -309,6 +340,21 @@ export function GridEditTable<T extends { id: string }>({
           <Table>
             <TableHeader>
               <TableRow>
+                {enableSelection && (
+                  <TableHead style={{ width: '40px' }}>
+                    <Checkbox
+                      checked={isAllSelected}
+                      ref={(el) => {
+                        if (el) {
+                          (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = isSomeSelected
+                        }
+                      }}
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      aria-label="Select all"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </TableHead>
+                )}
                 {tableColumns.map((column) => (
                   <TableHead
                     key={String(column.key)}
@@ -328,11 +374,22 @@ export function GridEditTable<T extends { id: string }>({
                   key={row.id}
                   className={cn(
                     'cursor-pointer hover:bg-muted/50 min-h-[44px]',
-                    isDirty(row.id) && 'border-l-2 border-l-primary bg-primary/5'
+                    isDirty(row.id) && 'border-l-2 border-l-primary bg-primary/5',
+                    rowSelection[row.id] && 'bg-muted/50'
                   )}
                   onClick={() => !isGridEditMode && onRowClick?.(row)}
                   onDoubleClick={() => !isGridEditMode && onRowDoubleClick?.(row)}
                 >
+                  {enableSelection && (
+                    <TableCell>
+                      <Checkbox
+                        checked={!!rowSelection[row.id]}
+                        onCheckedChange={(checked) => handleSelectRow(row.id, !!checked)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Select row"
+                      />
+                    </TableCell>
+                  )}
                   {tableColumns.map((column) => (
                     <TableCell key={String(column.key)}>
                       {renderCell(row, column)}
