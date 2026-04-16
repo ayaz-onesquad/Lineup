@@ -60,6 +60,8 @@ import {
   Calendar,
   Users,
   Presentation,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { formatDate, getHealthColor } from '@/lib/utils'
 import { computeDisplayStatus, computeRequirementStatus, computeKeyStartDate, computeKeyEndDate, computeKeyDueDate, computeRequirementKeyStartDate, getStatusLabel, getStatusColor, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
@@ -67,7 +69,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
@@ -99,8 +101,10 @@ export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
 
-  // Calculate next record ID for Save & Next functionality
+  // Get list navigation context from sessionStorage for Save & Next and prev/next navigation
   const nextRecordId = projectId ? getNextRecordId(projectId) : null
+  const prevRecordId = projectId ? getPrevRecordId(projectId) : null
+  const listPosition = projectId ? getListPosition(projectId) : { index: -1, total: 0 }
   const queryClient = useQueryClient()
   const { currentTenant } = useTenantStore()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -503,8 +507,34 @@ export function ProjectDetailPage() {
       {/* Project Info Card - Key fields: Client (1st), Project Name, Status, Health */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          {/* Edit/Save buttons and Actions menu */}
-          <div className="flex justify-end gap-2 mb-4">
+          {/* Edit/Save buttons and Actions menu with list position indicator */}
+          <div className="flex justify-end items-center gap-2 mb-4">
+            {/* List position indicator and prev/next navigation */}
+            {listPosition.total > 0 && listPosition.index >= 0 && (
+              <div className="flex items-center gap-1 mr-2">
+                <span className="text-xs text-muted-foreground">
+                  {listPosition.index + 1} / {listPosition.total}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!prevRecordId}
+                  onClick={() => prevRecordId && navigate(`/projects/${prevRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!nextRecordId}
+                  onClick={() => nextRecordId && navigate(`/projects/${nextRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             {isEditing ? (
               <>
                 <Button

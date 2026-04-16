@@ -127,6 +127,37 @@ export function getNextRecordId(currentId: string): string | null {
 }
 
 /**
+ * Helper to get the previous record ID from the stored list.
+ * Returns null if no list stored or if current record is first.
+ */
+export function getPrevRecordId(currentId: string): string | null {
+  try {
+    const ids: string[] = JSON.parse(sessionStorage.getItem(LIST_IDS_KEY) || '[]')
+    const currentIndex = ids.indexOf(currentId)
+    if (currentIndex > 0) {
+      return ids[currentIndex - 1]
+    }
+  } catch {
+    // Invalid JSON or other error
+  }
+  return null
+}
+
+/**
+ * Helper to get the current position in the stored list.
+ * Returns { index: -1, total: 0 } if no list stored or record not found.
+ */
+export function getListPosition(currentId: string): { index: number; total: number } {
+  try {
+    const ids: string[] = JSON.parse(sessionStorage.getItem(LIST_IDS_KEY) || '[]')
+    const currentIndex = ids.indexOf(currentId)
+    return { index: currentIndex, total: ids.length }
+  } catch {
+    return { index: -1, total: 0 }
+  }
+}
+
+/**
  * Helper to get the stored entity path for navigation.
  */
 export function getStoredListPath(): string | null {

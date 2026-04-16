@@ -1,18 +1,18 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePhases, usePhaseMutations } from '@/hooks'
+import { usePhases, usePhaseMutations, useClients, useProjects, useDataGridFilters, type FilterConfig } from '@/hooks'
 import { useTenantUsers, useTenant } from '@/hooks/useTenant'
+import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import { type SearchableSelectOption } from '@/components/ui/searchable-select'
-import { Search, Calendar, Building2, Upload } from 'lucide-react'
+import { Plus, Calendar, Building2, Upload, Filter } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
-import { BulkActionBar, storeListContext } from '@/components/shared'
+import { BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
 import { toast } from '@/hooks/use-toast'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { formatDate } from '@/lib/utils'
@@ -21,14 +21,17 @@ import type { EnhancedProjectPhase, UpdatePhaseInput } from '@/types/database'
 export function PhasesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const { data: phases, isLoading } = usePhases()
+  const { data: clients } = useClients()
+  const { data: projects } = useProjects()
   const { updatePhase, deletePhase } = usePhaseMutations()
   const { currentTenant } = useTenant()
   const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
+  const { openCreateModal } = useUIStore()
 
   // Build user options for lead dropdown
   const userOptions: SearchableSelectOption[] = useMemo(() => {
@@ -39,16 +42,54 @@ export function PhasesPage() {
     }))
   }, [tenantUsers])
 
-  const filteredPhases = useMemo(() => phases?.filter(
-    (phase) =>
-      phase.name.toLowerCase().includes(search.toLowerCase()) ||
-      phase.projects?.name.toLowerCase().includes(search.toLowerCase())
-  ) || [], [phases, search])
+  // Filter configuration
+  const filterConfig: FilterConfig = useMemo(() => ({
+    search: true,
+    status: ['active', 'on_deck', 'past_due', 'completed', 'future'],
+    parentFilters: [
+      {
+        key: 'client_id',
+        label: 'Client',
+        options: clients?.map((c) => ({ value: c.id, label: c.name })) ?? [],
+      },
+      {
+        key: 'project_id',
+        label: 'Project',
+        options: projects?.map((p) => ({ value: p.id, label: p.name })) ?? [],
+      },
+    ],
+    dateRangeField: 'expected_end_date',
+  }), [clients, projects])
+
+  const {
+    filters,
+    setSearch,
+    setStatuses,
+    setParent,
+    setDateFrom,
+    setDateTo,
+    clearAll,
+    hasActiveFilters,
+    activeFilterCount,
+    applyFilters,
+  } = useDataGridFilters(filterConfig)
+
+  // Apply filters to phases data
+  const filteredPhases = useMemo(() => {
+    if (!phases) return []
+    return applyFilters(
+      phases,
+      ['name', 'display_id'],
+      (row) => computeDisplayStatus(row)
+    )
+  }, [phases, applyFilters])
 
   // Navigate to phase detail and store list context for Save & Next
-  const navigateToPhase = useCallback((id: string, editMode = false) => {
-    const ids = filteredPhases.map((p) => p.id)
-    storeListContext(ids, 'phases')
+  // When called from GridEditTable, context provides the sorted IDs
+  const navigateToPhase = useCallback((id: string, editMode = false, context?: RowClickContext) => {
+    // Use sorted IDs from context if provided, otherwise fall back to filteredPhases order
+    const ids = context?.sortedIds ?? filteredPhases.map((p) => p.id)
+    storeListContext(ids, context?.source ?? 'phases_overview')
     navigate(`/phases/${id}${editMode ? '?edit=true' : ''}`)
   }, [filteredPhases, navigate])
 
@@ -84,6 +125,7 @@ export function PhasesPage() {
       key: 'phase_id_display',
       header: 'Phase ID',
       editable: false, // Display ID is read-only
+      enableHiding: false, // ID column cannot be hidden
       render: (row) => (
         <span className="font-mono text-sm">
           {row.phase_id_display || `PH-${row.display_id}`}
@@ -221,6 +263,10 @@ export function PhasesPage() {
             Manage project phases across all projects
           </p>
         </div>
+        <Button onClick={() => openCreateModal('phase')}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Phase
+        </Button>
       </div>
 
       {isLoading ? (
@@ -232,39 +278,75 @@ export function PhasesPage() {
       ) : (
         <Card className="card-carbon">
           <CardContent className="p-4">
-            <GridEditTable
-              columns={columns}
-              data={filteredPhases}
-              isLoading={isLoading}
-              onSave={handleGridSave}
-              onRowClick={(row) => navigateToPhase(row.id)}
-              onRowDoubleClick={(row) => navigateToPhase(row.id)}
-              emptyMessage="No phases found"
-              toolbarActions={
+            {/* Toolbar Row */}
+            <div className="flex items-center gap-2 mb-3">
+              {/* Result count - only when filters active */}
+              {hasActiveFilters && (
+                <span className="text-xs text-muted-foreground">
+                  {filteredPhases.length} of {phases?.length ?? 0}
+                </span>
+              )}
+
+              {/* Push buttons to the right */}
+              <div className="ml-auto flex items-center gap-2">
+                {/* Filter toggle button */}
+                <Button
+                  variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => setFiltersOpen(v => !v)}
+                  className="gap-1.5"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+
+                {/* Import button */}
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => setShowBulkUpload(true)}
                   className="gap-2"
                 >
                   <Upload className="h-4 w-4" />
                   Import
                 </Button>
-              }
+              </div>
+            </div>
+
+            {/* Collapsible filter section */}
+            <FilterBar
+              config={filterConfig}
+              filters={filters}
+              onSearch={setSearch}
+              onStatuses={setStatuses}
+              onParent={setParent}
+              onDateFrom={setDateFrom}
+              onDateTo={setDateTo}
+              onClearAll={clearAll}
+              hasActiveFilters={hasActiveFilters}
+              resultCount={filteredPhases.length}
+              totalCount={phases?.length ?? 0}
+              collapsed={!filtersOpen}
+            />
+
+            <GridEditTable
+              columns={columns}
+              data={filteredPhases}
+              isLoading={isLoading}
+              onSave={handleGridSave}
+              onRowClick={(row) => navigateToPhase(row.id)}
+              onRowDoubleClick={(row, context) => navigateToPhase(row.id, false, context)}
+              emptyMessage="No phases found"
               enableSelection
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
-            >
-              {/* Search */}
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search phases..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </GridEditTable>
+              storageKey="phases_overview"
+            />
           </CardContent>
         </Card>
       )}

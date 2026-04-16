@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuthStore } from '@/stores'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useDiscussionMutations } from '@/hooks/useDiscussions'
+import { useClients, useProjects, usePhases, useSets, usePitches, useRequirements } from '@/hooks'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   Dialog,
   DialogContent,
@@ -45,22 +47,79 @@ type FormValues = z.infer<typeof formSchema>
 interface NewDiscussionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  entityType: EntityType
-  entityId: string
+  /** Optional - if not provided, user must select entity type */
+  entityType?: EntityType
+  /** Optional - if not provided, user must select entity */
+  entityId?: string
   entityLabel?: string // e.g., "Project: Website Redesign"
 }
+
+// Entity types for the dropdown
+const ENTITY_TYPE_OPTIONS = [
+  { value: 'client', label: 'Client' },
+  { value: 'project', label: 'Project' },
+  { value: 'phase', label: 'Phase' },
+  { value: 'set', label: 'Set' },
+  { value: 'pitch', label: 'Pitch' },
+  { value: 'requirement', label: 'Requirement' },
+]
 
 export function NewDiscussionDialog({
   open,
   onOpenChange,
-  entityType,
-  entityId,
+  entityType: initialEntityType,
+  entityId: initialEntityId,
   entityLabel,
 }: NewDiscussionDialogProps) {
   // Use selector to get stable primitive value, avoiding infinite re-renders
   const userId = useAuthStore(s => s.user?.id)
   const { data: tenantUsers, isLoading: loadingUsers } = useTenantUsers()
   const { createDiscussion } = useDiscussionMutations()
+
+  // Entity selection state (only used when not provided via props)
+  const [selectedEntityType, setSelectedEntityType] = useState<EntityType | ''>(initialEntityType || '')
+  const [selectedEntityId, setSelectedEntityId] = useState<string>(initialEntityId || '')
+
+  // Fetch entity data for dropdowns
+  const { data: clients } = useClients()
+  const { data: projects } = useProjects()
+  const { data: phases } = usePhases()
+  const { data: sets } = useSets()
+  const { data: pitches } = usePitches()
+  const { data: requirements } = useRequirements()
+
+  // Reset entity selection when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      setSelectedEntityType(initialEntityType || '')
+      setSelectedEntityId(initialEntityId || '')
+    }
+  }, [open, initialEntityType, initialEntityId])
+
+  // Get entity options based on selected type
+  const entityOptions = useMemo(() => {
+    switch (selectedEntityType) {
+      case 'client':
+        return clients?.map(c => ({ value: c.id, label: c.name })) ?? []
+      case 'project':
+        return projects?.map(p => ({ value: p.id, label: p.name })) ?? []
+      case 'phase':
+        return phases?.map(p => ({ value: p.id, label: p.name })) ?? []
+      case 'set':
+        return sets?.map(s => ({ value: s.id, label: s.name })) ?? []
+      case 'pitch':
+        return pitches?.map(p => ({ value: p.id, label: p.name })) ?? []
+      case 'requirement':
+        return requirements?.map(r => ({ value: r.id, label: r.title })) ?? []
+      default:
+        return []
+    }
+  }, [selectedEntityType, clients, projects, phases, sets, pitches, requirements])
+
+  // Determine final entity type and id
+  const finalEntityType = initialEntityType || selectedEntityType
+  const finalEntityId = initialEntityId || selectedEntityId
+  const requiresEntitySelection = !initialEntityType || !initialEntityId
 
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -108,9 +167,13 @@ export function NewDiscussionDialog({
   }
 
   const handleSubmit = async (values: FormValues) => {
+    if (!finalEntityType || !finalEntityId) {
+      return // Validation should prevent this
+    }
+
     await createDiscussion.mutateAsync({
-      entity_type: entityType,
-      entity_id: entityId,
+      entity_type: finalEntityType as EntityType,
+      entity_id: finalEntityId,
       subject: values.subject || undefined,
       content: values.content,
       is_internal: values.is_internal,
@@ -119,8 +182,13 @@ export function NewDiscussionDialog({
 
     form.reset()
     setSearchQuery('')
+    setSelectedEntityType(initialEntityType || '')
+    setSelectedEntityId(initialEntityId || '')
     onOpenChange(false)
   }
+
+  // Check if form can be submitted
+  const canSubmit = finalEntityType && finalEntityId && !createDiscussion.isPending
 
   const currentUserName = useMemo(() => {
     const tu = tenantUsers?.find(t => t.user_id === userId)
@@ -144,6 +212,45 @@ export function NewDiscussionDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            {/* Entity Selection - only shown when not provided via props */}
+            {requiresEntitySelection && (
+              <>
+                <FormItem>
+                  <FormLabel>
+                    Entity Type <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <SearchableSelect
+                    options={ENTITY_TYPE_OPTIONS}
+                    value={selectedEntityType}
+                    onValueChange={(value) => {
+                      setSelectedEntityType(value as EntityType)
+                      setSelectedEntityId('') // Reset entity when type changes
+                    }}
+                    placeholder="Select entity type..."
+                    searchPlaceholder="Search types..."
+                    emptyMessage="No types found."
+                  />
+                </FormItem>
+
+                {selectedEntityType && (
+                  <FormItem>
+                    <FormLabel>
+                      {selectedEntityType.charAt(0).toUpperCase() + selectedEntityType.slice(1)}{' '}
+                      <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <SearchableSelect
+                      options={entityOptions}
+                      value={selectedEntityId}
+                      onValueChange={(value) => setSelectedEntityId(value || '')}
+                      placeholder={`Select ${selectedEntityType}...`}
+                      searchPlaceholder={`Search ${selectedEntityType}s...`}
+                      emptyMessage={`No ${selectedEntityType}s found.`}
+                    />
+                  </FormItem>
+                )}
+              </>
+            )}
+
             {/* Subject */}
             <FormField
               control={form.control}
@@ -311,7 +418,7 @@ export function NewDiscussionDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={createDiscussion.isPending}
+                disabled={!canSubmit}
               >
                 {createDiscussion.isPending && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

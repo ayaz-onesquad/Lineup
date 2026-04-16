@@ -44,6 +44,8 @@ import {
   FileText,
   MessageSquare,
   Link2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { URGENCY_OPTIONS, IMPORTANCE_OPTIONS, getPriorityLabel, getPriorityColor, formatDate, type PriorityScore } from '@/lib/utils'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatusLabel, getStatusColor, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
@@ -51,7 +53,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, SaveSplitButton, getNextRecordId, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
@@ -83,8 +85,10 @@ export function PhaseDetailPage() {
   const { phaseId } = useParams<{ phaseId: string }>()
   const navigate = useNavigate()
 
-  // Calculate next record ID for Save & Next functionality
+  // Get list navigation context from sessionStorage for Save & Next and prev/next navigation
   const nextRecordId = phaseId ? getNextRecordId(phaseId) : null
+  const prevRecordId = phaseId ? getPrevRecordId(phaseId) : null
+  const listPosition = phaseId ? getListPosition(phaseId) : { index: -1, total: 0 }
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: phase, isLoading } = usePhaseById(phaseId!)
   const { data: sets, isLoading: setsLoading } = useSetsByPhase(phaseId!)
@@ -416,8 +420,34 @@ export function PhaseDetailPage() {
       {/* Phase Info Card - Key fields: Project (1st), Phase Name, Status */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          {/* Edit/Save buttons and Actions menu */}
-          <div className="flex justify-end gap-2 mb-4">
+          {/* Edit/Save buttons and Actions menu with list position indicator */}
+          <div className="flex justify-end items-center gap-2 mb-4">
+            {/* List position indicator and prev/next navigation */}
+            {listPosition.total > 0 && listPosition.index >= 0 && (
+              <div className="flex items-center gap-1 mr-2">
+                <span className="text-xs text-muted-foreground">
+                  {listPosition.index + 1} / {listPosition.total}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!prevRecordId}
+                  onClick={() => prevRecordId && navigate(`/phases/${prevRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!nextRecordId}
+                  onClick={() => nextRecordId && navigate(`/phases/${nextRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             {isEditing ? (
               <>
                 <Button

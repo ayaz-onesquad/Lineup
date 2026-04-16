@@ -1,9 +1,8 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useClients, useClientMutations } from '@/hooks/useClients'
+import { useClients, useClientMutations, useDataGridFilters, type FilterConfig } from '@/hooks'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -22,18 +21,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Search, MoreVertical, Building2, ExternalLink, Trash2, Edit, Info, Upload } from 'lucide-react'
+import { Plus, MoreVertical, Building2, ExternalLink, Trash2, Edit, Info, Upload, Filter } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { formatDate, cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
-import { MobileActionBar, BulkActionBar, storeListContext } from '@/components/shared'
+import { MobileActionBar, BulkActionBar, storeListContext, FilterBar } from '@/components/shared'
 import { toast } from '@/hooks/use-toast'
 
 export function ClientsPage() {
-  const [search, setSearch] = useState('')
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: clients, isLoading } = useClients()
@@ -42,13 +41,35 @@ export function ClientsPage() {
 
   const selectedClient = clients?.find((c) => c.id === selectedRowId) ?? null
 
-  const filteredClients = useMemo(() => clients?.filter(
-    (client) =>
-      client.name.toLowerCase().includes(search.toLowerCase()) ||
-      client.company_name.toLowerCase().includes(search.toLowerCase()) ||
-      (client.industry && client.industry.toLowerCase().includes(search.toLowerCase())) ||
-      (client.location && client.location.toLowerCase().includes(search.toLowerCase()))
-  ) || [], [clients, search])
+  // Filter configuration - clients have no parent filters, just status and search
+  const filterConfig: FilterConfig = useMemo(() => ({
+    search: true,
+    status: ['active', 'inactive'],
+    parentFilters: [],
+  }), [])
+
+  const {
+    filters,
+    setSearch,
+    setStatuses,
+    setParent,
+    setDateFrom,
+    setDateTo,
+    clearAll,
+    hasActiveFilters,
+    activeFilterCount,
+    applyFilters,
+  } = useDataGridFilters(filterConfig)
+
+  // Apply filters to clients data
+  const filteredClients = useMemo(() => {
+    if (!clients) return []
+    return applyFilters(
+      clients,
+      ['name', 'company_name', 'industry', 'location', 'display_id'],
+      (row) => row.status
+    )
+  }, [clients, applyFilters])
 
   // Navigate to client detail and store list context for Save & Next
   const navigateToClient = useCallback((id: string, editMode = false) => {
@@ -121,26 +142,61 @@ export function ClientsPage() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search clients..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      {/* Toolbar Row */}
+      <div className="flex items-center gap-2 mb-3">
+        {/* Result count - only when filters active */}
+        {hasActiveFilters && (
+          <span className="text-xs text-muted-foreground">
+            {filteredClients.length} of {clients?.length ?? 0}
+          </span>
+        )}
+
+        {/* Push buttons to the right */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Filter toggle button */}
+          <Button
+            variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setFiltersOpen(v => !v)}
+            className="gap-1.5"
+          >
+            <Filter className="h-4 w-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Import button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowBulkUpload(true)}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Import
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setShowBulkUpload(true)}
-          className="gap-2"
-        >
-          <Upload className="h-4 w-4" />
-          Import
-        </Button>
       </div>
+
+      {/* Collapsible FilterBar */}
+      <FilterBar
+        config={filterConfig}
+        filters={filters}
+        onSearch={setSearch}
+        onStatuses={setStatuses}
+        onParent={setParent}
+        onDateFrom={setDateFrom}
+        onDateTo={setDateTo}
+        onClearAll={clearAll}
+        hasActiveFilters={hasActiveFilters}
+        resultCount={filteredClients.length}
+        totalCount={clients?.length ?? 0}
+        collapsed={!filtersOpen}
+      />
 
       {/* Client List */}
       <Card className="card-carbon">

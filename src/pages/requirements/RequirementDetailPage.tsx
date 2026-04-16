@@ -29,6 +29,8 @@ import {
   Users,
   Clock,
   Presentation,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatDate, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
@@ -36,7 +38,7 @@ import { computeRequirementStatus, computeKeyDueDate, getStatusLabel, getStatusC
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DiscussionsPanel, DocumentsTab, NotesPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
+import { DiscussionsPanel, DocumentsTab, NotesPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition } from '@/components/shared'
 import type {
   RequirementType,
   ReviewStatus,
@@ -120,8 +122,10 @@ export function RequirementDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Get next record ID from sessionStorage for Save & Next functionality
+  // Get list navigation context from sessionStorage for Save & Next and prev/next navigation
   const nextRecordId = requirementId ? getNextRecordId(requirementId) : null
+  const prevRecordId = requirementId ? getPrevRecordId(requirementId) : null
+  const listPosition = requirementId ? getListPosition(requirementId) : { index: -1, total: 0 }
 
   // Requirement form - status is computed and not editable
   const form = useForm<RequirementFormValues>({
@@ -550,8 +554,34 @@ export function RequirementDetailPage() {
       {/* Requirement Info Card - Key fields only */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-4">
+          {/* Edit/Save buttons with list position indicator */}
+          <div className="flex justify-end items-center gap-2 mb-4">
+            {/* List position indicator and prev/next navigation */}
+            {listPosition.total > 0 && listPosition.index >= 0 && (
+              <div className="flex items-center gap-1 mr-2">
+                <span className="text-xs text-muted-foreground">
+                  {listPosition.index + 1} / {listPosition.total}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!prevRecordId}
+                  onClick={() => prevRecordId && navigate(`/requirements/${prevRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!nextRecordId}
+                  onClick={() => nextRecordId && navigate(`/requirements/${nextRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             {isEditing ? (
               <>
                 <Button

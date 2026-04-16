@@ -1,11 +1,10 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useProjects, useProjectMutations } from '@/hooks/useProjects'
+import { useProjects, useProjectMutations, useClients, useDataGridFilters, type FilterConfig } from '@/hooks'
 import { useUIStore } from '@/stores'
-import { MobileActionBar, BulkActionBar, storeListContext } from '@/components/shared'
+import { MobileActionBar, BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -26,49 +25,70 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Plus, Search, FolderKanban, Grid, List, MoreVertical, Edit, Building2, User, Upload, Trash2, Eye } from 'lucide-react'
+import { Plus, FolderKanban, Grid, List, MoreVertical, Edit, Building2, User, Upload, Trash2, Eye, Filter } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { getHealthColor, formatDate, cn } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { toast } from '@/hooks/use-toast'
 
 export function ProjectsPage() {
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: projects, isLoading } = useProjects()
+  const { data: clients } = useClients()
   const { deleteProject } = useProjectMutations()
   const { openCreateModal, openDetailPanel } = useUIStore()
 
   const selectedProject = projects?.find((p) => p.id === selectedRowId) ?? null
 
-  const filteredProjects = useMemo(() => projects?.filter((project) => {
-    const matchesSearch =
-      project.name.toLowerCase().includes(search.toLowerCase()) ||
-      project.project_code.toLowerCase().includes(search.toLowerCase()) ||
-      project.clients?.name.toLowerCase().includes(search.toLowerCase())
-    // Status filter - use computed status
-    const computedStatus = computeDisplayStatus(project)
-    const matchesStatus = statusFilter === 'all' || computedStatus === statusFilter
-    return matchesSearch && matchesStatus
-  }) || [], [projects, search, statusFilter])
+  // Filter configuration
+  const filterConfig: FilterConfig = useMemo(() => ({
+    search: true,
+    status: ['active', 'on_deck', 'past_due', 'completed', 'future'],
+    parentFilters: [
+      {
+        key: 'client_id',
+        label: 'Client',
+        options: clients?.map((c) => ({ value: c.id, label: c.name })) ?? [],
+      },
+    ],
+    dateRangeField: 'expected_end_date',
+  }), [clients])
+
+  const {
+    filters,
+    setSearch,
+    setStatuses,
+    setParent,
+    setDateFrom,
+    setDateTo,
+    clearAll,
+    hasActiveFilters,
+    activeFilterCount,
+    applyFilters,
+  } = useDataGridFilters(filterConfig)
+
+  // Apply filters to projects data
+  const filteredProjects = useMemo(() => {
+    if (!projects) return []
+    return applyFilters(
+      projects,
+      ['name', 'project_code', 'display_id'],
+      (row) => computeDisplayStatus(row)
+    )
+  }, [projects, applyFilters])
 
   // Navigate to project detail and store list context for Save & Next
-  const navigateToProject = useCallback((id: string, editMode = false) => {
-    const ids = filteredProjects.map((p) => p.id)
-    storeListContext(ids, 'projects')
+  // When called from GridEditTable, context provides the sorted IDs
+  const navigateToProject = useCallback((id: string, editMode = false, context?: RowClickContext) => {
+    // Use sorted IDs from context if provided, otherwise fall back to filteredProjects order
+    const ids = context?.sortedIds ?? filteredProjects.map((p) => p.id)
+    storeListContext(ids, context?.source ?? 'projects_overview')
     navigate(`/projects/${id}${editMode ? '?edit=true' : ''}`)
   }, [filteredProjects, navigate])
 
@@ -136,57 +156,81 @@ export function ProjectsPage() {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search projects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="on_deck">On Deck</SelectItem>
-            <SelectItem value="past_due">Past Due</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="future">Future</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex items-center border rounded-md">
+      {/* Toolbar Row */}
+      <div className="flex items-center gap-2 mb-3">
+        {/* Result count - only when filters active */}
+        {hasActiveFilters && (
+          <span className="text-xs text-muted-foreground">
+            {filteredProjects.length} of {projects?.length ?? 0}
+          </span>
+        )}
+
+        {/* Push buttons to the right */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Filter toggle button */}
           <Button
-            variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-            size="icon"
-            className="rounded-r-none"
-            onClick={() => setViewMode('grid')}
+            variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setFiltersOpen(v => !v)}
+            className="gap-1.5"
           >
-            <Grid className="h-4 w-4" />
+            <Filter className="h-4 w-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                {activeFilterCount}
+              </Badge>
+            )}
           </Button>
+
+          {/* View toggle */}
+          <div className="flex items-center border rounded-md">
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="rounded-r-none h-9 w-9"
+              onClick={() => setViewMode('grid')}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="rounded-l-none h-9 w-9"
+              onClick={() => setViewMode('list')}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Import button */}
           <Button
-            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-            size="icon"
-            className="rounded-l-none"
-            onClick={() => setViewMode('list')}
+            variant="outline"
+            size="sm"
+            onClick={() => setShowBulkUpload(true)}
+            className="gap-2"
           >
-            <List className="h-4 w-4" />
+            <Upload className="h-4 w-4" />
+            Import
           </Button>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setShowBulkUpload(true)}
-          className="gap-2"
-        >
-          <Upload className="h-4 w-4" />
-          Import
-        </Button>
       </div>
+
+      {/* Collapsible FilterBar */}
+      <FilterBar
+        config={filterConfig}
+        filters={filters}
+        onSearch={setSearch}
+        onStatuses={setStatuses}
+        onParent={setParent}
+        onDateFrom={setDateFrom}
+        onDateTo={setDateTo}
+        onClearAll={clearAll}
+        hasActiveFilters={hasActiveFilters}
+        resultCount={filteredProjects.length}
+        totalCount={projects?.length ?? 0}
+        collapsed={!filtersOpen}
+      />
 
       {/* Projects Grid/List */}
       {isLoading ? (

@@ -93,6 +93,8 @@ import {
   Swords,
   ChevronUp,
   MapPin,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
@@ -100,7 +102,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -154,8 +156,10 @@ export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
   const navigate = useNavigate()
 
-  // Calculate next record ID for Save & Next functionality
+  // Get list navigation context from sessionStorage for Save & Next and prev/next navigation
   const nextRecordId = clientId ? getNextRecordId(clientId) : null
+  const prevRecordId = clientId ? getPrevRecordId(clientId) : null
+  const listPosition = clientId ? getListPosition(clientId) : { index: -1, total: 0 }
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Guard: clientId is required for this page
@@ -519,8 +523,34 @@ export function ClientDetailPage() {
       {/* Header Info Card - Key fields only: Name, Industry, Status, Relationship Manager */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-4">
+          {/* Edit/Save buttons with list position indicator */}
+          <div className="flex justify-end items-center gap-2 mb-4">
+            {/* List position indicator and prev/next navigation */}
+            {listPosition.total > 0 && listPosition.index >= 0 && (
+              <div className="flex items-center gap-1 mr-2">
+                <span className="text-xs text-muted-foreground">
+                  {listPosition.index + 1} / {listPosition.total}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!prevRecordId}
+                  onClick={() => prevRecordId && navigate(`/clients/${prevRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!nextRecordId}
+                  onClick={() => nextRecordId && navigate(`/clients/${nextRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             {isEditing ? (
               <>
                 <Button

@@ -2,15 +2,15 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
-import { useAllDiscussions } from '@/hooks'
-import { Input } from '@/components/ui/input'
+import { useAllDiscussions, useDataGridFilters, type FilterConfig } from '@/hooks'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DiscussionView } from '@/components/shared/DiscussionView'
+import { FilterBar, NewDiscussionDialog } from '@/components/shared'
 import {
   Table,
   TableBody,
@@ -21,7 +21,6 @@ import {
 } from '@/components/ui/table'
 import {
   MessageSquare,
-  Search,
   Clock,
   Users,
   FolderKanban,
@@ -33,6 +32,8 @@ import {
   MessageCircle,
   CheckCircle2,
   Lock,
+  Plus,
+  Filter,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { getInitials, cn } from '@/lib/utils'
@@ -64,10 +65,42 @@ const ENTITY_URL_MAP: Partial<Record<EntityType, string>> = {
 
 export function DiscussionsPage() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
-  const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | ''>('')
   const [statusFilter, setStatusFilter] = useState<DiscussionStatus | 'all'>('open')
   const [selectedDiscussionId, setSelectedDiscussionId] = useState<string | null>(null)
+  const [showNewDiscussion, setShowNewDiscussion] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Filter configuration for discussions
+  const filterConfig: FilterConfig = useMemo(() => ({
+    search: true,
+    parentFilters: [
+      {
+        key: 'entity_type',
+        label: 'Entity Type',
+        options: [
+          { value: 'client', label: 'Client' },
+          { value: 'project', label: 'Project' },
+          { value: 'phase', label: 'Phase' },
+          { value: 'set', label: 'Set' },
+          { value: 'pitch', label: 'Pitch' },
+          { value: 'requirement', label: 'Requirement' },
+          { value: 'lead', label: 'Lead' },
+        ],
+      },
+    ],
+  }), [])
+
+  const {
+    filters,
+    setSearch,
+    setStatuses,
+    setParent,
+    setDateFrom,
+    setDateTo,
+    clearAll,
+    hasActiveFilters,
+    activeFilterCount,
+  } = useDataGridFilters(filterConfig)
 
   // Fetch all discussions using the fixed hook (no arguments needed)
   const { data: allDiscussions, isLoading } = useAllDiscussions()
@@ -170,31 +203,20 @@ export function DiscussionsPage() {
     enabled: !!discussions && discussions.length > 0,
   })
 
-  // Entity type filter options
-  const entityTypeOptions = [
-    { value: '', label: 'All Types' },
-    { value: 'client', label: 'Client' },
-    { value: 'project', label: 'Project' },
-    { value: 'phase', label: 'Phase' },
-    { value: 'set', label: 'Set' },
-    { value: 'pitch', label: 'Pitch' },
-    { value: 'requirement', label: 'Requirement' },
-    { value: 'lead', label: 'Lead' },
-  ]
-
   // Filter discussions by search and entity type
   const filteredDiscussions = useMemo(() => {
     if (!discussions) return []
 
     return discussions.filter(d => {
       // Entity type filter
-      if (entityTypeFilter && d.entity_type !== entityTypeFilter) {
+      const entityTypeValues = filters.parents['entity_type'] ?? []
+      if (entityTypeValues.length > 0 && !entityTypeValues.includes(d.entity_type ?? '')) {
         return false
       }
 
       // Search filter
-      if (search) {
-        const searchLower = search.toLowerCase()
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase()
         const entityName = entityNames?.get(d.entity_id!) || ''
         const subject = d.subject || d.title || ''
         return (
@@ -207,7 +229,7 @@ export function DiscussionsPage() {
 
       return true
     })
-  }, [discussions, search, entityTypeFilter, entityNames])
+  }, [discussions, filters, entityNames])
 
   // Count by status for tab badges
   const statusCounts = useMemo(() => {
@@ -251,13 +273,19 @@ export function DiscussionsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          Discussions
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          View and participate in all conversations across your workspace
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Discussions
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            View and participate in all conversations across your workspace
+          </p>
+        </div>
+        <Button onClick={() => setShowNewDiscussion(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Discussion
+        </Button>
       </div>
 
       {/* Status Tabs */}
@@ -286,29 +314,50 @@ export function DiscussionsPage() {
         </TabsList>
       </Tabs>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search discussions..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="w-[180px]">
-          <SearchableSelect
-            options={entityTypeOptions}
-            value={entityTypeFilter}
-            onValueChange={v => setEntityTypeFilter((v || '') as EntityType | '')}
-            placeholder="Entity Type"
-            searchPlaceholder="Search types..."
-            emptyMessage="No types found."
-            clearable
-          />
+      {/* Toolbar Row */}
+      <div className="flex items-center gap-2">
+        {/* Result count - only when filters active */}
+        {hasActiveFilters && (
+          <span className="text-xs text-muted-foreground">
+            {filteredDiscussions.length} of {allDiscussions?.length ?? 0}
+          </span>
+        )}
+
+        {/* Push button to the right */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Filter toggle button */}
+          <Button
+            variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setFiltersOpen(v => !v)}
+            className="gap-1.5"
+          >
+            <Filter className="h-4 w-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
         </div>
       </div>
+
+      {/* Collapsible FilterBar */}
+      <FilterBar
+        config={filterConfig}
+        filters={filters}
+        onSearch={setSearch}
+        onStatuses={setStatuses}
+        onParent={setParent}
+        onDateFrom={setDateFrom}
+        onDateTo={setDateTo}
+        onClearAll={clearAll}
+        hasActiveFilters={hasActiveFilters}
+        resultCount={filteredDiscussions.length}
+        totalCount={allDiscussions?.length ?? 0}
+        collapsed={!filtersOpen}
+      />
 
       {/* Discussions List */}
       {isLoading ? (
@@ -452,6 +501,12 @@ export function DiscussionsPage() {
           if (!open) setSelectedDiscussionId(null)
         }}
         parentRecord={selectedParentRecord}
+      />
+
+      {/* New Discussion Dialog */}
+      <NewDiscussionDialog
+        open={showNewDiscussion}
+        onOpenChange={setShowNewDiscussion}
       />
     </div>
   )

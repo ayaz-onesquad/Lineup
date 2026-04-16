@@ -1,20 +1,19 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useSets, useSetMutations } from '@/hooks/useSets'
+import { useSets, useSetMutations, useClients, useProjects, usePhases, useDataGridFilters, type FilterConfig } from '@/hooks'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { type SearchableSelectOption } from '@/components/ui/searchable-select'
-import { Plus, Search, Layers, Grid, LayoutGrid, Upload } from 'lucide-react'
+import { Plus, Layers, Grid, LayoutGrid, Upload, Filter } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
-import { BulkActionBar, storeListContext } from '@/components/shared'
+import { BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
 import { toast } from '@/hooks/use-toast'
 import { getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
@@ -36,12 +35,15 @@ const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
 export function SetsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'matrix' | 'list'>('list')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const { data: sets, isLoading } = useSets()
+  const { data: clients } = useClients()
+  const { data: projects } = useProjects()
+  const { data: phases } = usePhases()
   const { updateSet, deleteSet } = useSetMutations()
   const { currentTenant } = useTenantStore()
   const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
@@ -56,16 +58,59 @@ export function SetsPage() {
     }))
   }, [tenantUsers])
 
-  const filteredSets = useMemo(() => sets?.filter(
-    (set) =>
-      set.name.toLowerCase().includes(search.toLowerCase()) ||
-      set.projects?.name.toLowerCase().includes(search.toLowerCase())
-  ) || [], [sets, search])
+  // Filter configuration
+  const filterConfig: FilterConfig = useMemo(() => ({
+    search: true,
+    status: ['active', 'on_deck', 'past_due', 'completed', 'future'],
+    parentFilters: [
+      {
+        key: 'client_id',
+        label: 'Client',
+        options: clients?.map((c) => ({ value: c.id, label: c.name })) ?? [],
+      },
+      {
+        key: 'project_id',
+        label: 'Project',
+        options: projects?.map((p) => ({ value: p.id, label: p.name })) ?? [],
+      },
+      {
+        key: 'phase_id',
+        label: 'Phase',
+        options: phases?.map((p) => ({ value: p.id, label: p.name })) ?? [],
+      },
+    ],
+    dateRangeField: 'expected_end_date',
+  }), [clients, projects, phases])
+
+  const {
+    filters,
+    setSearch,
+    setStatuses,
+    setParent,
+    setDateFrom,
+    setDateTo,
+    clearAll,
+    hasActiveFilters,
+    activeFilterCount,
+    applyFilters,
+  } = useDataGridFilters(filterConfig)
+
+  // Apply filters to sets data
+  const filteredSets = useMemo(() => {
+    if (!sets) return []
+    return applyFilters(
+      sets,
+      ['name', 'display_id'],
+      (row) => computeDisplayStatus(row)
+    )
+  }, [sets, applyFilters])
 
   // Navigate to set detail and store list context for Save & Next
-  const navigateToSet = useCallback((id: string, editMode = false) => {
-    const ids = filteredSets.map((s) => s.id)
-    storeListContext(ids, 'sets')
+  // When called from GridEditTable, context provides the sorted IDs
+  const navigateToSet = useCallback((id: string, editMode = false, context?: RowClickContext) => {
+    // Use sorted IDs from context if provided, otherwise fall back to filteredSets order
+    const ids = context?.sortedIds ?? filteredSets.map((s) => s.id)
+    storeListContext(ids, context?.source ?? 'sets_overview')
     navigate(`/sets/${id}${editMode ? '?edit=true' : ''}`)
   }, [filteredSets, navigate])
 
@@ -98,6 +143,18 @@ export function SetsPage() {
   // Grid columns definition
   const columns: GridColumn<SetWithRelations>[] = useMemo(() => [
     {
+      key: 'display_id',
+      header: 'Set ID',
+      editable: false,
+      enableHiding: false, // ID column cannot be hidden
+      width: '90px',
+      render: (row) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {row.display_id ? `SET-${row.display_id}` : '—'}
+        </span>
+      ),
+    },
+    {
       key: 'clients.name',
       header: 'Client',
       editable: false,
@@ -115,14 +172,7 @@ export function SetsPage() {
       editable: true,
       type: 'text',
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{row.name}</span>
-          {row.display_id && (
-            <Badge variant="outline" className="font-mono text-xs">
-              #{row.display_id}
-            </Badge>
-          )}
-        </div>
+        <span className="font-medium">{row.name}</span>
       ),
     },
     {
@@ -258,36 +308,70 @@ export function SetsPage() {
         </div>
       ) : viewMode === 'matrix' ? (
         <>
-          {/* Search and View Toggle for Matrix */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search sets..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <div className="flex items-center border rounded-md">
+          {/* Toolbar Row for Matrix View */}
+          <div className="flex items-center gap-2 mb-3">
+            {/* Result count - only when filters active */}
+            {hasActiveFilters && (
+              <span className="text-xs text-muted-foreground">
+                {filteredSets.length} of {sets?.length ?? 0}
+              </span>
+            )}
+
+            {/* Push buttons to the right */}
+            <div className="ml-auto flex items-center gap-2">
+              {/* Filter toggle button */}
               <Button
-                variant="secondary"
-                size="icon"
-                className="rounded-r-none"
-                onClick={() => setViewMode('matrix')}
+                variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => setFiltersOpen(v => !v)}
+                className="gap-1.5"
               >
-                <LayoutGrid className="h-4 w-4" />
+                <Filter className="h-4 w-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                    {activeFilterCount}
+                  </Badge>
+                )}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-l-none"
-                onClick={() => setViewMode('list')}
-              >
-                <Grid className="h-4 w-4" />
-              </Button>
+
+              {/* View toggle */}
+              <div className="flex items-center border rounded-md">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="rounded-r-none h-9 w-9"
+                  onClick={() => setViewMode('matrix')}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-l-none h-9 w-9"
+                  onClick={() => setViewMode('list')}
+                >
+                  <Grid className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
+
+          {/* Collapsible filter section */}
+          <FilterBar
+            config={filterConfig}
+            filters={filters}
+            onSearch={setSearch}
+            onStatuses={setStatuses}
+            onParent={setParent}
+            onDateFrom={setDateFrom}
+            onDateTo={setDateTo}
+            onClearAll={clearAll}
+            hasActiveFilters={hasActiveFilters}
+            resultCount={filteredSets.length}
+            totalCount={sets?.length ?? 0}
+            collapsed={!filtersOpen}
+          />
 
           {/* Eisenhower Matrix View */}
           <div className="grid grid-cols-2 gap-4">
@@ -384,13 +468,89 @@ export function SetsPage() {
         /* List View - GridEditTable */
         <Card className="card-carbon">
           <CardContent className="p-4">
+            {/* Toolbar Row */}
+            <div className="flex items-center gap-2 mb-3">
+              {/* Result count - only when filters active */}
+              {hasActiveFilters && (
+                <span className="text-xs text-muted-foreground">
+                  {filteredSets.length} of {sets?.length ?? 0}
+                </span>
+              )}
+
+              {/* Push buttons to the right */}
+              <div className="ml-auto flex items-center gap-2">
+                {/* Filter toggle button */}
+                <Button
+                  variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => setFiltersOpen(v => !v)}
+                  className="gap-1.5"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+
+                {/* View toggle */}
+                <div className="flex items-center border rounded-md">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-r-none h-9 w-9"
+                    onClick={() => setViewMode('matrix')}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="rounded-l-none h-9 w-9"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <Grid className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Import button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkUpload(true)}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import
+                </Button>
+              </div>
+            </div>
+
+            {/* Collapsible filter section */}
+            <FilterBar
+              config={filterConfig}
+              filters={filters}
+              onSearch={setSearch}
+              onStatuses={setStatuses}
+              onParent={setParent}
+              onDateFrom={setDateFrom}
+              onDateTo={setDateTo}
+              onClearAll={clearAll}
+              hasActiveFilters={hasActiveFilters}
+              resultCount={filteredSets.length}
+              totalCount={sets?.length ?? 0}
+              collapsed={!filtersOpen}
+            />
+
             <GridEditTable
               columns={columns}
               data={filteredSets}
               isLoading={isLoading}
               onSave={handleGridSave}
               onRowClick={(row) => openDetailPanel('set', row.id)}
-              onRowDoubleClick={(row) => navigateToSet(row.id)}
+              onRowDoubleClick={(row, context) => navigateToSet(row.id, false, context)}
               emptyMessage="No sets found"
               emptyIcon={<Layers className="h-12 w-12 text-muted-foreground" />}
               emptyAction={
@@ -398,49 +558,11 @@ export function SetsPage() {
                   Create your first set
                 </Button>
               }
-              toolbarActions={
-                <Button
-                  variant="outline"
-                  onClick={() => setShowBulkUpload(true)}
-                  className="gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  Import
-                </Button>
-              }
               enableSelection
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
-            >
-              {/* Search and View Toggle */}
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search sets..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <div className="flex items-center border rounded-md">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-r-none"
-                  onClick={() => setViewMode('matrix')}
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="rounded-l-none"
-                  onClick={() => setViewMode('list')}
-                >
-                  <Grid className="h-4 w-4" />
-                </Button>
-              </div>
-            </GridEditTable>
+              storageKey="sets_overview"
+            />
           </CardContent>
         </Card>
       )}

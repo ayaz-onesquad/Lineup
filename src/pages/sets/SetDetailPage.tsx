@@ -61,6 +61,8 @@ import {
   Users,
   Wallet,
   Presentation,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { formatDate, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, computeSetKeyEndDate, computeSetKeyStartDate, getStatusLabel, getStatusColor, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
@@ -68,7 +70,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
@@ -136,8 +138,10 @@ export function SetDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Get next record ID from sessionStorage for Save & Next functionality
+  // Get list navigation context from sessionStorage for Save & Next and prev/next navigation
   const nextRecordId = setId ? getNextRecordId(setId) : null
+  const prevRecordId = setId ? getPrevRecordId(setId) : null
+  const listPosition = setId ? getListPosition(setId) : { index: -1, total: 0 }
 
   // Cascade dialog state for parent re-assignment
   const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false)
@@ -592,8 +596,34 @@ export function SetDetailPage() {
       {/* Set Info Card - Key fields only */}
       <Card className="card-carbon">
         <CardContent className="pt-6">
-          {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-4">
+          {/* Edit/Save buttons with list position indicator */}
+          <div className="flex justify-end items-center gap-2 mb-4">
+            {/* List position indicator and prev/next navigation */}
+            {listPosition.total > 0 && listPosition.index >= 0 && (
+              <div className="flex items-center gap-1 mr-2">
+                <span className="text-xs text-muted-foreground">
+                  {listPosition.index + 1} / {listPosition.total}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!prevRecordId}
+                  onClick={() => prevRecordId && navigate(`/sets/${prevRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={!nextRecordId}
+                  onClick={() => nextRecordId && navigate(`/sets/${nextRecordId}${isEditing ? '?edit=true' : ''}`)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             {isEditing ? (
               <>
                 <Button

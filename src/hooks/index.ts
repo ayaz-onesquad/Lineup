@@ -148,3 +148,11 @@ export {
 
 // Status filter hook for child tab grids
 export { useStatusFilter, type StatusFilterValue } from './useStatusFilter'
+
+// DataGrid filter hook for overview pages
+export {
+  useDataGridFilters,
+  type FilterConfig,
+  type ActiveFilters,
+  type UseDataGridFiltersReturn,
+} from './useDataGridFilters'

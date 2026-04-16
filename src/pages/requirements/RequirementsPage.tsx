@@ -1,18 +1,16 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRequirements, useRequirementMutations } from '@/hooks/useRequirements'
+import { useRequirements, useRequirementMutations, useClients, useProjects, usePhases, useSets, usePitches, useDataGridFilters, type FilterConfig } from '@/hooks'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { type SearchableSelectOption } from '@/components/ui/searchable-select'
-import { Plus, Search, CheckSquare, Kanban, List, GripVertical, Info, Upload, MoreVertical, Trash2, Eye, Edit } from 'lucide-react'
+import { Plus, CheckSquare, Kanban, List, GripVertical, Info, Upload, MoreVertical, Trash2, Eye, Edit, Filter } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +30,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
-import { BulkActionBar, storeListContext } from '@/components/shared'
+import { BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
 import { toast } from '@/hooks/use-toast'
 import { formatDate, getInitials, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeRequirementStatus, getStatusLabel, getStatusColor, isPastDueStatus } from '@/utils/statusUtils'
@@ -62,14 +60,18 @@ const statusColumns: { status: ComputedStatus | 'past_due'; label: string; color
 export function RequirementsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [deleteRequirementId, setDeleteRequirementId] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const { data: requirements, isLoading } = useRequirements()
+  const { data: clients } = useClients()
+  const { data: projects } = useProjects()
+  const { data: phases } = usePhases()
+  const { data: sets } = useSets()
+  const { data: pitches } = usePitches()
   const { updateRequirement, deleteRequirement } = useRequirementMutations()
   const { currentTenant } = useTenantStore()
   const { data: tenantUsers } = useTenantUsers(currentTenant?.id)
@@ -84,19 +86,68 @@ export function RequirementsPage() {
     }))
   }, [tenantUsers])
 
-  const filteredRequirements = useMemo(() => requirements?.filter((req) => {
-    const matchesSearch =
-      req.title.toLowerCase().includes(search.toLowerCase()) ||
-      req.sets?.name?.toLowerCase().includes(search.toLowerCase()) ||
-      req.sets?.projects?.name?.toLowerCase().includes(search.toLowerCase())
-    const matchesType = typeFilter === 'all' || req.requirement_type === typeFilter
-    return matchesSearch && matchesType
-  }) || [], [requirements, search, typeFilter])
+  // Filter configuration
+  const filterConfig: FilterConfig = useMemo(() => ({
+    search: true,
+    status: ['active', 'on_deck', 'past_due', 'completed', 'future'],
+    parentFilters: [
+      {
+        key: 'client_id',
+        label: 'Client',
+        options: clients?.map((c) => ({ value: c.id, label: c.name })) ?? [],
+      },
+      {
+        key: 'project_id',
+        label: 'Project',
+        options: projects?.map((p) => ({ value: p.id, label: p.name })) ?? [],
+      },
+      {
+        key: 'phase_id',
+        label: 'Phase',
+        options: phases?.map((p) => ({ value: p.id, label: p.name })) ?? [],
+      },
+      {
+        key: 'set_id',
+        label: 'Set',
+        options: sets?.map((s) => ({ value: s.id, label: s.name })) ?? [],
+      },
+      {
+        key: 'pitch_id',
+        label: 'Pitch',
+        options: pitches?.map((p) => ({ value: p.id, label: p.name })) ?? [],
+      },
+    ],
+    dateRangeField: 'expected_due_date',
+  }), [clients, projects, phases, sets, pitches])
+
+  const {
+    filters,
+    setSearch,
+    setStatuses,
+    setParent,
+    setDateFrom,
+    setDateTo,
+    clearAll,
+    hasActiveFilters,
+    activeFilterCount,
+    applyFilters,
+  } = useDataGridFilters(filterConfig)
+
+  // Apply filters to requirements data
+  const filteredRequirements = useMemo(() => {
+    if (!requirements) return []
+    return applyFilters(
+      requirements,
+      ['title', 'display_id'],
+      (row) => computeRequirementStatus(row)
+    )
+  }, [requirements, applyFilters])
 
   // Navigate to requirement detail and store list context for Save & Next
-  const navigateToRequirement = useCallback((id: string, editMode = false) => {
-    const ids = filteredRequirements.map((r) => r.id)
-    storeListContext(ids, 'requirements')
+  // When called from GridEditTable, context provides the sorted IDs
+  const navigateToRequirement = useCallback((id: string, editMode = false, context?: RowClickContext) => {
+    const ids = context?.sortedIds ?? filteredRequirements.map((r) => r.id)
+    storeListContext(ids, context?.source ?? 'requirements_overview')
     navigate(`/requirements/${id}${editMode ? '?edit=true' : ''}`)
   }, [filteredRequirements, navigate])
 
@@ -142,6 +193,18 @@ export function RequirementsPage() {
   // Grid columns definition
   const columns: GridColumn<RequirementWithRelations>[] = useMemo(() => [
     {
+      key: 'display_id',
+      header: 'Req ID',
+      editable: false,
+      enableHiding: false, // ID column cannot be hidden
+      width: '90px',
+      render: (row) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {row.display_id ? `REQ-${row.display_id}` : '—'}
+        </span>
+      ),
+    },
+    {
       key: 'clients.name',
       header: 'Client',
       editable: false,
@@ -165,14 +228,7 @@ export function RequirementsPage() {
       editable: true,
       type: 'text',
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{row.title}</span>
-          {row.display_id && (
-            <Badge variant="outline" className="font-mono text-xs">
-              #{row.display_id}
-            </Badge>
-          )}
-        </div>
+        <span className="font-medium">{row.title}</span>
       ),
     },
     {
@@ -386,62 +442,85 @@ export function RequirementsPage() {
         </div>
       ) : viewMode === 'kanban' ? (
         <>
-          {/* Filters for Kanban */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search requirements..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="task">Task</SelectItem>
-                <SelectItem value="open_item">Open Item</SelectItem>
-                <SelectItem value="technical">Technical</SelectItem>
-                <SelectItem value="support">Support</SelectItem>
-                <SelectItem value="internal_deliverable">Internal Deliverable</SelectItem>
-                <SelectItem value="client_deliverable">Client Deliverable</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
+          {/* Toolbar Row for Kanban */}
+          <div className="flex items-center gap-2 mb-3">
+            {/* Result count - only when filters active */}
+            {hasActiveFilters && (
+              <span className="text-xs text-muted-foreground">
+                {filteredRequirements.length} of {requirements?.length ?? 0}
+              </span>
+            )}
+
+            {/* Push buttons to the right */}
+            <div className="ml-auto flex items-center gap-2">
+              {/* Filter toggle button */}
               <Button
-                variant="secondary"
-                size="icon"
-                className="rounded-r-none"
-                onClick={() => setViewMode('kanban')}
-                aria-label="Kanban view"
-                aria-pressed={true}
+                variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => setFiltersOpen(v => !v)}
+                className="gap-1.5"
               >
-                <Kanban className="h-4 w-4" aria-hidden="true" />
+                <Filter className="h-4 w-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                    {activeFilterCount}
+                  </Badge>
+                )}
               </Button>
+
+              {/* View toggle */}
+              <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="rounded-r-none h-9 w-9"
+                  onClick={() => setViewMode('kanban')}
+                  aria-label="Kanban view"
+                  aria-pressed={true}
+                >
+                  <Kanban className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-l-none h-9 w-9"
+                  onClick={() => setViewMode('list')}
+                  aria-label="List view"
+                  aria-pressed={false}
+                >
+                  <List className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+
+              {/* Import button */}
               <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-l-none"
-                onClick={() => setViewMode('list')}
-                aria-label="List view"
-                aria-pressed={false}
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkUpload(true)}
+                className="gap-2"
               >
-                <List className="h-4 w-4" aria-hidden="true" />
+                <Upload className="h-4 w-4" />
+                Import
               </Button>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkUpload(true)}
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              Import
-            </Button>
           </div>
+
+          {/* Collapsible filter section */}
+          <FilterBar
+            config={filterConfig}
+            filters={filters}
+            onSearch={setSearch}
+            onStatuses={setStatuses}
+            onParent={setParent}
+            onDateFrom={setDateFrom}
+            onDateTo={setDateTo}
+            onClearAll={clearAll}
+            hasActiveFilters={hasActiveFilters}
+            resultCount={filteredRequirements.length}
+            totalCount={requirements?.length ?? 0}
+            collapsed={!filtersOpen}
+          />
 
           {/* Kanban Board */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto">
@@ -480,13 +559,91 @@ export function RequirementsPage() {
               <span>Click a row to preview, double-click to open full details</span>
             </div>
 
+            {/* Toolbar Row */}
+            <div className="flex items-center gap-2 mb-3">
+              {/* Result count - only when filters active */}
+              {hasActiveFilters && (
+                <span className="text-xs text-muted-foreground">
+                  {filteredRequirements.length} of {requirements?.length ?? 0}
+                </span>
+              )}
+
+              {/* Push buttons to the right */}
+              <div className="ml-auto flex items-center gap-2">
+                {/* Filter toggle button */}
+                <Button
+                  variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => setFiltersOpen(v => !v)}
+                  className="gap-1.5"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+
+                {/* View toggle */}
+                <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-r-none h-9 w-9"
+                    onClick={() => setViewMode('kanban')}
+                    aria-label="Kanban view"
+                  >
+                    <Kanban className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="rounded-l-none h-9 w-9"
+                    onClick={() => setViewMode('list')}
+                    aria-label="List view"
+                  >
+                    <List className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
+
+                {/* Import button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkUpload(true)}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import
+                </Button>
+              </div>
+            </div>
+
+            {/* Collapsible filter section */}
+            <FilterBar
+              config={filterConfig}
+              filters={filters}
+              onSearch={setSearch}
+              onStatuses={setStatuses}
+              onParent={setParent}
+              onDateFrom={setDateFrom}
+              onDateTo={setDateTo}
+              onClearAll={clearAll}
+              hasActiveFilters={hasActiveFilters}
+              resultCount={filteredRequirements.length}
+              totalCount={requirements?.length ?? 0}
+              collapsed={!filtersOpen}
+            />
+
             <GridEditTable
               columns={columns}
               data={filteredRequirements}
               isLoading={isLoading}
               onSave={handleGridSave}
               onRowClick={(row) => openDetailPanel('requirement', row.id)}
-              onRowDoubleClick={(row) => navigateToRequirement(row.id)}
+              onRowDoubleClick={(row, context) => navigateToRequirement(row.id, false, context)}
               onDelete={handleDelete}
               deleteLabel="requirement"
               emptyMessage="No requirements found"
@@ -496,65 +653,11 @@ export function RequirementsPage() {
                   Create your first requirement
                 </Button>
               }
-              toolbarActions={
-                <Button
-                  variant="outline"
-                  onClick={() => setShowBulkUpload(true)}
-                  className="gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  Import
-                </Button>
-              }
               enableSelection
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
-            >
-              {/* Filters */}
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search requirements..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="task">Task</SelectItem>
-                  <SelectItem value="open_item">Open Item</SelectItem>
-                  <SelectItem value="technical">Technical</SelectItem>
-                  <SelectItem value="support">Support</SelectItem>
-                  <SelectItem value="internal_deliverable">Internal Deliverable</SelectItem>
-                  <SelectItem value="client_deliverable">Client Deliverable</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-r-none"
-                  onClick={() => setViewMode('kanban')}
-                  aria-label="Kanban view"
-                >
-                  <Kanban className="h-4 w-4" aria-hidden="true" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="rounded-l-none"
-                  onClick={() => setViewMode('list')}
-                  aria-label="List view"
-                >
-                  <List className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </div>
-            </GridEditTable>
+              storageKey="requirements_overview"
+            />
           </CardContent>
         </Card>
       )}

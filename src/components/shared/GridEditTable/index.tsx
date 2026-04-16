@@ -1,15 +1,9 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+// Note: Not using shadcn Table component because it wraps in a div that breaks sticky headers
+// Using raw table elements with similar styling for proper overflow/sticky behavior
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,12 +21,205 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Loader2, Pencil, X, MoreVertical, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, X, MoreVertical, Trash2, Settings2, GripVertical, Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
-import type { GridColumn, GridEditTableProps } from './types'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import type { GridColumn, GridEditTableProps, ColumnState, RowClickContext } from './types'
 
-export type { GridColumn, GridColumnType, GridEditTableProps } from './types'
+export type { GridColumn, GridColumnType, GridEditTableProps, ColumnState, RowClickContext } from './types'
+
+/** Get a unique ID for a column */
+function getColumnId<T>(column: GridColumn<T>): string {
+  return column.id ?? String(column.key)
+}
+
+/** Component for a sortable column item in the column manager dropdown */
+function SortableColumnItem<T>({
+  column,
+  isVisible,
+  onToggle,
+}: {
+  column: GridColumn<T>
+  isVisible: boolean
+  onToggle: () => void
+}) {
+  const id = getColumnId(column)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const headerLabel = typeof column.header === 'string'
+    ? column.header
+    : String(column.key).replace(/_/g, ' ').replace(/\./g, ' › ')
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted/50 rounded-sm"
+    >
+      <span {...attributes} {...listeners} className="cursor-grab text-muted-foreground">
+        <GripVertical className="h-3.5 w-3.5" />
+      </span>
+      <button
+        className="flex-1 flex items-center gap-2 text-sm text-left"
+        onClick={onToggle}
+      >
+        {isVisible
+          ? <Eye className="h-3.5 w-3.5 text-primary" />
+          : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+        }
+        <span className={isVisible ? '' : 'text-muted-foreground'}>
+          {headerLabel}
+        </span>
+      </button>
+    </div>
+  )
+}
+
+/** Column Manager Button that shows a dropdown to toggle visibility and reorder columns */
+function ColumnManagerButton<T>({
+  columns,
+  columnVisibility,
+  columnOrder,
+  onVisibilityChange,
+  onOrderChange,
+}: {
+  columns: GridColumn<T>[]
+  columnVisibility: Record<string, boolean>
+  columnOrder: string[]
+  onVisibilityChange: (visibility: Record<string, boolean>) => void
+  onOrderChange: (order: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Get hideable columns only
+  const hideableColumns = columns.filter(col => col.enableHiding !== false)
+
+  // Order columns by current order
+  const orderedColumns = useMemo(() => {
+    return columnOrder
+      .map(id => hideableColumns.find(c => getColumnId(c) === id))
+      .filter((c): c is GridColumn<T> => c !== undefined)
+  }, [hideableColumns, columnOrder])
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = columnOrder.indexOf(active.id as string)
+    const newIndex = columnOrder.indexOf(over.id as string)
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      onOrderChange(arrayMove(columnOrder, oldIndex, newIndex))
+    }
+  }
+
+  const toggleVisibility = (columnId: string) => {
+    onVisibilityChange({
+      ...columnVisibility,
+      [columnId]: !columnVisibility[columnId],
+    })
+  }
+
+  const showAll = () => {
+    const newVisibility: Record<string, boolean> = {}
+    hideableColumns.forEach(col => {
+      newVisibility[getColumnId(col)] = true
+    })
+    onVisibilityChange(newVisibility)
+  }
+
+  const hideAll = () => {
+    const newVisibility: Record<string, boolean> = {}
+    hideableColumns.forEach((col, index) => {
+      // Never hide the first column
+      newVisibility[getColumnId(col)] = index === 0
+    })
+    onVisibilityChange(newVisibility)
+  }
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5">
+          <Settings2 className="h-4 w-4" />
+          Columns
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-56" align="end">
+        <div className="px-2 py-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Show / hide and reorder columns</p>
+        </div>
+        <div className="border-t my-1" />
+
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={orderedColumns.map(c => getColumnId(c))}
+            strategy={verticalListSortingStrategy}
+          >
+            {orderedColumns.map(col => {
+              const id = getColumnId(col)
+              return (
+                <SortableColumnItem
+                  key={id}
+                  column={col}
+                  isVisible={columnVisibility[id] !== false}
+                  onToggle={() => toggleVisibility(id)}
+                />
+              )
+            })}
+          </SortableContext>
+        </DndContext>
+
+        <div className="border-t my-1 px-2 pb-1.5 pt-1 flex justify-between">
+          <button
+            className="text-xs text-primary hover:underline"
+            onClick={showAll}
+          >
+            Show all
+          </button>
+          <button
+            className="text-xs text-muted-foreground hover:underline"
+            onClick={hideAll}
+          >
+            Hide all
+          </button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 export function GridEditTable<T extends { id: string }>({
   columns,
@@ -52,7 +239,73 @@ export function GridEditTable<T extends { id: string }>({
   enableSelection = false,
   rowSelection = {},
   onRowSelectionChange,
+  storageKey,
 }: GridEditTableProps<T>) {
+  // Get initial column state from localStorage or defaults
+  const getInitialColumnState = useCallback((): ColumnState => {
+    const defaultOrder = columns.map(col => getColumnId(col))
+    const defaultVisibility: Record<string, boolean> = {}
+    columns.forEach(col => {
+      defaultVisibility[getColumnId(col)] = true
+    })
+
+    if (!storageKey) {
+      return { visibility: defaultVisibility, order: defaultOrder }
+    }
+
+    try {
+      const saved = localStorage.getItem(`lineup_col_${storageKey}`)
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColumnState
+        // Merge with defaults to handle new columns
+        const mergedVisibility = { ...defaultVisibility }
+        Object.keys(parsed.visibility).forEach(key => {
+          if (key in mergedVisibility) {
+            mergedVisibility[key] = parsed.visibility[key]
+          }
+        })
+        // Ensure order contains all columns (add new ones at end)
+        const mergedOrder = parsed.order.filter(id => defaultOrder.includes(id))
+        defaultOrder.forEach(id => {
+          if (!mergedOrder.includes(id)) {
+            mergedOrder.push(id)
+          }
+        })
+        return { visibility: mergedVisibility, order: mergedOrder }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    return { visibility: defaultVisibility, order: defaultOrder }
+  }, [columns, storageKey])
+
+  // Column visibility and order state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => getInitialColumnState().visibility)
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => getInitialColumnState().order)
+
+  // Persist column state to localStorage
+  useEffect(() => {
+    if (!storageKey) return
+    const state: ColumnState = { visibility: columnVisibility, order: columnOrder }
+    localStorage.setItem(`lineup_col_${storageKey}`, JSON.stringify(state))
+  }, [columnVisibility, columnOrder, storageKey])
+
+  // Get visible columns in order
+  const visibleColumns = useMemo(() => {
+    // First get non-hideable columns (always show first)
+    const nonHideableColumns = columns.filter(col => col.enableHiding === false)
+    // Then get hideable columns in order, filtered by visibility
+    const hideableColumns = columnOrder
+      .map(id => columns.find(col => getColumnId(col) === id))
+      .filter((col): col is GridColumn<T> =>
+        col !== undefined &&
+        col.enableHiding !== false &&
+        columnVisibility[getColumnId(col)] !== false
+      )
+    return [...nonHideableColumns, ...hideableColumns]
+  }, [columns, columnOrder, columnVisibility])
+
   // Internal state management
   const [isGridEditMode, setIsGridEditMode] = useState(false)
   const [dirtyRows, setDirtyRows] = useState<Map<string, Partial<T>>>(new Map())
@@ -285,8 +538,11 @@ export function GridEditTable<T extends { id: string }>({
     [isGridEditMode, getCellValue, handleCellChange]
   )
 
-  // Memoize columns to prevent re-renders
-  const tableColumns = useMemo(() => columns, [columns])
+  // Check if any columns are hideable (to show column manager)
+  const hasHideableColumns = useMemo(() =>
+    columns.some(col => col.enableHiding !== false),
+    [columns]
+  )
 
   // Loading state
   if (isLoading) {
@@ -306,6 +562,15 @@ export function GridEditTable<T extends { id: string }>({
         </div>
         <div className="flex items-center gap-2">
           {toolbarActions}
+          {hasHideableColumns && storageKey && (
+            <ColumnManagerButton
+              columns={columns}
+              columnVisibility={columnVisibility}
+              columnOrder={columnOrder}
+              onVisibilityChange={setColumnVisibility}
+              onOrderChange={setColumnOrder}
+            />
+          )}
           {showGridEditToggle && (
             <Button
               variant={isGridEditMode ? 'default' : 'outline'}
@@ -336,12 +601,12 @@ export function GridEditTable<T extends { id: string }>({
           {emptyAction && <div className="mt-4">{emptyAction}</div>}
         </div>
       ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
+        <div className="relative overflow-auto border rounded-lg" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+          <table className="w-full caption-bottom text-sm table-fixed">
+            <thead className="sticky top-0 z-10 bg-background shadow-sm [&_tr]:border-b">
+              <tr className="border-b">
                 {enableSelection && (
-                  <TableHead style={{ width: '40px' }}>
+                  <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground" style={{ width: 40 }}>
                     <Checkbox
                       checked={isAllSelected}
                       ref={(el) => {
@@ -353,75 +618,88 @@ export function GridEditTable<T extends { id: string }>({
                       aria-label="Select all"
                       onClick={(e) => e.stopPropagation()}
                     />
-                  </TableHead>
+                  </th>
                 )}
-                {tableColumns.map((column) => (
-                  <TableHead
-                    key={String(column.key)}
-                    style={column.width ? { width: column.width } : undefined}
+                {visibleColumns.map((column) => (
+                  <th
+                    key={getColumnId(column)}
+                    style={column.size ? { width: column.size } : column.width ? { width: column.width } : undefined}
+                    className="h-10 px-3 text-left align-middle font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap"
                   >
                     {column.header}
-                  </TableHead>
+                  </th>
                 ))}
                 {onDelete && (
-                  <TableHead style={{ width: '50px' }}></TableHead>
+                  <th className="h-10 px-3" style={{ width: 50 }}></th>
                 )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={cn(
-                    'cursor-pointer hover:bg-muted/50 min-h-[44px]',
-                    isDirty(row.id) && 'border-l-2 border-l-primary bg-primary/5',
-                    rowSelection[row.id] && 'bg-muted/50'
-                  )}
-                  onClick={() => !isGridEditMode && onRowClick?.(row)}
-                  onDoubleClick={() => !isGridEditMode && onRowDoubleClick?.(row)}
-                >
-                  {enableSelection && (
-                    <TableCell>
-                      <Checkbox
-                        checked={!!rowSelection[row.id]}
-                        onCheckedChange={(checked) => handleSelectRow(row.id, !!checked)}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="Select row"
-                      />
-                    </TableCell>
-                  )}
-                  {tableColumns.map((column) => (
-                    <TableCell key={String(column.key)}>
-                      {renderCell(row, column)}
-                    </TableCell>
-                  ))}
-                  {onDelete && (
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-50">
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setDeleteRow(row)
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </tr>
+            </thead>
+            <tbody className="[&_tr:last-child]:border-0">
+              {data.map((row) => {
+                // Get sorted IDs for Save & Next context
+                const sortedIds = data.map((r) => r.id)
+                const clickContext: RowClickContext = {
+                  sortedIds,
+                  source: storageKey || 'unknown',
+                }
+                return (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      'border-b transition-colors cursor-pointer hover:bg-muted/50 min-h-[44px]',
+                      isDirty(row.id) && 'border-l-2 border-l-primary bg-primary/5',
+                      rowSelection[row.id] && 'bg-muted/50'
+                    )}
+                    onClick={() => !isGridEditMode && onRowClick?.(row, clickContext)}
+                    onDoubleClick={() => !isGridEditMode && onRowDoubleClick?.(row, clickContext)}
+                  >
+                    {enableSelection && (
+                      <td className="px-3 py-2 align-middle">
+                        <Checkbox
+                          checked={!!rowSelection[row.id]}
+                          onCheckedChange={(checked) => handleSelectRow(row.id, !!checked)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Select row"
+                        />
+                      </td>
+                    )}
+                    {visibleColumns.map((column) => (
+                      <td
+                        key={getColumnId(column)}
+                        className="px-3 py-2 align-middle"
+                        style={column.size ? { width: column.size } : column.width ? { width: column.width } : undefined}
+                      >
+                        {renderCell(row, column)}
+                      </td>
+                    ))}
+                    {onDelete && (
+                      <td className="px-3 py-2 align-middle">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="z-50">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDeleteRow(row)
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
