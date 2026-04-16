@@ -538,6 +538,7 @@ export interface DocumentWithRelations extends Document {
 
 // Discussion types
 export type DiscussionVisibility = 'internal' | 'external'
+export type DiscussionStatus = 'open' | 'closed'
 
 export interface Discussion {
   id: string
@@ -552,20 +553,27 @@ export interface Discussion {
   updated_at: string
   deleted_at?: string
   // New fields for polymorphic threaded discussions
-  title?: string
+  title?: string // Maps to "subject" in UI
+  subject?: string // Alias for title (API will normalize)
   topic_type?: EntityType | 'lead'
   topic_id?: string
   visibility?: DiscussionVisibility
   root_client_id?: string
-  participants?: string[]
+  participants?: string[] // participant_ids array
+  participant_ids?: string[] // Alias for participants
   display_id?: number
   discussion_id_display?: string
+  // Status and concluded tracking
+  status?: DiscussionStatus
+  concluded_by?: string
+  concluded_at?: string
 }
 
 export interface DiscussionWithAuthor extends Discussion {
   author?: UserProfile
   replies?: DiscussionWithAuthor[]
   reply_count?: number
+  concluded_by_user?: UserProfile // Profile of user who concluded
 }
 
 // Status Update types
@@ -808,8 +816,10 @@ export interface CreateDiscussionInput {
   entity_type: EntityType
   entity_id: string
   parent_discussion_id?: string
+  subject?: string // Title for top-level discussions
   content: string
   is_internal?: boolean
+  participant_ids?: string[] // Users participating in the discussion
 }
 
 export interface CreateStatusUpdateInput {

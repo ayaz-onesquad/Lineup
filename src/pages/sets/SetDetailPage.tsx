@@ -68,7 +68,8 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, StatusFilterBar } from '@/components/shared'
+import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
 
@@ -110,6 +111,9 @@ export function SetDetailPage() {
   const { data: set, isLoading } = useSet(setId!)
   const { data: requirements, isLoading: requirementsLoading } = useRequirementsBySet(setId!)
   const { data: pitches, isLoading: pitchesLoading } = usePitchesBySet(setId!)
+
+  // Status filter for pitches tab (default: show active only)
+  const { filter: pitchesFilter, setFilter: setPitchesFilter, filtered: filteredPitches, counts: pitchesCounts } = useStatusFilter(pitches)
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
   const { data: users } = useTenantUsers()
@@ -1077,7 +1081,12 @@ export function SetDetailPage() {
 
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
-          <div className="flex justify-end mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <StatusFilterBar
+              value={pitchesFilter}
+              onChange={setPitchesFilter}
+              counts={pitchesCounts}
+            />
             <Button onClick={() => openCreateModal('pitch', { set_id: setId })}>
               <Plus className="mr-2 h-4 w-4" />
               Create Pitch
@@ -1114,7 +1123,7 @@ export function SetDetailPage() {
                 </Table>
               </CardContent>
             </Card>
-          ) : !pitches || pitches.length === 0 ? (
+          ) : !filteredPitches || filteredPitches.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Presentation className="h-12 w-12 text-muted-foreground mb-4" />
@@ -1144,7 +1153,7 @@ export function SetDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pitches.map((pitch) => {
+                    {filteredPitches.map((pitch) => {
                       const status = computeDisplayStatus(pitch)
                       const priority = calcPriority(pitch.importance, pitch.urgency)
                       const keyStart = computeKeyStartDate(pitch)

@@ -67,7 +67,8 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId, StatusFilterBar } from '@/components/shared'
+import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
 import { DraggablePhasesTable } from '@/components/phases/DraggablePhasesTable'
@@ -107,6 +108,11 @@ export function ProjectDetailPage() {
   const { data: projectSets, isLoading: setsLoading } = useSetsByProject(projectId!)
   const { data: projectRequirements, isLoading: requirementsLoading } = useRequirementsByProject(projectId!)
   const { data: projectPitches, isLoading: pitchesLoading } = usePitchesByProject(projectId!)
+
+  // Status filters for child tabs (default: show active only)
+  const { filter: setsFilter, setFilter: setSetsFilter, filtered: filteredSets, counts: setsCounts } = useStatusFilter(projectSets)
+  const { filter: requirementsFilter, setFilter: setRequirementsFilter, filtered: filteredRequirements, counts: requirementsCounts } = useStatusFilter(projectRequirements)
+  const { filter: pitchesFilter, setFilter: setPitchesFilter, filtered: filteredPitches, counts: pitchesCounts } = useStatusFilter(projectPitches)
   const { updateProject, duplicateProject } = useProjectMutations()
   const { data: users } = useTenantUsers()
   const { data: clients } = useClients()
@@ -712,7 +718,12 @@ export function ProjectDetailPage() {
 
         {/* Sets Tab - Flat view of all sets using dedicated query */}
         <TabsContent value="sets" className="mt-6">
-          <div className="flex justify-end mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <StatusFilterBar
+              value={setsFilter}
+              onChange={setSetsFilter}
+              counts={setsCounts}
+            />
             <Button
               variant="outline"
               onClick={() => openCreateModal('set', {
@@ -755,7 +766,7 @@ export function ProjectDetailPage() {
                 </Table>
               </CardContent>
             </Card>
-          ) : !projectSets || projectSets.length === 0 ? (
+          ) : !filteredSets || filteredSets.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Layers className="h-12 w-12 text-muted-foreground mb-4" />
@@ -788,7 +799,7 @@ export function ProjectDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectSets.map((set) => {
+                    {filteredSets.map((set) => {
                       const status = computeDisplayStatus(set)
                       const priority = calcPriority(set.importance, set.urgency)
                       const keyStart = computeKeyStartDate(set)
@@ -1055,7 +1066,12 @@ export function ProjectDetailPage() {
 
         {/* Requirements Tab */}
         <TabsContent value="requirements" className="mt-6">
-          <div className="flex justify-end mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <StatusFilterBar
+              value={requirementsFilter}
+              onChange={setRequirementsFilter}
+              counts={requirementsCounts}
+            />
             <Button
               variant="outline"
               onClick={() => openCreateModal('requirement', {
@@ -1098,7 +1114,7 @@ export function ProjectDetailPage() {
                 </Table>
               </CardContent>
             </Card>
-          ) : !projectRequirements || projectRequirements.length === 0 ? (
+          ) : !filteredRequirements || filteredRequirements.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
@@ -1131,7 +1147,7 @@ export function ProjectDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectRequirements.map((req) => {
+                    {filteredRequirements.map((req) => {
                       const status = computeRequirementStatus(req)
                       const priority = calcPriority(req.importance, req.urgency)
                       const keyStart = computeRequirementKeyStartDate(req)
@@ -1205,7 +1221,12 @@ export function ProjectDetailPage() {
 
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
-          <div className="flex justify-end mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <StatusFilterBar
+              value={pitchesFilter}
+              onChange={setPitchesFilter}
+              counts={pitchesCounts}
+            />
             <Button onClick={() => openCreateModal('pitch', { project_id: projectId })}>
               <Plus className="mr-2 h-4 w-4" />
               Create Pitch
@@ -1242,7 +1263,7 @@ export function ProjectDetailPage() {
                 </Table>
               </CardContent>
             </Card>
-          ) : !projectPitches || projectPitches.length === 0 ? (
+          ) : !filteredPitches || filteredPitches.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Presentation className="h-12 w-12 text-muted-foreground mb-4" />
@@ -1269,7 +1290,7 @@ export function ProjectDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectPitches.map((pitch) => {
+                    {filteredPitches.map((pitch) => {
                       const status = computeDisplayStatus(pitch)
                       const priority = calcPriority(pitch.importance, pitch.urgency)
                       const keyStart = computeKeyStartDate(pitch)

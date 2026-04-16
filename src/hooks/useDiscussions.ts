@@ -1,109 +1,85 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/services/supabase'
 import { discussionsApi } from '@/services/api'
 import { useAuthStore, useTenantStore } from '@/stores'
-import type { CreateDiscussionInput, EntityType } from '@/types/database'
+import { useToast } from '@/hooks/use-toast'
+import type { CreateDiscussionInput, EntityType, DiscussionStatus } from '@/types/database'
 
-// Fetch all discussions for the tenant with optional filters
-export function useAllDiscussions(
-  tenantId: string | undefined,
-  options?: {
-    entityType?: EntityType
-    visibility?: 'internal' | 'external' | 'all'
-  }
-) {
+/**
+ * Fetch all top-level discussions for the current tenant.
+ * Auto-reads tenant from store - no arguments needed.
+ */
+export function useAllDiscussions() {
+  // Use selector to get stable reference, avoiding re-renders
+  const currentTenant = useTenantStore(s => s.currentTenant)
+
   return useQuery({
-    queryKey: ['discussions', 'all', tenantId, options?.entityType, options?.visibility],
-    queryFn: async () => {
-      let query = supabase
-        .from('discussions')
-        .select(`
-          id, entity_type, entity_id, content, title, is_internal, is_resolved,
-          created_at, updated_at, author_id, visibility
-        `)
-        .eq('tenant_id', tenantId!)
-        .is('deleted_at', null)
-        .is('parent_discussion_id', null)
-        .order('created_at', { ascending: false })
-
-      if (options?.entityType) {
-        query = query.eq('entity_type', options.entityType)
-      }
-      if (options?.visibility === 'internal') {
-        query = query.eq('is_internal', true)
-      } else if (options?.visibility === 'external') {
-        query = query.eq('is_internal', false)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-      if (!data || data.length === 0) return []
-
-      // Get author profiles
-      const authorIds = [...new Set(data.map(d => d.author_id))]
-      const { data: profiles } = await supabase
-        .from('user_profiles')
-        .select('user_id, full_name, avatar_url')
-        .in('user_id', authorIds)
-
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || [])
-
-      return data.map(d => ({
-        ...d,
-        author: profileMap.get(d.author_id) || null,
-      }))
-    },
-    enabled: !!tenantId,
+    queryKey: ['discussions', 'all', currentTenant?.id],
+    queryFn: () => discussionsApi.getAll(currentTenant!.id),
+    enabled: !!currentTenant?.id,
   })
 }
 
-// Fetch open discussions authored by the current user
-export function useMyOpenDiscussions(
-  userId: string | undefined,
-  tenantId: string | undefined,
-  limit: number = 10
-) {
-  return useQuery({
-    queryKey: ['discussions', 'mine', userId, tenantId, limit],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('discussions')
-        .select(`
-          id, entity_type, entity_id, content, title, is_internal, is_resolved, created_at,
-          author_id
-        `)
-        .eq('tenant_id', tenantId!)
-        .eq('author_id', userId!)
-        .eq('is_resolved', false)
-        .is('deleted_at', null)
-        .is('parent_discussion_id', null)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (error) throw error
-      return data || []
-    },
-    enabled: !!userId && !!tenantId,
-  })
-}
-
+/**
+ * Fetch discussions for a specific entity with optional status filter.
+ * Pass undefined for statusFilter to get all discussions.
+ */
 export function useEntityDiscussions(
   entityType: EntityType | undefined,
   entityId: string | undefined,
-  includeInternal: boolean = true
+  statusFilter: DiscussionStatus | 'all' = 'all'
 ) {
+  // Use selector to get stable reference, avoiding re-renders
+  const currentTenant = useTenantStore(s => s.currentTenant)
+
   return useQuery({
-    queryKey: ['discussions', entityType, entityId, includeInternal],
+    queryKey: ['discussions', entityType, entityId, statusFilter, currentTenant?.id],
     queryFn: () =>
-      discussionsApi.getByEntity(entityType!, entityId!, includeInternal),
-    enabled: !!entityType && !!entityId,
+      discussionsApi.getByEntity(
+        currentTenant!.id,
+        entityType!,
+        entityId!,
+        statusFilter
+      ),
+    enabled: !!currentTenant?.id && !!entityType && !!entityId,
   })
 }
 
+/**
+ * Fetch a single discussion by ID with all replies.
+ */
+export function useDiscussion(discussionId: string | undefined) {
+  return useQuery({
+    queryKey: ['discussions', 'detail', discussionId],
+    queryFn: () => discussionsApi.getById(discussionId!),
+    enabled: !!discussionId,
+  })
+}
+
+/**
+ * Fetch my open discussions (where current user is a participant).
+ * Auto-reads user and tenant from stores - no arguments needed.
+ */
+export function useMyOpenDiscussions(limit: number = 20) {
+  // Use selectors to get stable values, avoiding re-renders
+  const currentTenant = useTenantStore(s => s.currentTenant)
+  const user = useAuthStore(s => s.user)
+
+  return useQuery({
+    queryKey: ['discussions', 'mine', user?.id, currentTenant?.id, limit],
+    queryFn: () => discussionsApi.getMyOpen(currentTenant!.id, user!.id, limit),
+    enabled: !!currentTenant?.id && !!user?.id,
+  })
+}
+
+/**
+ * All discussion mutations (create, reply, update, delete, conclude).
+ */
 export function useDiscussionMutations() {
   const queryClient = useQueryClient()
-  const { user } = useAuthStore()
-  const { currentTenant } = useTenantStore()
+  // Use selectors to get stable primitive values, avoiding infinite re-renders
+  const user = useAuthStore(s => s.user)
+  const currentTenant = useTenantStore(s => s.currentTenant)
+  const { toast } = useToast()
 
   const createDiscussion = useMutation({
     mutationFn: async (input: CreateDiscussionInput) => {
@@ -115,6 +91,23 @@ export function useDiscussionMutations() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: ['discussions', variables.entity_type, variables.entity_id],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['discussions', 'all'],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['discussions', 'mine'],
+      })
+      toast({
+        title: 'Discussion created',
+        description: 'Your discussion has been posted.',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error creating discussion',
+        description: error.message,
+        variant: 'destructive',
       })
     },
   })
@@ -142,6 +135,16 @@ export function useDiscussionMutations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discussions'] })
+      toast({
+        title: 'Reply posted',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error posting reply',
+        description: error.message,
+        variant: 'destructive',
+      })
     },
   })
 
@@ -150,6 +153,16 @@ export function useDiscussionMutations() {
       discussionsApi.update(id, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discussions'] })
+      toast({
+        title: 'Discussion updated',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error updating discussion',
+        description: error.message,
+        variant: 'destructive',
+      })
     },
   })
 
@@ -157,6 +170,109 @@ export function useDiscussionMutations() {
     mutationFn: discussionsApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discussions'] })
+      toast({
+        title: 'Discussion deleted',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error deleting discussion',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const concludeDiscussion = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      if (!user?.id) {
+        throw new Error('User not authenticated')
+      }
+      return discussionsApi.conclude(id, user.id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discussions'] })
+      toast({
+        title: 'Discussion closed',
+        description: 'The discussion has been marked as concluded.',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error closing discussion',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const reopenDiscussion = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      return discussionsApi.reopen(id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discussions'] })
+      toast({
+        title: 'Discussion reopened',
+        description: 'The discussion is now open for replies.',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error reopening discussion',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const addParticipant = useMutation({
+    mutationFn: async ({
+      discussionId,
+      userId,
+    }: {
+      discussionId: string
+      userId: string
+    }) => {
+      return discussionsApi.addParticipant(discussionId, userId)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discussions'] })
+      toast({
+        title: 'Participant added',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error adding participant',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const removeParticipant = useMutation({
+    mutationFn: async ({
+      discussionId,
+      userId,
+    }: {
+      discussionId: string
+      userId: string
+    }) => {
+      return discussionsApi.removeParticipant(discussionId, userId)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discussions'] })
+      toast({
+        title: 'Participant removed',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error removing participant',
+        description: error.message,
+        variant: 'destructive',
+      })
     },
   })
 
@@ -165,5 +281,9 @@ export function useDiscussionMutations() {
     createReply,
     updateDiscussion,
     deleteDiscussion,
+    concludeDiscussion,
+    reopenDiscussion,
+    addParticipant,
+    removeParticipant,
   }
 }

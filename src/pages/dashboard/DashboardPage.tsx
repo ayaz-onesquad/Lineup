@@ -5,6 +5,7 @@ import {
   useMyWorkItems,
   useMyOpenDiscussions,
 } from '@/hooks'
+import { DiscussionView } from '@/components/shared/DiscussionView'
 import { AssignedByMeWidget } from '@/components/dashboard/AssignedByMeWidget'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -643,18 +644,17 @@ function RequirementRow({
 
 // My Open Discussions Widget
 function MyOpenDiscussionsWidget() {
-  const { user } = useAuthStore()
-  const { currentTenant } = useTenantStore()
-  const navigate = useNavigate()
-
-  const { data: discussions, isLoading } = useMyOpenDiscussions(user?.id, currentTenant?.id, 10)
+  const { data: discussions, isLoading } = useMyOpenDiscussions(10)
+  const [selectedDiscussionId, setSelectedDiscussionId] = useState<string | null>(null)
 
   // Collect unique entity IDs by type for batch name resolution
   const entityIdsByType = useMemo(() => {
     const map: Record<string, Set<string>> = {}
     discussions?.forEach(d => {
-      if (!map[d.entity_type]) map[d.entity_type] = new Set()
-      map[d.entity_type].add(d.entity_id)
+      if (d.entity_type && d.entity_id) {
+        if (!map[d.entity_type]) map[d.entity_type] = new Set()
+        map[d.entity_type].add(d.entity_id)
+      }
     })
     return map
   }, [discussions])
@@ -702,78 +702,109 @@ function MyOpenDiscussionsWidget() {
   })
 
   const handleRowClick = (discussion: NonNullable<typeof discussions>[0]) => {
-    const basePath = ENTITY_URL_MAP[discussion.entity_type as EntityType] || '/clients'
-    navigate(`${basePath}/${discussion.entity_id}?tab=discussions`)
+    setSelectedDiscussionId(discussion.id)
   }
 
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">My Open Discussions</CardTitle>
-          </div>
-          <Link
-            to="/discussions"
-            className="text-xs text-muted-foreground hover:text-primary hover:underline"
-          >
-            View all
-          </Link>
-        </div>
-        <CardDescription>Unresolved discussions you started</CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <div className="space-y-2 p-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : !discussions?.length ? (
-          <div className="text-center text-muted-foreground py-8 px-4">
-            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No open discussions</p>
-            <p className="text-xs mt-1">Start a discussion from any entity's detail page</p>
-          </div>
-        ) : (
-          <ScrollArea className="h-[280px]">
-            <div className="divide-y">
-              {discussions.map((discussion) => {
-                const config = ENTITY_TYPE_CONFIG[discussion.entity_type as EntityType]
-                const Icon = config?.icon || MessageSquare
-                const entityName = entityNames?.get(discussion.entity_id) || discussion.entity_id.slice(0, 8)
+  // Get parent record info for the selected discussion
+  const selectedDiscussion = useMemo(() => {
+    if (!selectedDiscussionId || !discussions) return null
+    return discussions.find(d => d.id === selectedDiscussionId) || null
+  }, [selectedDiscussionId, discussions])
 
-                return (
-                  <div
-                    key={discussion.id}
-                    className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => handleRowClick(discussion)}
-                  >
-                    <Badge
-                      variant="secondary"
-                      className={cn('text-xs gap-1 shrink-0', config?.color)}
-                    >
-                      <Icon className="h-3 w-3" />
-                    </Badge>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{entityName}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {discussion.content.slice(0, 60)}
-                        {discussion.content.length > 60 && '...'}
-                      </p>
-                    </div>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatDistanceToNow(new Date(discussion.created_at), { addSuffix: true })}
-                    </span>
-                  </div>
-                )
-              })}
+  const parentRecord = useMemo(() => {
+    if (!selectedDiscussion?.entity_type || !selectedDiscussion?.entity_id) return undefined
+    const entityType = selectedDiscussion.entity_type as EntityType
+    const entityId = selectedDiscussion.entity_id
+    const basePath = ENTITY_URL_MAP[entityType] || '/clients'
+    const entityName = entityNames?.get(entityId) || entityId.slice(0, 8) + '...'
+    return {
+      entityType,
+      entityId,
+      entityName,
+      entityPath: `${basePath}/${entityId}`,
+    }
+  }, [selectedDiscussion, entityNames])
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">My Open Discussions</CardTitle>
             </div>
-          </ScrollArea>
-        )}
-      </CardContent>
-    </Card>
+            <Link
+              to="/discussions"
+              className="text-xs text-muted-foreground hover:text-primary hover:underline"
+            >
+              View all
+            </Link>
+          </div>
+          <CardDescription>Unresolved discussions you started</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="space-y-2 p-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : !discussions?.length ? (
+            <div className="text-center text-muted-foreground py-8 px-4">
+              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No open discussions</p>
+              <p className="text-xs mt-1">Start a discussion from any entity's detail page</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-[280px]">
+              <div className="divide-y">
+                {discussions.map((discussion) => {
+                  const config = discussion.entity_type ? ENTITY_TYPE_CONFIG[discussion.entity_type as EntityType] : undefined
+                  const Icon = config?.icon || MessageSquare
+                  const entityName = discussion.entity_id ? (entityNames?.get(discussion.entity_id) || discussion.entity_id.slice(0, 8)) : 'Unknown'
+
+                  return (
+                    <div
+                      key={discussion.id}
+                      className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => handleRowClick(discussion)}
+                    >
+                      <Badge
+                        variant="secondary"
+                        className={cn('text-xs gap-1 shrink-0', config?.color)}
+                      >
+                        <Icon className="h-3 w-3" />
+                      </Badge>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{entityName}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {discussion.content.slice(0, 60)}
+                          {discussion.content.length > 60 && '...'}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {formatDistanceToNow(new Date(discussion.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Discussion Side Panel */}
+      <DiscussionView
+        discussionId={selectedDiscussionId}
+        open={!!selectedDiscussionId}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDiscussionId(null)
+        }}
+        parentRecord={parentRecord}
+      />
+    </>
   )
 }
 

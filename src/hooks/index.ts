@@ -83,6 +83,7 @@ export {
 // Discussions hooks
 export {
   useEntityDiscussions,
+  useDiscussion,
   useDiscussionMutations,
   useAllDiscussions,
   useMyOpenDiscussions,
@@ -144,3 +145,6 @@ export {
   useAutomationRuns,
   useLeadAutomationMutations,
 } from './useLeadAutomations'
+
+// Status filter hook for child tab grids
+export { useStatusFilter, type StatusFilterValue } from './useStatusFilter'

@@ -10,14 +10,13 @@ import type { CreateTenantInput, Tenant } from '@/types/database'
  */
 export function useTenant() {
   const queryClient = useQueryClient()
-  const { user } = useAuthStore()
+  // Use selectors to get stable values, avoiding re-renders
+  const user = useAuthStore(s => s.user)
   const userId = user?.id
-  const {
-    currentTenant,
-    setCurrentTenant,
-    setTenants,
-    switchTenant,
-  } = useTenantStore()
+  const currentTenant = useTenantStore(s => s.currentTenant)
+  const setCurrentTenant = useTenantStore(s => s.setCurrentTenant)
+  const setTenants = useTenantStore(s => s.setTenants)
+  const switchTenant = useTenantStore(s => s.switchTenant)
 
   // Fetch user's tenants
   const tenantsQuery = useQuery({
@@ -121,7 +120,8 @@ export function useTenant() {
 }
 
 export function useTenantUsers(tenantId?: string) {
-  const { currentTenant } = useTenantStore()
+  // Use selector to get stable reference, avoiding re-renders
+  const currentTenant = useTenantStore(s => s.currentTenant)
   const id = tenantId || currentTenant?.id
 
   return useQuery({

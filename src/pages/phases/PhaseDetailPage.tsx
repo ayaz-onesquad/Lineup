@@ -51,7 +51,8 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, SaveSplitButton, getNextRecordId } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, SaveSplitButton, getNextRecordId, StatusFilterBar } from '@/components/shared'
+import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
 
@@ -87,6 +88,9 @@ export function PhaseDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: phase, isLoading } = usePhaseById(phaseId!)
   const { data: sets, isLoading: setsLoading } = useSetsByPhase(phaseId!)
+
+  // Status filter for sets tab (default: show active only)
+  const { filter: setsFilter, setFilter: setSetsFilter, filtered: filteredSets, counts: setsCounts } = useStatusFilter(sets)
   const { data: users } = useTenantUsers()
   const { data: allClients } = useClients()
   const { data: allProjects } = useProjects()
@@ -823,7 +827,12 @@ export function PhaseDetailPage() {
 
         {/* Sets Tab */}
         <TabsContent value="sets" className="mt-6">
-          <div className="flex justify-end mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <StatusFilterBar
+              value={setsFilter}
+              onChange={setSetsFilter}
+              counts={setsCounts}
+            />
             <Button
               variant="outline"
               onClick={() => openCreateModal('set', {
@@ -839,7 +848,7 @@ export function PhaseDetailPage() {
 
           {setsLoading ? (
             <Skeleton className="h-64 w-full" />
-          ) : !sets || sets.length === 0 ? (
+          ) : !filteredSets || filteredSets.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Layers className="h-12 w-12 text-muted-foreground mb-4" />
@@ -872,7 +881,7 @@ export function PhaseDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sets.map((set) => {
+                    {filteredSets.map((set) => {
                       const status = computeDisplayStatus(set)
                       const priority = calcPriority(set.importance, set.urgency)
                       const keyStart = computeKeyStartDate(set)

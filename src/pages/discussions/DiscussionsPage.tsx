@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
-import { useTenantStore } from '@/stores'
 import { useAllDiscussions } from '@/hooks'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -10,6 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DiscussionView } from '@/components/shared/DiscussionView'
 import {
   Table,
   TableBody,
@@ -29,20 +30,25 @@ import {
   Presentation,
   CheckSquare,
   Target,
+  MessageCircle,
+  CheckCircle2,
+  Lock,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { getInitials, cn } from '@/lib/utils'
-import type { EntityType } from '@/types/database'
+import type { EntityType, DiscussionStatus } from '@/types/database'
 
-// Entity type config for badges and icons (partial - only for discussion-supported entities)
-const ENTITY_TYPE_CONFIG: Partial<Record<EntityType, { label: string; icon: React.ElementType; color: string }>> = {
-  client: { label: 'Client', icon: Users, color: 'bg-blue-100 text-blue-700' },
-  project: { label: 'Project', icon: FolderKanban, color: 'bg-purple-100 text-purple-700' },
-  phase: { label: 'Phase', icon: ListOrdered, color: 'bg-indigo-100 text-indigo-700' },
-  set: { label: 'Set', icon: Layers, color: 'bg-pink-100 text-pink-700' },
-  pitch: { label: 'Pitch', icon: Presentation, color: 'bg-cyan-100 text-cyan-700' },
-  requirement: { label: 'Requirement', icon: CheckSquare, color: 'bg-orange-100 text-orange-700' },
-  lead: { label: 'Lead', icon: Target, color: 'bg-green-100 text-green-700' },
+// Entity type config for badges and icons
+const ENTITY_TYPE_CONFIG: Partial<
+  Record<EntityType, { label: string; icon: React.ElementType; color: string }>
+> = {
+  client: { label: 'Client', icon: Users, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  project: { label: 'Project', icon: FolderKanban, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+  phase: { label: 'Phase', icon: ListOrdered, color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  set: { label: 'Set', icon: Layers, color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' },
+  pitch: { label: 'Pitch', icon: Presentation, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
+  requirement: { label: 'Requirement', icon: CheckSquare, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+  lead: { label: 'Lead', icon: Target, color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
 }
 
 // Map entity type to URL path
@@ -58,36 +64,41 @@ const ENTITY_URL_MAP: Partial<Record<EntityType, string>> = {
 
 export function DiscussionsPage() {
   const navigate = useNavigate()
-  const { currentTenant } = useTenantStore()
-
   const [search, setSearch] = useState('')
   const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | ''>('')
-  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'internal' | 'external'>('all')
+  const [statusFilter, setStatusFilter] = useState<DiscussionStatus | 'all'>('open')
+  const [selectedDiscussionId, setSelectedDiscussionId] = useState<string | null>(null)
 
-  // Fetch all discussions using the new hook
-  const { data: discussions, isLoading } = useAllDiscussions(
-    currentTenant?.id,
-    {
-      entityType: entityTypeFilter || undefined,
-      visibility: visibilityFilter === 'all' ? undefined : visibilityFilter,
-    }
-  )
+  // Fetch all discussions using the fixed hook (no arguments needed)
+  const { data: allDiscussions, isLoading } = useAllDiscussions()
+
+  // Filter discussions by status
+  const discussions = useMemo(() => {
+    if (!allDiscussions) return []
+    if (statusFilter === 'all') return allDiscussions
+    return allDiscussions.filter(d => d.status === statusFilter)
+  }, [allDiscussions, statusFilter])
 
   // Collect unique entity IDs by type for batch name resolution
   const entityIdsByType = useMemo(() => {
     const map: Record<string, Set<string>> = {}
     discussions?.forEach(d => {
-      if (!map[d.entity_type]) map[d.entity_type] = new Set()
-      map[d.entity_type].add(d.entity_id)
+      if (d.entity_type) {
+        if (!map[d.entity_type]) map[d.entity_type] = new Set()
+        map[d.entity_type].add(d.entity_id!)
+      }
     })
     return map
   }, [discussions])
 
   // Batch fetch entity names
   const { data: entityNames } = useQuery({
-    queryKey: ['entity-names', Object.fromEntries(
-      Object.entries(entityIdsByType).map(([k, v]) => [k, Array.from(v)])
-    )],
+    queryKey: [
+      'entity-names',
+      Object.fromEntries(
+        Object.entries(entityIdsByType).map(([k, v]) => [k, Array.from(v)])
+      ),
+    ],
     queryFn: async () => {
       const nameMap = new Map<string, string>()
 
@@ -112,7 +123,7 @@ export function DiscussionsPage() {
       // Fetch phases
       if (entityIdsByType.phase?.size) {
         const { data } = await supabase
-          .from('phases')
+          .from('project_phases')
           .select('id, name')
           .in('id', Array.from(entityIdsByType.phase))
         data?.forEach(p => nameMap.set(p.id, p.name))
@@ -149,9 +160,9 @@ export function DiscussionsPage() {
       if (entityIdsByType.lead?.size) {
         const { data } = await supabase
           .from('leads')
-          .select('id, company_name')
+          .select('id, lead_name')
           .in('id', Array.from(entityIdsByType.lead))
-        data?.forEach(l => nameMap.set(l.id, l.company_name || 'Untitled'))
+        data?.forEach(l => nameMap.set(l.id, l.lead_name || 'Untitled'))
       }
 
       return nameMap
@@ -168,47 +179,112 @@ export function DiscussionsPage() {
     { value: 'set', label: 'Set' },
     { value: 'pitch', label: 'Pitch' },
     { value: 'requirement', label: 'Requirement' },
+    { value: 'lead', label: 'Lead' },
   ]
 
-  // Filter discussions by search
+  // Filter discussions by search and entity type
   const filteredDiscussions = useMemo(() => {
     if (!discussions) return []
-    if (!search) return discussions
 
-    const searchLower = search.toLowerCase()
     return discussions.filter(d => {
-      const entityName = entityNames?.get(d.entity_id) || ''
-      return (
-        d.title?.toLowerCase().includes(searchLower) ||
-        d.content.toLowerCase().includes(searchLower) ||
-        d.author?.full_name?.toLowerCase().includes(searchLower) ||
-        entityName.toLowerCase().includes(searchLower)
-      )
-    })
-  }, [discussions, search, entityNames])
+      // Entity type filter
+      if (entityTypeFilter && d.entity_type !== entityTypeFilter) {
+        return false
+      }
 
-  // Navigate to entity detail page with discussions tab
-  const handleRowClick = (discussion: typeof filteredDiscussions[0]) => {
+      // Search filter
+      if (search) {
+        const searchLower = search.toLowerCase()
+        const entityName = entityNames?.get(d.entity_id!) || ''
+        const subject = d.subject || d.title || ''
+        return (
+          subject.toLowerCase().includes(searchLower) ||
+          d.content.toLowerCase().includes(searchLower) ||
+          d.author?.full_name?.toLowerCase().includes(searchLower) ||
+          entityName.toLowerCase().includes(searchLower)
+        )
+      }
+
+      return true
+    })
+  }, [discussions, search, entityTypeFilter, entityNames])
+
+  // Count by status for tab badges
+  const statusCounts = useMemo(() => {
+    if (!allDiscussions) return { open: 0, closed: 0 }
+    return {
+      open: allDiscussions.filter(d => d.status !== 'closed').length,
+      closed: allDiscussions.filter(d => d.status === 'closed').length,
+    }
+  }, [allDiscussions])
+
+  // Handle row click - open discussion view
+  const handleRowClick = (discussionId: string) => {
+    setSelectedDiscussionId(discussionId)
+  }
+
+  // Get parent record for the selected discussion
+  const selectedDiscussion = useMemo(() => {
+    return filteredDiscussions?.find(d => d.id === selectedDiscussionId)
+  }, [filteredDiscussions, selectedDiscussionId])
+
+  const selectedParentRecord = useMemo(() => {
+    if (!selectedDiscussion?.entity_type || !selectedDiscussion?.entity_id) return undefined
+    const entityType = selectedDiscussion.entity_type as EntityType
+    const basePath = ENTITY_URL_MAP[entityType] || '/clients'
+    const entityName = entityNames?.get(selectedDiscussion.entity_id) || selectedDiscussion.entity_id.slice(0, 8)
+    return {
+      entityType: entityType,
+      entityId: selectedDiscussion.entity_id,
+      entityName: entityName,
+      entityPath: `${basePath}/${selectedDiscussion.entity_id}`,
+    }
+  }, [selectedDiscussion, entityNames])
+
+  // Handle double-click - navigate to entity
+  const handleRowDoubleClick = (discussion: (typeof filteredDiscussions)[0]) => {
+    if (!discussion.entity_type || !discussion.entity_id) return
     const basePath = ENTITY_URL_MAP[discussion.entity_type as EntityType] || '/clients'
     navigate(`${basePath}/${discussion.entity_id}?tab=discussions`)
   }
-
-  // Visibility filter options
-  const visibilityOptions = [
-    { value: 'all', label: 'All' },
-    { value: 'internal', label: 'Internal Only' },
-    { value: 'external', label: 'External Only' },
-  ]
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Discussions</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          Discussions
+        </h1>
         <p className="text-sm text-muted-foreground">
           View and participate in all conversations across your workspace
         </p>
       </div>
+
+      {/* Status Tabs */}
+      <Tabs
+        value={statusFilter}
+        onValueChange={v => setStatusFilter(v as DiscussionStatus | 'all')}
+      >
+        <TabsList>
+          <TabsTrigger value="open">
+            Active
+            {statusCounts.open > 0 && (
+              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                {statusCounts.open}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="closed">
+            Closed
+            {statusCounts.closed > 0 && (
+              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                {statusCounts.closed}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
@@ -217,7 +293,7 @@ export function DiscussionsPage() {
           <Input
             placeholder="Search discussions..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={e => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -225,21 +301,11 @@ export function DiscussionsPage() {
           <SearchableSelect
             options={entityTypeOptions}
             value={entityTypeFilter}
-            onValueChange={(v) => setEntityTypeFilter((v || '') as EntityType | '')}
+            onValueChange={v => setEntityTypeFilter((v || '') as EntityType | '')}
             placeholder="Entity Type"
             searchPlaceholder="Search types..."
             emptyMessage="No types found."
             clearable
-          />
-        </div>
-        <div className="w-[150px]">
-          <SearchableSelect
-            options={visibilityOptions}
-            value={visibilityFilter}
-            onValueChange={(v) => setVisibilityFilter((v || 'all') as 'all' | 'internal' | 'external')}
-            placeholder="Visibility"
-            searchPlaceholder="Filter..."
-            emptyMessage="No options."
           />
         </div>
       </div>
@@ -247,7 +313,7 @@ export function DiscussionsPage() {
       {/* Discussions List */}
       {isLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
+          {[1, 2, 3, 4, 5].map(i => (
             <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
@@ -268,24 +334,34 @@ export function DiscussionsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[100px]">Type</TableHead>
-                  <TableHead>Entity</TableHead>
+                  <TableHead className="w-[180px]">Entity</TableHead>
                   <TableHead className="min-w-[300px]">Discussion</TableHead>
-                  <TableHead className="w-[100px]">Visibility</TableHead>
+                  <TableHead className="w-[80px]">Replies</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
                   <TableHead className="w-[120px]">Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDiscussions.map((discussion) => {
+                {filteredDiscussions.map(discussion => {
                   const entityType = discussion.entity_type as EntityType
                   const config = ENTITY_TYPE_CONFIG[entityType]
                   const Icon = config?.icon || MessageSquare
-                  const entityName = entityNames?.get(discussion.entity_id) || discussion.entity_id.slice(0, 8)
+                  const entityName =
+                    entityNames?.get(discussion.entity_id!) ||
+                    discussion.entity_id?.slice(0, 8) ||
+                    'Unknown'
+                  const subject =
+                    discussion.subject ||
+                    discussion.title ||
+                    discussion.content.slice(0, 60)
+                  const isClosed = discussion.status === 'closed'
 
                   return (
                     <TableRow
                       key={discussion.id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleRowClick(discussion)}
+                      onClick={() => handleRowClick(discussion.id)}
+                      onDoubleClick={() => handleRowDoubleClick(discussion)}
                     >
                       <TableCell>
                         <Badge
@@ -297,9 +373,7 @@ export function DiscussionsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium text-sm hover:underline">
-                          {entityName}
-                        </span>
+                        <span className="font-medium text-sm">{entityName}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-start gap-3">
@@ -310,9 +384,15 @@ export function DiscussionsPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm text-muted-foreground truncate max-w-[300px]">
-                              {discussion.content.slice(0, 80)}
-                              {discussion.content.length > 80 && '...'}
+                            <p
+                              className={cn(
+                                'text-sm font-medium truncate max-w-[300px]',
+                                isClosed && 'text-muted-foreground'
+                              )}
+                            >
+                              {subject.length > 60
+                                ? subject.slice(0, 60) + '...'
+                                : subject}
                             </p>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {discussion.author?.full_name}
@@ -321,12 +401,29 @@ export function DiscussionsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={discussion.is_internal ? 'secondary' : 'outline'}
-                          className="text-xs"
-                        >
-                          {discussion.is_internal ? 'Internal' : 'External'}
-                        </Badge>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <MessageCircle className="h-3 w-3" />
+                          <span className="text-xs">
+                            {discussion.reply_count || 0}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isClosed ? (
+                          <Badge variant="secondary" className="text-xs gap-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Closed
+                          </Badge>
+                        ) : discussion.is_internal ? (
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <Lock className="h-3 w-3" />
+                            Internal
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="text-xs">
+                            Open
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-muted-foreground text-xs">
@@ -346,6 +443,16 @@ export function DiscussionsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Discussion View Sheet */}
+      <DiscussionView
+        discussionId={selectedDiscussionId}
+        open={!!selectedDiscussionId}
+        onOpenChange={open => {
+          if (!open) setSelectedDiscussionId(null)
+        }}
+        parentRecord={selectedParentRecord}
+      />
     </div>
   )
 }
