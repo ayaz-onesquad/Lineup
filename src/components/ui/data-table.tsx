@@ -3,7 +3,6 @@ import {
   type ColumnDef,
   type SortingState,
   type Column,
-  type Row,
   type Table as TanStackTable,
   flexRender,
   getCoreRowModel,
