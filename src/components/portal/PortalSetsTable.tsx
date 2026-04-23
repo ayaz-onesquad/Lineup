@@ -18,6 +18,7 @@ export function PortalSetsTable({ sets }: PortalSetsTableProps) {
     {
       accessorKey: 'display_id',
       header: 'ID',
+      meta: { priority: 'tertiary', mobileLabel: 'Set ID' },
       cell: ({ row }) => (
         <span className="font-mono text-sm">SET-{String(row.original.display_id).padStart(4, '0')}</span>
       ),
@@ -25,6 +26,7 @@ export function PortalSetsTable({ sets }: PortalSetsTableProps) {
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { priority: 'primary' }, // Will be card header on mobile
       cell: ({ row }) => (
         <div className="max-w-md">
           <div className="font-medium">{row.original.name}</div>
@@ -39,6 +41,7 @@ export function PortalSetsTable({ sets }: PortalSetsTableProps) {
     {
       accessorKey: 'status',
       header: 'Status',
+      meta: { priority: 'secondary' },
       cell: ({ row }) => (
         <Badge className={getStatusColor(row.original.status)}>
           {row.original.status.replace('_', ' ')}
@@ -48,6 +51,7 @@ export function PortalSetsTable({ sets }: PortalSetsTableProps) {
     {
       accessorKey: 'expected_end_date',
       header: 'Expected Completion',
+      meta: { priority: 'secondary', mobileLabel: 'Due' },
       cell: ({ row }) =>
         row.original.expected_end_date
           ? formatDate(row.original.expected_end_date)
@@ -56,6 +60,7 @@ export function PortalSetsTable({ sets }: PortalSetsTableProps) {
     {
       id: 'progress',
       header: 'Progress',
+      meta: { priority: 'secondary' },
       cell: ({ row }) => (
         <div className="flex items-center gap-3 min-w-[120px]">
           <Progress value={row.original.completion_percentage || 0} className="h-2 flex-1" />
