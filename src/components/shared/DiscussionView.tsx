@@ -85,7 +85,9 @@ export function DiscussionView({
 
   const isClosed = discussion?.status === 'closed'
   const isAuthor = user?.id === discussion?.author_id
-  const canClose = isAuthor // Only author can close for now
+  // Any participant can close/reopen a discussion
+  const isParticipant = user?.id && discussion?.participants?.includes(user.id)
+  const canClose = isAuthor || isParticipant
 
   // Build all messages (top-level + replies) in chronological order
   const allMessages = useMemo(() => {

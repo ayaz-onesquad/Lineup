@@ -223,7 +223,15 @@ export function PasswordsPage() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <ExternalLink className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{new URL(password.url).hostname}</span>
+                          <span className="truncate">
+                            {(() => {
+                              try {
+                                return new URL(password.url).hostname
+                              } catch {
+                                return password.url
+                              }
+                            })()}
+                          </span>
                         </a>
                       ) : (
                         <span className="text-muted-foreground">—</span>

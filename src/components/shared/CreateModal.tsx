@@ -25,6 +25,7 @@ import { PasswordForm } from '@/components/forms/PasswordForm'
 import { FinancialEntryForm } from '@/components/forms/FinancialEntryForm'
 import { CompetitorForm } from '@/components/forms/CompetitorForm'
 import { LeadAutomationForm } from '@/components/forms/LeadAutomationForm'
+import { DiscussionForm } from '@/components/forms/DiscussionForm'
 
 // Entity type options for the dropdown selector
 const ENTITY_OPTIONS = [
@@ -36,6 +37,7 @@ const ENTITY_OPTIONS = [
   { value: 'set', label: 'Set' },
   { value: 'pitch', label: 'Pitch' },
   { value: 'requirement', label: 'Task' },
+  { value: 'discussion', label: 'Discussion' },
   { value: 'password', label: 'Password' },
   { value: 'financial_entry', label: 'Financial Entry' },
   { value: 'competitor', label: 'Competitor' },
@@ -203,6 +205,19 @@ export function CreateModal() {
           {selectedType === 'lead_automation' && (
             <LeadAutomationForm
               onSuccess={() => handleSuccess('Automation')}
+            />
+          )}
+          {selectedType === 'discussion' && (
+            <DiscussionForm
+              defaultValues={createModalContext as {
+                client_id?: string
+                project_id?: string
+                phase_id?: string
+                set_id?: string
+                pitch_id?: string
+                requirement_id?: string
+              }}
+              onSuccess={() => handleSuccess('Discussion')}
             />
           )}
           {!selectedType && (
