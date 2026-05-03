@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -154,8 +154,8 @@ export function DiscussionForm({ defaultValues, onSuccess }: DiscussionFormProps
   }
 
   // Handle selection changes with cascading logic
-  const handleClientChange = (clientId: string) => {
-    setSelectedClientId(clientId)
+  const handleClientChange = (clientId: string | undefined) => {
+    setSelectedClientId(clientId || '')
     // Clear all children when parent changes
     setSelectedProjectId('')
     setSelectedPhaseId('')
@@ -164,13 +164,13 @@ export function DiscussionForm({ defaultValues, onSuccess }: DiscussionFormProps
     setSelectedRequirementId('')
   }
 
-  const handleProjectChange = (projectId: string) => {
+  const handleProjectChange = (projectId: string | undefined) => {
     if (projectId) {
       // Auto-populate parent
       const parents = getProjectParents(projectId)
-      setSelectedClientId(parents.clientId)
+      setSelectedClientId(parents.clientId || '')
     }
-    setSelectedProjectId(projectId)
+    setSelectedProjectId(projectId || '')
     // Clear children
     setSelectedPhaseId('')
     setSelectedSetId('')
@@ -178,49 +178,49 @@ export function DiscussionForm({ defaultValues, onSuccess }: DiscussionFormProps
     setSelectedRequirementId('')
   }
 
-  const handlePhaseChange = (phaseId: string) => {
+  const handlePhaseChange = (phaseId: string | undefined) => {
     if (phaseId) {
       // Auto-populate parents
       const parents = getPhaseParents(phaseId)
-      setSelectedClientId(parents.clientId)
-      setSelectedProjectId(parents.projectId)
+      setSelectedClientId(parents.clientId || '')
+      setSelectedProjectId(parents.projectId || '')
     }
-    setSelectedPhaseId(phaseId)
+    setSelectedPhaseId(phaseId || '')
     // Clear children
     setSelectedSetId('')
     setSelectedPitchId('')
     setSelectedRequirementId('')
   }
 
-  const handleSetChange = (setId: string) => {
+  const handleSetChange = (setId: string | undefined) => {
     if (setId) {
       // Auto-populate parents
       const parents = getSetParents(setId)
-      setSelectedClientId(parents.clientId)
+      setSelectedClientId(parents.clientId || '')
       setSelectedProjectId(parents.projectId || '')
       setSelectedPhaseId(parents.phaseId || '')
     }
-    setSelectedSetId(setId)
+    setSelectedSetId(setId || '')
     // Clear children
     setSelectedPitchId('')
     setSelectedRequirementId('')
   }
 
-  const handlePitchChange = (pitchId: string) => {
+  const handlePitchChange = (pitchId: string | undefined) => {
     if (pitchId) {
       // Auto-populate parents
       const parents = getPitchParents(pitchId)
-      setSelectedClientId(parents.clientId)
+      setSelectedClientId(parents.clientId || '')
       setSelectedProjectId(parents.projectId || '')
       setSelectedPhaseId(parents.phaseId || '')
-      setSelectedSetId(parents.setId)
+      setSelectedSetId(parents.setId || '')
     }
-    setSelectedPitchId(pitchId)
+    setSelectedPitchId(pitchId || '')
     // Clear children
     setSelectedRequirementId('')
   }
 
-  const handleRequirementChange = (requirementId: string) => {
+  const handleRequirementChange = (requirementId: string | undefined) => {
     if (requirementId) {
       // Auto-populate all parents
       const parents = getRequirementParents(requirementId)
@@ -230,7 +230,7 @@ export function DiscussionForm({ defaultValues, onSuccess }: DiscussionFormProps
       setSelectedSetId(parents.setId || '')
       setSelectedPitchId(parents.pitchId || '')
     }
-    setSelectedRequirementId(requirementId)
+    setSelectedRequirementId(requirementId || '')
   }
 
   // Filtered options based on selected parents
@@ -286,7 +286,7 @@ export function DiscussionForm({ defaultValues, onSuccess }: DiscussionFormProps
     } else if (selectedClientId) {
       filtered = filtered.filter(r => r.client_id === selectedClientId)
     }
-    return filtered.map(r => ({ value: r.id, label: r.title || r.name || 'Untitled' }))
+    return filtered.map(r => ({ value: r.id, label: r.title || 'Untitled' }))
   }, [requirements, selectedClientId, selectedSetId, selectedPitchId])
 
   // Determine the most specific entity selected for the discussion
