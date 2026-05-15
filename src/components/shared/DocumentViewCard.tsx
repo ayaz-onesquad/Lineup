@@ -90,12 +90,12 @@ export function DocumentViewCard({ document, onEdit, onDelete }: DocumentViewCar
     setIsDownloading(true)
     try {
       const signedUrl = await documentsApi.getSignedUrl(document.file_url)
-      window.open(signedUrl, '_blank')
+      await documentsApi.downloadFile(signedUrl, document.name)
     } catch (error) {
-      console.error('Failed to get download URL:', error)
+      console.error('Failed to download file:', error)
       toast({
         title: 'Download failed',
-        description: 'Could not generate download link. Please try again.',
+        description: 'Could not download file. Please try again.',
         variant: 'destructive',
       })
     } finally {

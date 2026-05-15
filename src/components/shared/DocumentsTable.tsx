@@ -160,17 +160,10 @@ function DocumentTableRow({
     if (!doc.file_url) return
     setDownloadLoading(true)
     try {
-      const url = await documentsApi.getSignedUrl(doc.file_url)
-      const a = window.document.createElement('a')
-      a.href = url
-      a.download = doc.name
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+      const signedUrl = await documentsApi.getSignedUrl(doc.file_url)
+      await documentsApi.downloadFile(signedUrl, doc.name)
     } catch (error) {
-      console.error('Failed to get download URL:', error)
+      console.error('Failed to download file:', error)
       toast({
         title: 'Download failed',
         description: 'Could not download file. Please try again.',

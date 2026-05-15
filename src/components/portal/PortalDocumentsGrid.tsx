@@ -55,7 +55,7 @@ export function PortalDocumentsGrid({ documents }: PortalDocumentsGridProps) {
     try {
       setDownloadingId(doc.id)
       const signedUrl = await documentsApi.getSignedUrl(doc.file_url)
-      window.open(signedUrl, '_blank')
+      await documentsApi.downloadFile(signedUrl, doc.name)
     } catch (error) {
       toast({
         title: 'Download Failed',
