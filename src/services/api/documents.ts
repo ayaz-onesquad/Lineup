@@ -370,8 +370,31 @@ export const documentsApi = {
     })
   },
 
+  /**
+   * @deprecated Use downloadFile() instead for proper download behavior
+   */
   download: async (fileUrl: string): Promise<void> => {
     window.open(fileUrl, '_blank')
+  },
+
+  /**
+   * Download a file using fetch+blob pattern to force actual download
+   * (not browser rendering) and preserve encoding
+   */
+  downloadFile: async (signedUrl: string, fileName: string): Promise<void> => {
+    const response = await fetch(signedUrl)
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`)
+    }
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   },
 
   /**
