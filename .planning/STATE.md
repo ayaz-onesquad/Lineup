@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 Milestone: v2.1 Stability & Features — COMPLETE
 Status: Phase 8 COMPLETE - Quality improvements
-Last activity: 2026-04-23 - Completed Quick Task 01 (Responsive Data Grid for Mobile)
+Last activity: 2026-05-15 - Completed Quick Task 02 (File Download Encoding Fix)
 
 Progress: 9/9 plans (v2.1)
 
@@ -19,6 +19,7 @@ Progress: 9/9 plans (v2.1)
 
 | Task | Description | Status | Duration | Deliverable |
 |------|-------------|--------|----------|-------------|
+| quick-02 | Fix File Download Encoding and Inline Rendering | ✅ Done | 74s | downloadFile() helper + fetch+blob pattern |
 | quick-01 | Responsive Data Grid for Mobile Card View | ✅ Done | 103s | MobileColumnMeta + responsive DataTable |
 
 ## Phase 6 Completion Summary
