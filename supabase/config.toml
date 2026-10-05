@@ -1,0 +1,120 @@
+#
+# Supabase project configuration, kept in version control.
+#
+# Before this file existed, the authentication settings that matter most for
+# security (access-token lifetime, refresh-token rotation, password policy, the
+# built-in rate limits) lived only in the dashboard. They were invisible to code
+# review, undocumented, and silently resettable.
+#
+# Apply the auth section to the linked project with:
+#   npx supabase link --project-ref zsrtcthepydfxgruagvq
+#   npx supabase config push
+#
+# Verify afterwards in Dashboard > Authentication > Settings, because some
+# options are plan-dependent and are ignored rather than rejected.
+#
+project_id = "zsrtcthepydfxgruagvq"
+
+[auth]
+enabled = true
+
+# The site the app is served from, and the only redirect targets accepted after
+# an email confirmation or password recovery. Keeping this list tight is what
+# stops a recovery link being redirected to an attacker-controlled page.
+site_url = "https://lineup.vercel.app"
+additional_redirect_urls = [
+  "http://localhost:5173",
+  "https://lineup.vercel.app",
+]
+
+# Access-token lifetime, in seconds. 30 minutes rather than the 1-hour default:
+# this bounds how long a stolen access token keeps working, independently of the
+# idle and absolute session limits the client enforces.
+jwt_expiry = 1800
+
+# Refresh-token rotation: each refresh issues a new token and retires the old
+# one, so a captured refresh token stops working as soon as the real client
+# refreshes. The reuse interval tolerates the race where two tabs refresh at
+# almost the same moment.
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+
+# Self-service signup is closed: users are created by an administrator through
+# the admin-create-user Edge Function. The /signup route already redirects to
+# /login; this enforces the same rule server-side.
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+# Manual linking lets a caller attach an identity to an existing account.
+# Nothing in this app needs it.
+enable_manual_linking = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = true
+
+# Minimum password length and required character classes. The client already
+# scores strength in src/lib/security.ts; this makes the rule authoritative so
+# it cannot be bypassed by calling the API directly.
+[auth.email.smtp]
+# Configure the SMTP sender in the dashboard. Credentials must never be
+# committed here.
+
+[auth.sessions]
+# Sign out sessions that have been inactive for this long, as a server-side
+# backstop to the client-side idle timeout in src/lib/sessionPolicy.ts. A client
+# that never loads (a stolen refresh token replayed by a script) is still cut
+# off here.
+inactivity_timeout = "72h"
+
+# Hard cap on session age, matching the intent of absolute_session_hours in
+# tenant_security_settings. Set generously here because the per-tenant policy is
+# the tighter of the two and is the one users experience.
+timebox = "720h"
+
+[auth.rate_limit]
+# Emails sent per hour across the project. Covers password recovery and
+# invitations, and is the real defence against using the reset flow as a mail
+# relay (the client-side limit in src/lib/security.ts is only a UX nicety).
+email_sent = 30
+
+# Sign-in and sign-up attempts per 5 minutes, per IP. This complements the
+# per-email limiter in migration 016.
+sign_in_sign_ups = 30
+
+# Token refreshes per 5 minutes, per IP.
+token_refresh = 150
+
+# One-time-password requests and verification attempts per 5 minutes, per IP.
+otp = 30
+verify = 30
+
+# Anonymous sign-ins are disabled, so this is belt and braces.
+anonymous_users = 10
+
+[auth.mfa]
+# Time-based one-time passwords. Enrolment is per user; enabling the factor here
+# makes it available. Worth turning on for org_admin accounts, which hold the
+# password manager and the company document library.
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[db]
+major_version = 15
+
+[storage]
+enabled = true
+# Project-wide upload ceiling. The `documents` bucket has its own 50 MB limit and
+# MIME allowlist, set in migration 069.
+file_size_limit = "50MiB"
+
+[api]
+enabled = true
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+# Caps the rows a single PostgREST request can return, which bounds the damage
+# from an over-broad query.
+max_rows = 1000

@@ -110,7 +110,9 @@ export const authApi = {
   },
 
   signOut: async () => {
-    const { error } = await supabase.auth.signOut()
+    // scope: 'global' revokes the refresh token on the server, so a token
+    // copied out of this browser cannot be replayed after sign-out.
+    const { error } = await supabase.auth.signOut({ scope: 'global' })
     if (error) throw error
   },
 
@@ -138,6 +140,22 @@ export const authApi = {
   updatePassword: async (password: string) => {
     const { error } = await supabase.auth.updateUser({ password })
     if (error) throw error
+
+    // Record the change in the authentication audit log. Non-blocking: a failed
+    // audit write must not make a successful password change look like it failed.
+    try {
+      const { data } = await supabase.auth.getUser()
+      if (data.user) {
+        await supabase.from('auth_events').insert({
+          user_id: data.user.id,
+          email: data.user.email ?? null,
+          event_type: 'password_changed',
+          user_agent: (navigator.userAgent || '').slice(0, 400),
+        })
+      }
+    } catch (err) {
+      console.warn('[authApi.updatePassword] Could not record audit event:', err)
+    }
   },
 
   getSession: async () => {

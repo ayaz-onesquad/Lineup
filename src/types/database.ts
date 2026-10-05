@@ -1239,7 +1239,12 @@ export interface Password {
   url: string | null
   username: string | null
   email: string | null
-  password: string
+  /**
+   * NOT returned by the API. The secret is encrypted at rest (migration 070)
+   * and SELECT on the column is revoked for the `authenticated` role, so it is
+   * only ever obtained one row at a time via `passwordsApi.reveal(id)`.
+   */
+  password?: never
   category: string | null
   notes: string | null
   password_changed_at: string | null
@@ -1433,4 +1438,216 @@ export interface CreateCompetitorInput {
 
 export type UpdateCompetitorInput = Partial<CreateCompetitorInput> & {
   last_reviewed_at?: string | null
+}
+
+// ============================================================================
+// COMPANY DOCUMENTS TYPES (SOPs, Protocols, Processing Guides)
+// ============================================================================
+
+export type CompanyDocumentType =
+  | 'sop'
+  | 'protocol'
+  | 'processing_guide'
+  | 'policy'
+  | 'procedure'
+  | 'form'
+  | 'template'
+  | 'checklist'
+  | 'contract'
+  | 'certificate'
+  | 'training'
+  | 'other'
+
+export type CompanyDocumentStatus =
+  | 'draft'
+  | 'in_review'
+  | 'active'
+  | 'archived'
+  | 'superseded'
+
+export type CompanyDocumentConfidentiality =
+  | 'public'
+  | 'internal'
+  | 'restricted'
+  | 'confidential'
+
+export type CompanyDocumentAccessAction =
+  | 'view'
+  | 'download'
+  | 'print_blocked'
+  | 'download_blocked'
+  | 'acknowledge'
+
+export interface CompanyDocument {
+  id: string
+  display_id: number | null
+  tenant_id: string
+
+  title: string
+  description: string | null
+  document_type: CompanyDocumentType
+  category: string | null
+  reference_code: string | null
+
+  status: CompanyDocumentStatus
+  version: string
+  effective_date: string | null
+  review_due_date: string | null
+  owner_user_id: string | null
+
+  confidentiality: CompanyDocumentConfidentiality
+  allow_download: boolean
+  watermark_on_view: boolean
+  requires_acknowledgement: boolean
+
+  storage_path: string | null
+  file_name: string | null
+  file_type: string | null
+  file_size_bytes: number | null
+  file_checksum: string | null
+
+  external_link: string | null
+  tags: string[]
+
+  created_at: string
+  created_by: string | null
+  updated_at: string
+  updated_by: string | null
+  deleted_at: string | null
+}
+
+export interface CompanyDocumentWithPeople extends CompanyDocument {
+  owner?: UserProfile | null
+  creator?: UserProfile | null
+  updater?: UserProfile | null
+}
+
+export interface CreateCompanyDocumentInput {
+  title: string
+  description?: string | null
+  document_type: CompanyDocumentType
+  category?: string | null
+  reference_code?: string | null
+  status?: CompanyDocumentStatus
+  version?: string
+  effective_date?: string | null
+  review_due_date?: string | null
+  owner_user_id?: string | null
+  confidentiality?: CompanyDocumentConfidentiality
+  allow_download?: boolean
+  watermark_on_view?: boolean
+  requires_acknowledgement?: boolean
+  storage_path?: string | null
+  file_name?: string | null
+  file_type?: string | null
+  file_size_bytes?: number | null
+  file_checksum?: string | null
+  external_link?: string | null
+  tags?: string[]
+}
+
+export type UpdateCompanyDocumentInput = Partial<CreateCompanyDocumentInput>
+
+export interface CompanyDocumentVersion {
+  id: string
+  tenant_id: string
+  company_document_id: string
+  version: string
+  change_summary: string | null
+  storage_path: string | null
+  file_name: string | null
+  file_type: string | null
+  file_size_bytes: number | null
+  file_checksum: string | null
+  created_at: string
+  created_by: string | null
+  creator?: UserProfile | null
+}
+
+export interface CompanyDocumentAccessLogEntry {
+  id: string
+  tenant_id: string
+  company_document_id: string
+  user_id: string
+  action: CompanyDocumentAccessAction
+  user_agent: string | null
+  accessed_at: string
+  user?: UserProfile | null
+}
+
+export interface CompanyDocumentAcknowledgement {
+  id: string
+  tenant_id: string
+  company_document_id: string
+  user_id: string
+  version: string
+  acknowledged_at: string
+  user?: UserProfile | null
+}
+
+// ============================================================================
+// SESSION SECURITY TYPES
+// ============================================================================
+
+export interface TenantSecuritySettings {
+  tenant_id: string
+  idle_timeout_minutes: number
+  absolute_session_hours: number
+  warn_before_logout_seconds: number
+  allow_remember_device: boolean
+  remember_device_days: number
+  block_document_download: boolean
+  signed_url_ttl_seconds: number
+  created_at: string
+  updated_at: string
+  updated_by: string | null
+}
+
+export type UpdateTenantSecuritySettingsInput = Partial<
+  Omit<TenantSecuritySettings, 'tenant_id' | 'created_at' | 'updated_at' | 'updated_by'>
+>
+
+/** Strictest policy across every tenant the current user belongs to. */
+export interface EffectiveSessionPolicy {
+  idle_timeout_minutes: number
+  absolute_session_hours: number
+  warn_before_logout_seconds: number
+  allow_remember_device: boolean
+  remember_device_days: number
+  block_document_download: boolean
+  signed_url_ttl_seconds: number
+}
+
+export type AuthEventType =
+  | 'login_success'
+  | 'login_failed'
+  | 'logout'
+  | 'idle_timeout'
+  | 'absolute_timeout'
+  | 'password_changed'
+  | 'session_refresh_failed'
+  | 'rate_limited'
+
+export interface AuthEvent {
+  id: string
+  tenant_id: string | null
+  user_id: string | null
+  email: string | null
+  event_type: AuthEventType
+  user_agent: string | null
+  detail: string | null
+  occurred_at: string
+}
+
+/** Append-only audit trail for the password manager (migration 070). */
+export type PasswordAccessAction = 'reveal' | 'create' | 'update' | 'delete'
+
+export interface PasswordAccessLogEntry {
+  id: string
+  tenant_id: string
+  password_id: string
+  user_id: string
+  action: PasswordAccessAction
+  accessed_at: string
+  user?: UserProfile | null
 }

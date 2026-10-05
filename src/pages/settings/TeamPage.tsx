@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/form'
 import { Plus, Users, Loader2, Eye, EyeOff, Copy, Check, AlertCircle, MoreHorizontal, Pencil } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
+import { copySecret } from '@/lib/clipboard'
 import { toast } from '@/hooks/use-toast'
 import { isValidEmail } from '@/lib/security'
 import type { UserRole, TenantUserWithProfile } from '@/types/database'
@@ -180,11 +181,13 @@ export function TeamPage() {
     },
   })
 
-  // Copy password to clipboard
-  const copyPassword = () => {
+  // Copy the newly issued password. copySecret clears the clipboard afterwards
+  // so a credential is not left sitting there for any other app to read.
+  const copyPassword = async () => {
     const password = createUserForm.getValues('password')
-    if (password) {
-      navigator.clipboard.writeText(password)
+    if (!password) return
+    const copied = await copySecret(password)
+    if (copied) {
       setPasswordCopied(true)
       setTimeout(() => setPasswordCopied(false), 2000)
     }
@@ -479,7 +482,7 @@ export function TeamPage() {
                               type="button"
                               variant="outline"
                               size="icon"
-                              onClick={copyPassword}
+                              onClick={() => void copyPassword()}
                               disabled={!field.value}
                               title="Copy password"
                             >

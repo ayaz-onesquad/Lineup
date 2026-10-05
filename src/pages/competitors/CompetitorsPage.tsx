@@ -41,6 +41,7 @@ import {
   Edit,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { safeHttpUrl } from '@/lib/urlSafety'
 
 // Threat level badge colors
 const threatLevelColors: Record<string, string> = {
@@ -215,7 +216,7 @@ export function CompetitorsPage() {
                     <TableCell>
                       {competitor.website ? (
                         <a
-                          href={competitor.website}
+                          href={safeHttpUrl(competitor.website) ?? undefined}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline flex items-center gap-1 truncate max-w-[150px]"

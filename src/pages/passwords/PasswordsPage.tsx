@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePasswords, usePasswordMutations } from '@/hooks/usePasswords'
+import { passwordsApi } from '@/services/api'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -40,9 +41,12 @@ import {
   Copy,
   Trash2,
   Edit,
+  Loader2,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { safeHttpUrl } from '@/lib/urlSafety'
 import { toast } from '@/hooks/use-toast'
+import { copySecret, secretClipboardTtlSeconds } from '@/lib/clipboard'
 
 export function PasswordsPage() {
   const navigate = useNavigate()
@@ -52,6 +56,7 @@ export function PasswordsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [passwordToDelete, setPasswordToDelete] = useState<string | null>(null)
+  const [copyingId, setCopyingId] = useState<string | null>(null)
 
   // Filter passwords by search query
   const filteredPasswords = passwords?.filter((p) =>
@@ -61,12 +66,33 @@ export function PasswordsPage() {
     p.category?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || []
 
-  const handleCopyPassword = (password: string) => {
-    navigator.clipboard.writeText(password)
-    toast({
-      title: 'Password copied',
-      description: 'Password copied to clipboard.',
-    })
+  /**
+   * Fetches the secret for one record, then copies it.
+   *
+   * The grid no longer carries the secrets: reveal happens one row at a time,
+   * on demand, and is recorded in the password access log.
+   */
+  const handleCopyPassword = async (id: string) => {
+    setCopyingId(id)
+    try {
+      const secret = await passwordsApi.reveal(id)
+      const copied = await copySecret(secret)
+      toast({
+        title: copied ? 'Password copied' : 'Could not copy',
+        description: copied
+          ? `Cleared from the clipboard automatically in ${secretClipboardTtlSeconds()} seconds.`
+          : 'Your browser blocked clipboard access. Open the record and reveal it there.',
+        variant: copied ? undefined : 'destructive',
+      })
+    } catch (error) {
+      toast({
+        title: 'Could not retrieve the password',
+        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+        variant: 'destructive',
+      })
+    } finally {
+      setCopyingId(null)
+    }
   }
 
   const handleDelete = async () => {
@@ -216,7 +242,7 @@ export function PasswordsPage() {
                     <TableCell>
                       {password.url ? (
                         <a
-                          href={password.url}
+                          href={safeHttpUrl(password.url) ?? undefined}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline flex items-center gap-1 truncate max-w-[150px]"
@@ -244,12 +270,18 @@ export function PasswordsPage() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
+                          disabled={copyingId === password.id}
+                          title="Copy password (recorded in the access log)"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleCopyPassword(password.password)
+                            void handleCopyPassword(password.id)
                           }}
                         >
-                          <Copy className="h-3 w-3" />
+                          {copyingId === password.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
                         </Button>
                       </div>
                     </TableCell>

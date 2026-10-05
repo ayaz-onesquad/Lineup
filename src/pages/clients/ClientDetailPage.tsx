@@ -97,6 +97,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
+import { safeHttpUrl } from '@/lib/urlSafety'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { AuditTrail } from '@/components/shared/AuditTrail'
@@ -1652,7 +1653,7 @@ export function ClientDetailPage() {
                           <TableCell>
                             {competitor.website ? (
                               <a
-                                href={competitor.website}
+                                href={safeHttpUrl(competitor.website) ?? undefined}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary underline text-sm truncate max-w-[150px] block"

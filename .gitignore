@@ -33,3 +33,9 @@ dist-ssr
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Supabase
+supabase/.temp/
+
+# Claude Code
+.claude/settings.local.json

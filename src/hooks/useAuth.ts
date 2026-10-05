@@ -1,8 +1,28 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/services/api'
+import { sessionSecurityApi } from '@/services/api/sessionSecurity'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
+import { markSessionStart, clearSessionMarkers } from '@/lib/sessionPolicy'
+
+/**
+ * Validates a post-login redirect target.
+ *
+ * Only same-origin absolute paths are accepted. Backslashes are rejected
+ * because some browsers normalise `/\\evil.com` into a protocol-relative URL,
+ * which would turn the returnTo param into an open redirect.
+ */
+function isSafeReturnTo(target: string): boolean {
+  if (!target.startsWith('/')) return false
+  if (target.startsWith('//')) return false
+  if (target.includes('\\')) return false
+  // Control characters can be used to smuggle a scheme past the checks above.
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(target)) return false
+  if (target.toLowerCase().startsWith('/http')) return false
+  return true
+}
 
 /**
  * Hook for authentication operations
@@ -54,7 +74,18 @@ export function useAuth() {
       queryClient.clear()
       clearTenant()
 
+      // SESSION LIMITS: stamp the start of the session. This drives the
+      // absolute session lifetime and resets the idle clock.
+      markSessionStart()
+
       setUser(data.user)
+
+      void sessionSecurityApi.logAuthEvent({
+        userId: data.user?.id ?? null,
+        email: data.user?.email ?? null,
+        eventType: 'login_success',
+      })
+
       toast({
         title: 'Welcome back!',
         description: 'You have been signed in.',
@@ -63,14 +94,13 @@ export function useAuth() {
       // POST-LOGIN REDIRECT: Check for returnTo param from AuthGuard redirect
       const returnTo = searchParams.get('returnTo')
       if (returnTo) {
-        const decoded = decodeURIComponent(returnTo)
-        // SECURITY: Validate returnTo to prevent open redirect attacks
-        // Must start with '/' (relative) and NOT be a protocol-relative URL ('//')
-        const isValidReturnTo =
-          decoded.startsWith('/') &&
-          !decoded.startsWith('//') &&
-          !decoded.toLowerCase().startsWith('/http')
-        if (isValidReturnTo) {
+        let decoded = returnTo
+        try {
+          decoded = decodeURIComponent(returnTo)
+        } catch {
+          decoded = ''
+        }
+        if (isSafeReturnTo(decoded)) {
           navigate(decoded, { replace: true })
         } else {
           // Invalid returnTo - fall back to safe default
@@ -92,8 +122,17 @@ export function useAuth() {
 
   // Sign out mutation
   const signOut = useMutation({
-    mutationFn: authApi.signOut,
+    mutationFn: async () => {
+      // Log before the token is revoked, otherwise the audit insert is rejected.
+      await sessionSecurityApi.logAuthEvent({
+        userId: user?.id ?? null,
+        email: user?.email ?? null,
+        eventType: 'logout',
+      })
+      await authApi.signOut()
+    },
     onSuccess: () => {
+      clearSessionMarkers()
       logoutStore()
       clearTenant()
       queryClient.clear()

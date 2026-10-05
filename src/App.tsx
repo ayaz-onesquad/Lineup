@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/components/providers/AuthProvider'
+import { SessionTimeoutProvider } from '@/components/providers/SessionTimeoutProvider'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 
 // Auth pages
@@ -37,6 +38,7 @@ import { PhaseDetailPage } from '@/pages/phases/PhaseDetailPage'
 import { DocumentCatalogPage } from '@/pages/settings/DocumentCatalogPage'
 import { TemplatesPage } from '@/pages/templates/TemplatesPage'
 import { DocumentsPage } from '@/pages/documents/DocumentsPage'
+import { CompanyDocumentsPage, CompanyDocumentDetailPage } from '@/pages/company-documents'
 import { DocumentDetailPage } from '@/pages/documents/DocumentDetailPage'
 import { NotesPage, NoteDetailPage } from '@/pages/notes'
 import { DiscussionsPage, DiscussionDetailPage } from '@/pages/discussions'
@@ -89,6 +91,7 @@ function App() {
         <BrowserRouter>
           <ErrorBoundary>
             <AuthProvider>
+              <SessionTimeoutProvider>
               <Routes>
             {/* Public Auth Routes */}
             <Route element={<AuthLayout />}>
@@ -138,6 +141,10 @@ function App() {
               <Route path="/templates" element={<TemplatesPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/documents/:documentId" element={<DocumentDetailPage />} />
+              {/* Company Documents - SOPs, protocols, processing guides.
+                  Readable by the whole tenant; confidentiality enforced by RLS. */}
+              <Route path="/company-documents" element={<CompanyDocumentsPage />} />
+              <Route path="/company-documents/:documentId" element={<CompanyDocumentDetailPage />} />
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/notes/:noteId" element={<NoteDetailPage />} />
               <Route path="/discussions" element={<DiscussionsPage />} />
@@ -194,6 +201,7 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
+              </SessionTimeoutProvider>
             </AuthProvider>
           </ErrorBoundary>
         </BrowserRouter>

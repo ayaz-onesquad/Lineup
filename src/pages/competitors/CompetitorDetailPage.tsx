@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { safeHttpUrl } from '@/lib/urlSafety'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -249,7 +250,7 @@ export function CompetitorDetailPage() {
     if (!url) return <span className="text-muted-foreground">—</span>
     return (
       <a
-        href={url}
+        href={safeHttpUrl(url) ?? undefined}
         target="_blank"
         rel="noopener noreferrer"
         className="text-primary hover:underline flex items-center gap-1"

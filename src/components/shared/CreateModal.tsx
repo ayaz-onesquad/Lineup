@@ -22,6 +22,7 @@ import { RequirementForm } from '@/components/forms/RequirementForm'
 import { ContactForm } from '@/components/forms/ContactForm'
 import { LeadForm } from '@/components/forms/LeadForm'
 import { PasswordForm } from '@/components/forms/PasswordForm'
+import { CompanyDocumentForm } from '@/components/forms/CompanyDocumentForm'
 import { FinancialEntryForm } from '@/components/forms/FinancialEntryForm'
 import { CompetitorForm } from '@/components/forms/CompetitorForm'
 import { LeadAutomationForm } from '@/components/forms/LeadAutomationForm'
@@ -39,6 +40,7 @@ const ENTITY_OPTIONS = [
   { value: 'requirement', label: 'Task' },
   { value: 'discussion', label: 'Discussion' },
   { value: 'password', label: 'Password' },
+  { value: 'company_document', label: 'Company Document (SOP / Protocol)' },
   { value: 'financial_entry', label: 'Financial Entry' },
   { value: 'competitor', label: 'Competitor' },
   { value: 'lead_automation', label: 'Lead Automation' },
@@ -190,6 +192,11 @@ export function CreateModal() {
           {selectedType === 'password' && (
             <PasswordForm
               onSuccess={() => handleSuccess('Password')}
+            />
+          )}
+          {selectedType === 'company_document' && (
+            <CompanyDocumentForm
+              onSuccess={() => handleSuccess('Company Document')}
             />
           )}
           {selectedType === 'financial_entry' && (

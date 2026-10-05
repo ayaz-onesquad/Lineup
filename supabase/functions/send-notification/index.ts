@@ -6,9 +6,31 @@
 // - APP_URL: Your app's public URL (e.g., https://yourapp.vercel.app)
 // - SUPABASE_URL: Auto-provided by Supabase
 // - SUPABASE_SERVICE_ROLE_KEY: Auto-provided by Supabase
+// - SUPABASE_ANON_KEY: Auto-provided by Supabase (used to verify the caller)
+// - ALLOWED_ORIGINS: Comma-separated list of browser origins allowed to call this
+// - WEBHOOK_SECRET: Shared secret for database-trigger / server-to-server callers
+//
+// AUTHORIZATION (added in the security hardening pass)
+// This function holds the service_role key and sends email. It previously ran
+// with no authorization check at all, which made it an open email relay to
+// anyone holding the public anon key. Callers must now present EITHER a valid
+// user session (and be an active member of the tenant they name), OR the
+// service_role key as a bearer token, OR the shared webhook secret.
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import {
+  checkRateLimit,
+  errorResponse,
+  escapeHtmlValues,
+  hasValidWebhookSecret,
+  isServiceRoleCaller,
+  isValidEmail,
+  jsonResponse,
+  preflightResponse,
+  requireTenantMembership,
+  requireUser,
+} from '../_shared/security.ts'
 
 // Type definitions
 interface NotificationPayload {
@@ -60,12 +82,29 @@ interface NotificationResult {
   error?: string
 }
 
-// Template rendering function
+// Template rendering function.
+//
+// `variables` comes from the request body and is substituted into an HTML email
+// body, so every value is HTML-escaped first. Without this a caller could
+// inject markup (a phishing form, a tracking pixel) into mail sent from the
+// tenant's own sending domain.
 function renderTemplate(template: string, variables: Record<string, string>): string {
-  return Object.entries(variables).reduce(
+  const safe = escapeHtmlValues(variables)
+  return Object.entries(safe).reduce(
     (result, [key, value]) => result.replaceAll(`{{${key}}}`, value ?? ''),
     template
   )
+}
+
+// The subject line is plain text, so it must NOT be HTML-escaped (otherwise an
+// apostrophe in a name shows up as &#39; in the inbox). Newlines are stripped
+// to prevent header injection.
+function renderSubject(template: string, variables: Record<string, string>): string {
+  const rendered = Object.entries(variables ?? {}).reduce(
+    (result, [key, value]) => result.replaceAll(`{{${key}}}`, String(value ?? '')),
+    template
+  )
+  return rendered.replace(/[\r\n]+/g, ' ').slice(0, 300)
 }
 
 // Create Supabase client with service role (bypasses RLS)
@@ -158,12 +197,13 @@ async function sendViaResend(
 
 // Main handler
 serve(async (req: Request): Promise<Response> => {
+  if (req.method === 'OPTIONS') {
+    return preflightResponse(req)
+  }
+
   // Only accept POST requests
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse(req, { error: 'Method not allowed' }, 405)
   }
 
   let payload: NotificationPayload
@@ -171,21 +211,56 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     payload = await req.json() as NotificationPayload
-    supabase = createServiceClient()
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-    return new Response(JSON.stringify({ error: `Invalid request: ${errorMessage}` }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  } catch {
+    return jsonResponse(req, { error: 'Invalid JSON body' }, 400)
   }
 
   // Validate required fields
   if (!payload.trigger_key || !payload.tenant_id || !payload.recipient_email) {
-    return new Response(
-      JSON.stringify({ error: 'Missing required fields: trigger_key, tenant_id, recipient_email' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    return jsonResponse(
+      req,
+      { error: 'Missing required fields: trigger_key, tenant_id, recipient_email' },
+      400
     )
+  }
+
+  if (!isValidEmail(payload.recipient_email)) {
+    return jsonResponse(req, { error: 'recipient_email is not a valid address' }, 400)
+  }
+
+  // ---------------------------------------------------------------------------
+  // AUTHORIZATION — must run before the service_role client is created.
+  //
+  // Two accepted callers:
+  //   1. A trusted internal caller: the service_role key as a bearer token
+  //      (how the database notification triggers call in) or the shared
+  //      webhook secret.
+  //   2. A signed-in user who is an active member of payload.tenant_id.
+  // ---------------------------------------------------------------------------
+  try {
+    // Trusted internal caller: the database notification triggers invoke this
+    // through pg_net with `Authorization: Bearer <service_role_key>`, and the
+    // key is compared against this function's own copy. The public anon key
+    // does not match, which is what closes the original hole.
+    const isInternal = isServiceRoleCaller(req) || hasValidWebhookSecret(req)
+
+    if (isInternal) {
+      checkRateLimit(`notify:internal:${payload.tenant_id}`, 300, 60_000)
+    } else {
+      const ctx = await requireUser(req)
+      // The tenant is verified against tenant_users, never trusted from the body.
+      await requireTenantMembership(ctx, payload.tenant_id)
+      checkRateLimit(`notify:user:${ctx.userId}`, 30, 60_000)
+    }
+  } catch (err) {
+    return errorResponse(req, err)
+  }
+
+  try {
+    supabase = createServiceClient()
+  } catch (err) {
+    console.error('[send-notification] Service client unavailable:', err)
+    return jsonResponse(req, { error: 'Service misconfigured' }, 500)
   }
 
   try {
@@ -202,10 +277,7 @@ serve(async (req: Request): Promise<Response> => {
         status: 'skipped',
         reason: 'template_not_found',
       }
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return jsonResponse(req, result, 200)
     }
 
     if (!globalTemplate.is_active) {
@@ -214,10 +286,7 @@ serve(async (req: Request): Promise<Response> => {
         status: 'skipped',
         reason: 'global_template_disabled',
       }
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return jsonResponse(req, result, 200)
     }
 
     // Step 2: Check tenant notification settings
@@ -235,10 +304,7 @@ serve(async (req: Request): Promise<Response> => {
         status: 'skipped',
         reason: 'tenant_disabled',
       }
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return jsonResponse(req, result, 200)
     }
 
     // Step 3: Resolve template (tenant override or global)
@@ -254,7 +320,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // Step 4: Render template with variables
-    const renderedSubject = renderTemplate(subject, payload.variables)
+    const renderedSubject = renderSubject(subject, payload.variables)
     const renderedHtml = renderTemplate(htmlBody, payload.variables)
 
     // Step 5: Get email sender configuration
@@ -281,10 +347,7 @@ serve(async (req: Request): Promise<Response> => {
         logId: logId ?? undefined,
         error: 'Email sender not configured. Set up sender in SysAdmin > Notifications.',
       }
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return jsonResponse(req, result, 200)
     }
 
     // Step 6: Send email via Resend
@@ -312,10 +375,7 @@ serve(async (req: Request): Promise<Response> => {
       error: sendResult.error,
     }
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse(req, result, 200)
 
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error'
@@ -340,9 +400,6 @@ serve(async (req: Request): Promise<Response> => {
       error: errorMessage,
     }
 
-    return new Response(JSON.stringify(result), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse(req, result, 500)
   }
 })
