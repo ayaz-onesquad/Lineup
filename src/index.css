@@ -36,29 +36,17 @@
     --page-background: var(--carbon-gray-10);
     --card-background: var(--carbon-white);
     --border-subtle: var(--carbon-gray-20);
+
+    /* Status colours. HSL triplets so Tailwind's `/opacity` modifier works
+       (bg-success/15 etc.) and so dark mode can redefine them below. */
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-  }
 }
 
 @layer base {
@@ -173,4 +161,58 @@
 /* Ensure Radix popover content renders above fixed navigation (z-50) */
 [data-radix-popper-content-wrapper] {
   z-index: 100 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Dark theme tokens.
+
+   Deliberately OUTSIDE `@layer base`. Tailwind tree-shakes class selectors it
+   cannot find in the content files, and the bare class `dark` never appears in
+   the source (only the `dark:` variant prefix, which is tokenised differently).
+   Inside the layer this entire block was silently dropped from every build, so
+   the `dark:` utilities compiled but the custom properties they depend on did
+   not — a half-dark UI waiting to happen.
+
+   Verify after changing: the build CSS must contain `--muted-foreground: 215
+   20.2% 65.1%`.
+   --------------------------------------------------------------------------- */
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 224.3 76.3% 48%;
+
+  /* Status colours, lightened for contrast on a dark surface. Previously the
+     success/warning/danger values were hard-coded hexes in the Tailwind
+     config with no dark variant, so they failed contrast in dark mode. */
+  --success: 158 64% 52%;
+  --success-foreground: 158 90% 10%;
+  --warning: 43 96% 56%;
+  --warning-foreground: 26 83% 14%;
+  --danger: 0 91% 71%;
+  --danger-foreground: 0 75% 15%;
+
+  /* Carbon tokens were only defined on :root, so every `page-carbon` /
+     `card-carbon` surface stayed light in dark mode. These keep the few
+     remaining consumers honest until they are migrated away. */
+  --carbon-gray-10: #161616;
+  --carbon-gray-20: #393939;
+  --carbon-gray-100: #f4f4f4;
+  --carbon-blue-60: #4589ff;
+  --carbon-white: #262626;
 }

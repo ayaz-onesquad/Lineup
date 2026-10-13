@@ -22,6 +22,7 @@ import {
   Code,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { sanitizeRichText } from '@/lib/sanitize'
 
 interface RichTextEditorProps {
   content: string
@@ -220,7 +221,13 @@ export function RichTextEditor({
           '[&_code]:bg-muted [&_code]:px-1 [&_code]:rounded',
           className
         )}
-        dangerouslySetInnerHTML={{ __html: content || '<p class="text-muted-foreground italic">No content</p>' }}
+        // Stored rich text is untrusted: the column is writable directly over
+        // the PostgREST API, so the editor is no guarantee of what is in it.
+        dangerouslySetInnerHTML={{
+          __html:
+            sanitizeRichText(content) ||
+            '<p class="text-muted-foreground italic">No content</p>',
+        }}
       />
     )
   }

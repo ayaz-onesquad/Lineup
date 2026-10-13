@@ -19,6 +19,7 @@ import {
 import { Shield, Eye, EyeOff, Loader2, Check } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { validatePasswordStrength } from '@/lib/security'
+import { SessionPolicyCard } from '@/components/settings/SessionPolicyCard'
 
 const changePasswordSchema = z
   .object({
@@ -218,6 +219,9 @@ export function SecuritySettingsPage() {
           </Form>
         </CardContent>
       </Card>
+
+      {/* Session Policy (org_admin configurable; read-only for everyone else) */}
+      <SessionPolicyCard />
 
       {/* Account Info (Read Only) */}
       <Card>

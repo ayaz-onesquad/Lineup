@@ -97,6 +97,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, REFERRAL_SOURCE_OPTIONS, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
+import { safeHttpUrl } from '@/lib/urlSafety'
 import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { AuditTrail } from '@/components/shared/AuditTrail'
@@ -492,7 +493,7 @@ export function ClientDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Breadcrumbs */}
       <Breadcrumbs
         items={[
@@ -1652,7 +1653,7 @@ export function ClientDetailPage() {
                           <TableCell>
                             {competitor.website ? (
                               <a
-                                href={competitor.website}
+                                href={safeHttpUrl(competitor.website) ?? undefined}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary underline text-sm truncate max-w-[150px] block"
@@ -1691,7 +1692,7 @@ export function ClientDetailPage() {
           </DialogHeader>
           <Form {...contactForm}>
             <form onSubmit={contactForm.handleSubmit(handleSaveContact)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
                   control={contactForm.control}
                   name="first_name"
@@ -1805,7 +1806,7 @@ export function ClientDetailPage() {
                       </FormItem>
                     )}
                   />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={contactForm.control}
                       name="city"
@@ -1833,7 +1834,7 @@ export function ClientDetailPage() {
                       )}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={contactForm.control}
                       name="country"

@@ -98,7 +98,7 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="first_name"
@@ -127,7 +127,7 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="email"
@@ -156,7 +156,7 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="role"
@@ -239,7 +239,7 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="city"
@@ -267,7 +267,7 @@ export function ContactForm({ defaultValues, onSuccess }: ContactFormProps) {
                 )}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="country"

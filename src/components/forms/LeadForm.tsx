@@ -208,7 +208,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">Lead Information</h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="lead_name"
@@ -262,7 +262,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">Company Details</h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="industry"
@@ -323,7 +323,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">Contact Information</h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="email"
@@ -353,7 +353,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="city"
@@ -395,7 +395,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">Sales Information</h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="estimated_value"
@@ -433,7 +433,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="source"
@@ -543,7 +543,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
           {/* New Contact Fields */}
           {watchContactMode === 'new' && (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="contact_first_name"
@@ -573,7 +573,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="contact_email"

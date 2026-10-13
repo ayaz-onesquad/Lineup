@@ -73,7 +73,7 @@ export function PortalLayout() {
       </header>
 
       {/* Main Content */}
-      <main className="container py-8">
+      <main className="mx-auto min-w-0 max-w-content overflow-x-clip px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <Outlet />
       </main>
 

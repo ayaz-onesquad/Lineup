@@ -180,3 +180,116 @@ Deploy Edge Function: npx supabase functions deploy admin-reset-password --no-ve
 Link Project: npx supabase link --project-ref zsrtcthepydfxgruagvq
 
 Prod Sync: vercel --prod
+
+# context-mode — MANDATORY routing rules
+
+You have context-mode MCP tools available. These rules are NOT optional — they protect your context window from flooding. A single unrouted command can dump 56 KB into context and waste the entire session.
+
+## BLOCKED commands — do NOT attempt these
+
+### curl / wget — BLOCKED
+Any Bash command containing `curl` or `wget` is intercepted and replaced with an error message. Do NOT retry.
+Instead use:
+- `ctx_fetch_and_index(url, source)` to fetch and index web pages
+- `ctx_execute(language: "javascript", code: "const r = await fetch(...)")` to run HTTP calls in sandbox
+
+### Inline HTTP — BLOCKED
+Any Bash command containing `fetch('http`, `requests.get(`, `requests.post(`, `http.get(`, or `http.request(` is intercepted and replaced with an error message. Do NOT retry with Bash.
+Instead use:
+- `ctx_execute(language, code)` to run HTTP calls in sandbox — only stdout enters context
+
+### WebFetch — BLOCKED
+WebFetch calls are denied entirely. The URL is extracted and you are told to use `ctx_fetch_and_index` instead.
+Instead use:
+- `ctx_fetch_and_index(url, source)` then `ctx_search(queries)` to query the indexed content
+
+## REDIRECTED tools — use sandbox equivalents
+
+### Bash (>20 lines output)
+Bash is ONLY for: `git`, `mkdir`, `rm`, `mv`, `cd`, `ls`, `npm install`, `pip install`, and other short-output commands.
+For everything else, use:
+- `ctx_batch_execute(commands, queries)` — run multiple commands + search in ONE call
+- `ctx_execute(language: "shell", code: "...")` — run in sandbox, only stdout enters context
+
+### Read (for analysis)
+If you are reading a file to **Edit** it → Read is correct (Edit needs content in context).
+If you are reading to **analyze, explore, or summarize** → use `ctx_execute_file(path, language, code)` instead. Only your printed summary enters context. The raw file content stays in the sandbox.
+
+### Grep (large results)
+Grep results can flood context. Use `ctx_execute(language: "shell", code: "grep ...")` to run searches in sandbox. Only your printed summary enters context.
+
+## Tool selection hierarchy
+
+1. **GATHER**: `ctx_batch_execute(commands, queries)` — Primary tool. Runs all commands, auto-indexes output, returns search results. ONE call replaces 30+ individual calls.
+2. **FOLLOW-UP**: `ctx_search(queries: ["q1", "q2", ...])` — Query indexed content. Pass ALL questions as array in ONE call.
+3. **PROCESSING**: `ctx_execute(language, code)` | `ctx_execute_file(path, language, code)` — Sandbox execution. Only stdout enters context.
+4. **WEB**: `ctx_fetch_and_index(url, source)` then `ctx_search(queries)` — Fetch, chunk, index, query. Raw HTML never enters context.
+5. **INDEX**: `ctx_index(content, source)` — Store content in FTS5 knowledge base for later search.
+
+## Subagent routing
+
+When spawning subagents (Agent/Task tool), the routing block is automatically injected into their prompt. Bash-type subagents are upgraded to general-purpose so they have access to MCP tools. You do NOT need to manually instruct subagents about context-mode.
+
+## Output constraints
+
+- Keep responses under 500 words.
+- Write artifacts (code, configs, PRDs) to FILES — never return them as inline text. Return only: file path + 1-line description.
+- When indexing content, use descriptive source labels so others can `ctx_search(source: "label")` later.
+
+## ctx commands
+
+| Command | Action |
+|---------|--------|
+| `ctx stats` | Call the `ctx_stats` MCP tool and display the full output verbatim |
+| `ctx doctor` | Call the `ctx_doctor` MCP tool, run the returned shell command, display as checklist |
+| `ctx upgrade` | Call the `ctx_upgrade` MCP tool, run the returned shell command, display as checklist |
+
+# 🎨 UI/UX: Design System (MANDATORY)
+
+`docs/DESIGN-SYSTEM.md` is the authoritative contract for layout, data display
+and responsive behaviour. **Read it before building or changing any screen.**
+Section 8 of that document is the definition of done; copy its checklist into
+the pull request.
+
+Non-negotiables, repeated here because they are the ones most often broken:
+
+1. **Never hand-roll a table.** Importing `@/components/ui/table` in a page is
+   a defect. Use `DataGrid` (`src/components/ui/data-grid.tsx`) for read-only
+   tabular data, or `GridEditTable` when cells are editable in place. Both
+   render a sortable table from `md` up and a card list below it from one
+   column definition.
+
+2. **Every scalar column must be sortable.** Give the column an `accessor`.
+   A list the user cannot reorder is the defect this system exists to prevent.
+
+3. **Column priority is required.** Exactly one `priority: 'primary'` column
+   (the row's identity, which becomes the mobile card title), at most four
+   `priority: 'secondary'`, everything else defaults to tertiary and collapses
+   behind a disclosure on mobile. Internal IDs get `hideOnMobile: true`.
+
+4. **Every column needs `width` or `minWidth`.** Columns without one collapse
+   below legibility, which is what made columns appear to overlap.
+
+5. **Test at 390 × 844.** No page may scroll horizontally at that width. The
+   only element allowed to scroll sideways is a table's own scroll container.
+
+6. **`md` (768px) is the single structural breakpoint.** Do not add custom
+   breakpoints or a second switch point for the same decision.
+
+7. **Never write a bare `grid-cols-2`.** Always `grid-cols-1 sm:grid-cols-2`.
+   A bare two-column grid yields ~160px inputs on a phone.
+
+8. **Page padding is applied once, by `MainLayout`.** Do not add page-level
+   `p-*`. Use `PageShell` for the title/action header; it deliberately does not
+   re-pad. `page-carbon p-6` is deprecated and removed.
+
+9. **Touch targets:** 48px for primary buttons and form controls, 44px for row
+   actions, icon buttons and tabs, 8px apart. The `coarse:` Tailwind variant
+   applies sizing on touch input only.
+
+10. **Money and counts use `numeric: true`** so they right-align with tabular
+    figures.
+
+Deprecated, do not use: `DataTable` (use `DataGrid`), `page-carbon`, native
+`<select>` (use `SearchableSelect`), `useMediaQuery` for layout (use Tailwind
+prefixes; media queries are for behaviour).

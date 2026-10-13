@@ -5,10 +5,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+// CORS is driven by the ALLOWED_ORIGINS environment variable rather than a
+// wildcard, so a page on an attacker-controlled origin cannot read this
+// function's responses using a victim's session.
+import { corsHeaders as buildCorsHeaders, preflightResponse } from '../_shared/security.ts'
 
 interface RequestBody {
   email: string
@@ -19,9 +19,11 @@ interface RequestBody {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req)
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return preflightResponse(req)
   }
 
   try {

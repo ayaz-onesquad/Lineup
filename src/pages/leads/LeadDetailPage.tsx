@@ -351,7 +351,7 @@ export function LeadDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="page-carbon p-6 space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -374,7 +374,7 @@ export function LeadDetailPage() {
   const canConvert = lead.status === 'won' && !lead.converted_to_client_id
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Breadcrumbs */}
       <Breadcrumbs
         items={[
@@ -694,7 +694,7 @@ export function LeadDetailPage() {
                   <Phone className="h-5 w-5 text-muted-foreground" />
                   Direct Contact (Lead-specific)
                 </h3>
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
                   <ViewEditField
                     type="text"
                     label="Phone"
@@ -786,7 +786,7 @@ export function LeadDetailPage() {
             <Card className="card-carbon border-red-200 bg-red-50">
               <CardContent className="pt-6">
                 <h3 className="text-lg font-semibold mb-4 text-red-700">Lost Details</h3>
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Lost Reason</p>
                     <p className="capitalize">{lead.lost_reason?.replace('_', ' ') || '—'}</p>
@@ -984,7 +984,7 @@ export function LeadDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>First Name *</Label>
                 <Input

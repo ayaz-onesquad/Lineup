@@ -47,9 +47,13 @@ export function BulkActionBar<T extends { id: string }>({
 
   const pluralSuffix = selectedRows.length !== 1 ? 's' : ''
 
+  // Docked bars must clear the home indicator, hence the safe-area inset, and
+  // must wrap so a long record name plus three actions does not overflow a
+  // 390px viewport. See docs/DESIGN-SYSTEM.md section 5.3.
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 flex items-center justify-between z-50 shadow-lg">
+
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-between gap-2 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg">
         <span className="text-sm font-medium">
           {selectedRows.length} {entityName}{pluralSuffix} selected
         </span>

@@ -279,7 +279,7 @@ export function FinancialEntryDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="page-carbon p-6 space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -300,7 +300,7 @@ export function FinancialEntryDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>

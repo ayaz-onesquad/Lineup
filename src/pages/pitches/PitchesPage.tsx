@@ -153,12 +153,14 @@ export function PitchesPage() {
     {
       key: 'sets.name',
       header: 'Set',
+      mobileLabel: 'Set',
       editable: false, // Nested relation
       render: (row) => row.sets?.name || '—',
     },
     {
       key: 'name',
       header: 'Pitch Name',
+      priority: 'primary',
       editable: true,
       type: 'text',
       render: (row) => (
@@ -175,6 +177,7 @@ export function PitchesPage() {
     {
       key: 'urgency',
       header: 'Urgency',
+      hideOnMobile: true,
       editable: true,
       type: 'select',
       options: URGENCY_OPTIONS,
@@ -187,6 +190,7 @@ export function PitchesPage() {
     {
       key: 'importance',
       header: 'Importance',
+      hideOnMobile: true,
       editable: true,
       type: 'select',
       options: IMPORTANCE_OPTIONS,
@@ -199,6 +203,7 @@ export function PitchesPage() {
     {
       key: 'status',
       header: 'Status',
+      priority: 'secondary',
       editable: false, // Computed from dates
       render: (row) => (
         <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
@@ -209,6 +214,7 @@ export function PitchesPage() {
     {
       key: 'lead_id',
       header: 'Lead',
+      priority: 'secondary', mobileLabel: 'Lead',
       editable: true,
       type: 'select',
       options: userOptions,
@@ -230,6 +236,8 @@ export function PitchesPage() {
     {
       key: 'completion_percentage',
       header: 'Progress',
+      numeric: true,
+      mobileLabel: 'Progress',
       editable: false, // Calculated field
       render: (row) => (
         <div className="flex items-center gap-2 min-w-[100px]">
@@ -274,7 +282,7 @@ export function PitchesPage() {
   }, [updatePitch])
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/services/api'
+import { supabase } from '@/services/supabase'
+import { markSessionStart } from '@/lib/sessionPolicy'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,8 +58,17 @@ export function AdminLoginPage() {
         const profile = await authApi.getUserProfile(user.id)
         setProfile(profile)
 
-        // Verify this is a sys_admin
-        if (!profile || profile.role !== 'sys_admin') {
+        // SECURITY: the role must come from tenant_users via the server-side
+        // RPC, not from user_profiles. `user_profiles` has no `role` column, so
+        // the previous check (`profile.role !== 'sys_admin'`) compared against
+        // undefined. It happened to fail closed, but it would have become an
+        // escalation the moment a `role` column was added to that table.
+        const { data: serverRole, error: roleError } = await supabase.rpc(
+          'get_user_highest_role',
+          { p_user_id: user.id }
+        )
+
+        if (roleError || serverRole !== 'sys_admin') {
           toast({
             title: 'Access Denied',
             description: 'You do not have admin privileges.',
@@ -69,6 +80,7 @@ export function AdminLoginPage() {
           return
         }
 
+        markSessionStart()
         setRole('sys_admin')
         toast({
           title: 'Welcome Admin!',

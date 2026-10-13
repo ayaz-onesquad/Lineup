@@ -156,3 +156,18 @@ export {
   type ActiveFilters,
   type UseDataGridFiltersReturn,
 } from './useDataGridFilters'
+
+// Company Documents hooks
+export {
+  useCompanyDocuments,
+  useCompanyDocument,
+  useCompanyDocumentsDueForReview,
+  useCompanyDocumentVersions,
+  useCompanyDocumentAccessLog,
+  useCompanyDocumentAcknowledgements,
+  useCompanyDocumentMutations,
+} from './useCompanyDocuments'
+
+// Session security hooks
+export { useSessionPolicy } from './useSessionPolicy'
+export { useSessionTimeout } from './useSessionTimeout'

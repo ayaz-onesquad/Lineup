@@ -75,7 +75,7 @@ export function MobileSidebar() {
                           to={item.path}
                           aria-current={active ? 'page' : undefined}
                           className={cn(
-                            'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors',
+                            'flex items-center gap-3 rounded-md px-3 py-3 min-h-touch text-sm font-medium transition-colors',
                             active
                               ? 'bg-primary text-primary-foreground'
                               : 'hover:bg-muted'

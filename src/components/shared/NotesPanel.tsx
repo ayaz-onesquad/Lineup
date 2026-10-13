@@ -41,6 +41,7 @@ import {
   Video,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { sanitizeRichText } from '@/lib/sanitize'
 import { cn } from '@/lib/utils'
 import type { NoteParentEntityType, NoteType, NoteWithAuthor } from '@/types/database'
 
@@ -290,7 +291,9 @@ export function NotesPanel({
                     {note.description && (
                       <div
                         className="text-sm text-muted-foreground mb-2 prose prose-sm max-w-none [&_p]:mb-1 [&_ul]:mb-1 [&_ol]:mb-1 [&_h1]:text-base [&_h2]:text-sm"
-                        dangerouslySetInnerHTML={{ __html: note.description }}
+                        dangerouslySetInnerHTML={{
+                          __html: sanitizeRichText(note.description),
+                        }}
                       />
                     )}
 

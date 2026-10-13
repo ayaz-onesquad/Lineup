@@ -164,7 +164,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         {/* Client (required) and Project (optional) */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="client_id"
@@ -241,7 +241,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="urgency"
@@ -290,7 +290,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
         </div>
 
         {/* Schedule Section */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="expected_start_date"
@@ -321,7 +321,7 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
         </div>
 
         {/* Team Assignment - Owner removed from quick create form */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField
             control={form.control}
             name="lead_id"

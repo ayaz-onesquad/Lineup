@@ -8,20 +8,14 @@ import {
   useFinancialOccurrenceMutations,
 } from '@/hooks/useFinancials'
 import { useUIStore, type EntityType } from '@/stores'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { GridToolbar, GridSearch } from '@/components/shared/GridToolbar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,7 +47,6 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   DollarSign,
   Plus,
-  Search,
   MoreVertical,
   Trash2,
   Edit,
@@ -64,7 +57,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
-  ExternalLink,
 } from 'lucide-react'
 import { formatDate, cn } from '@/lib/utils'
 import { formatFrequency, formatCurrency } from '@/utils/recurrenceUtils'
@@ -102,7 +94,12 @@ function getNextDueDate(entry: FinancialEntry): string | null {
 
 export function FinancialsPage() {
   const navigate = useNavigate()
-  const { data: entries = [], isLoading: entriesLoading } = useFinancialEntries()
+  const {
+    data: entries = [],
+    isLoading: entriesLoading,
+    error: entriesError,
+    refetch: refetchEntries,
+  } = useFinancialEntries()
   const { data: groups = [], isLoading: groupsLoading } = useFinancialGroups()
   const { deleteEntry } = useFinancialEntryMutations()
   const { deleteGroup } = useFinancialGroupMutations()
@@ -223,8 +220,7 @@ export function FinancialsPage() {
     }
   }
 
-  const confirmDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const confirmDelete = (id: string) => {
     setEntryToDelete(id)
     setDeleteDialogOpen(true)
   }
@@ -250,39 +246,57 @@ export function FinancialsPage() {
     })
   }
 
+  const entriesGrid = (
+    <EntriesGrid
+      entries={filteredEntries}
+      isLoading={isLoading}
+      error={entriesError as Error | null}
+      onRetry={refetchEntries}
+      onDelete={confirmDelete}
+      onNavigate={navigate}
+      openCreateModal={openCreateModal}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+    />
+  )
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="page-carbon p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <DollarSign className="h-8 w-8 text-muted-foreground" />
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Financial Manager</h1>
-            <p className="text-muted-foreground">Track expenses and revenue</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setGroupsDialogOpen(true)}>
+    <PageShell
+      title="Financial Manager"
+      description="Track expenses and revenue"
+      icon={DollarSign}
+      // The entries grid carries ten columns; let it use the full viewport.
+      constrainWidth={false}
+      actions={
+        <>
+          <Button
+            variant="outline"
+            onClick={() => setGroupsDialogOpen(true)}
+            className="w-full sm:w-auto"
+          >
             <Settings className="mr-2 h-4 w-4" />
             Manage Groups
           </Button>
-          <Button onClick={() => openCreateModal('financial_entry')}>
+          <Button
+            onClick={() => openCreateModal('financial_entry')}
+            className="w-full sm:w-auto"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add Entry
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {/* KPI Strip */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold tabular-nums text-green-600">
               {formatCurrency(kpis.monthlyRevenue)}
             </div>
             <p className="text-xs text-muted-foreground">This month</p>
@@ -294,7 +308,7 @@ export function FinancialsPage() {
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold tabular-nums text-red-600">
               {formatCurrency(kpis.monthlyExpenses)}
             </div>
             <p className="text-xs text-muted-foreground">This month</p>
@@ -308,7 +322,7 @@ export function FinancialsPage() {
           <CardContent>
             <div
               className={cn(
-                'text-2xl font-bold',
+                'text-2xl font-bold tabular-nums',
                 kpis.netIncome >= 0 ? 'text-green-600' : 'text-red-600'
               )}
             >
@@ -323,7 +337,7 @@ export function FinancialsPage() {
             <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{kpis.overdueCount}</div>
+            <div className="text-2xl font-bold tabular-nums">{kpis.overdueCount}</div>
             <p className="text-xs text-muted-foreground">Occurrences past due</p>
           </CardContent>
         </Card>
@@ -331,61 +345,29 @@ export function FinancialsPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <TabsList>
-            <TabsTrigger value="all">All Entries</TabsTrigger>
-            <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="revenue">Revenue</TabsTrigger>
-            <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          </TabsList>
-
-          {activeTab !== 'calendar' && (
-            <div className="relative max-w-md flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search entries..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          )}
-        </div>
+        <TabsList>
+          <TabsTrigger value="all">All Entries</TabsTrigger>
+          <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+        </TabsList>
 
         {/* All / Expenses / Revenue Tabs */}
         <TabsContent value="all" className="mt-4">
-          <EntriesTable
-            entries={filteredEntries}
-            isLoading={isLoading}
-            onDelete={confirmDelete}
-            onNavigate={navigate}
-            openCreateModal={openCreateModal}
-          />
+          {entriesGrid}
         </TabsContent>
         <TabsContent value="expenses" className="mt-4">
-          <EntriesTable
-            entries={filteredEntries}
-            isLoading={isLoading}
-            onDelete={confirmDelete}
-            onNavigate={navigate}
-            openCreateModal={openCreateModal}
-          />
+          {entriesGrid}
         </TabsContent>
         <TabsContent value="revenue" className="mt-4">
-          <EntriesTable
-            entries={filteredEntries}
-            isLoading={isLoading}
-            onDelete={confirmDelete}
-            onNavigate={navigate}
-            openCreateModal={openCreateModal}
-          />
+          {entriesGrid}
         </TabsContent>
 
         {/* Calendar Tab */}
         <TabsContent value="calendar" className="mt-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
                   {calendarMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
@@ -394,6 +376,7 @@ export function FinancialsPage() {
                   <Button
                     variant="outline"
                     size="icon"
+                    aria-label="Previous month"
                     onClick={() =>
                       setCalendarMonth(
                         new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1)
@@ -405,6 +388,7 @@ export function FinancialsPage() {
                   <Button
                     variant="outline"
                     size="icon"
+                    aria-label="Next month"
                     onClick={() =>
                       setCalendarMonth(
                         new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1)
@@ -417,63 +401,67 @@ export function FinancialsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
-                {/* Header */}
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                  <div
-                    key={day}
-                    className="bg-muted p-2 text-center text-sm font-medium text-muted-foreground"
-                  >
-                    {day}
-                  </div>
-                ))}
-                {/* Empty cells before first day */}
-                {Array.from({ length: calendarData.startDayOfWeek }).map((_, i) => (
-                  <div key={`empty-${i}`} className="bg-background p-2 min-h-[80px]" />
-                ))}
-                {/* Days */}
-                {Array.from({ length: calendarData.daysInMonth }).map((_, i) => {
-                  const day = i + 1
-                  const dateStr = `${calendarData.year}-${String(calendarData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                  const dayOccurrences = calendarData.occurrencesByDate[dateStr] || []
-                  const isToday =
-                    new Date().toISOString().split('T')[0] === dateStr
-
-                  return (
+              {/* A seven-column month grid cannot shrink to a 390px viewport
+                  without 50px cells, so it scrolls inside its own container
+                  rather than squeezing. See docs/DESIGN-SYSTEM.md section 2.2. */}
+              <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                <div className="grid min-w-[640px] grid-cols-7 gap-px overflow-hidden rounded-lg bg-border">
+                  {/* Header */}
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                     <div
                       key={day}
-                      className={cn(
-                        'bg-background p-2 min-h-[80px] border-l border-t first:border-l-0',
-                        isToday && 'bg-primary/5'
-                      )}
+                      className="bg-muted p-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground"
                     >
+                      {day}
+                    </div>
+                  ))}
+                  {/* Empty cells before first day */}
+                  {Array.from({ length: calendarData.startDayOfWeek }).map((_, i) => (
+                    <div key={`empty-${i}`} className="min-h-[80px] bg-background p-2" />
+                  ))}
+                  {/* Days */}
+                  {Array.from({ length: calendarData.daysInMonth }).map((_, i) => {
+                    const day = i + 1
+                    const dateStr = `${calendarData.year}-${String(calendarData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                    const dayOccurrences = calendarData.occurrencesByDate[dateStr] || []
+                    const isToday =
+                      new Date().toISOString().split('T')[0] === dateStr
+
+                    return (
                       <div
+                        key={day}
                         className={cn(
-                          'text-sm mb-1',
-                          isToday && 'font-bold text-primary'
+                          'min-h-[80px] border-l border-t bg-background p-2 first:border-l-0',
+                          isToday && 'bg-primary/5'
                         )}
                       >
-                        {day}
+                        <div
+                          className={cn(
+                            'mb-1 text-sm',
+                            isToday && 'font-bold text-primary'
+                          )}
+                        >
+                          {day}
+                        </div>
+                        <div className="space-y-1">
+                          {dayOccurrences.slice(0, 3).map(({ entry, occurrence }) => (
+                            <CalendarOccurrenceChip
+                              key={occurrence.id}
+                              entry={entry}
+                              occurrence={occurrence}
+                              onStatusChange={handleOccurrenceStatusChange}
+                            />
+                          ))}
+                          {dayOccurrences.length > 3 && (
+                            <div className="text-xs text-muted-foreground">
+                              +{dayOccurrences.length - 3} more
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        {dayOccurrences.slice(0, 3).map(({ entry, occurrence }) => (
-                          <CalendarOccurrenceChip
-                            key={occurrence.id}
-                            entry={entry}
-                            occurrence={occurrence}
-                            onStatusChange={handleOccurrenceStatusChange}
-                          />
-                        ))}
-                        {dayOccurrences.length > 3 && (
-                          <div className="text-xs text-muted-foreground">
-                            +{dayOccurrences.length - 3} more
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -509,76 +497,69 @@ export function FinancialsPage() {
             <DialogTitle>Manage Financial Groups</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Groups Table */}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead className="w-[100px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            {/* Groups list. A four-column table cannot hold name, type, colour
+                and two actions inside a 390px dialog, so this is a card list
+                per docs/DESIGN-SYSTEM.md section 3. */}
+            {groups.length === 0 ? (
+              <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+                No groups yet. Create one below.
+              </p>
+            ) : (
+              <ul className="space-y-2">
                 {groups.map((group) => (
-                  <TableRow key={group.id}>
-                    <TableCell className="font-medium">{group.name}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          group.type === 'expense'
-                            ? 'destructive'
-                            : group.type === 'revenue'
-                              ? 'default'
-                              : 'secondary'
-                        }
+                  <li
+                    key={group.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border p-3"
+                  >
+                    {group.color ? (
+                      <span
+                        aria-hidden="true"
+                        className="h-5 w-5 shrink-0 rounded border"
+                        style={{ backgroundColor: group.color }}
+                      />
+                    ) : (
+                      <span className="h-5 w-5 shrink-0 rounded border border-dashed" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {group.name}
+                    </span>
+                    <Badge
+                      variant={
+                        group.type === 'expense'
+                          ? 'destructive'
+                          : group.type === 'revenue'
+                            ? 'default'
+                            : 'secondary'
+                      }
+                    >
+                      {group.type}
+                    </Badge>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Edit ${group.name}`}
+                        onClick={() => setEditingGroup(group)}
                       >
-                        {group.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {group.color ? (
-                        <div
-                          className="h-5 w-5 rounded border"
-                          style={{ backgroundColor: group.color }}
-                        />
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditingGroup(group)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setGroupToDelete(group.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Delete ${group.name}`}
+                        onClick={() => setGroupToDelete(group.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </li>
                 ))}
-                {groups.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                      No groups yet. Create one below.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+              </ul>
+            )}
 
             {/* Add/Edit Group Form */}
             <div className="border-t pt-4">
-              <h4 className="text-sm font-medium mb-3">
+              <h4 className="mb-3 text-sm font-medium">
                 {editingGroup ? 'Edit Group' : 'Add New Group'}
               </h4>
               <FinancialGroupForm
@@ -611,7 +592,7 @@ export function FinancialsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   )
 }
 
@@ -619,191 +600,235 @@ export function FinancialsPage() {
 // SUB-COMPONENTS
 // ============================================================================
 
-interface EntriesTableProps {
+interface EntriesGridProps {
   entries: FinancialEntry[]
   isLoading: boolean
-  onDelete: (id: string, e: React.MouseEvent) => void
+  error: Error | null
+  onRetry: () => void
+  onDelete: (id: string) => void
   onNavigate: (path: string) => void
   openCreateModal: (type: EntityType) => void
+  searchQuery: string
+  onSearchChange: (value: string) => void
 }
 
-function EntriesTable({
+function EntriesGrid({
   entries,
   isLoading,
+  error,
+  onRetry,
   onDelete,
   onNavigate,
   openCreateModal,
-}: EntriesTableProps) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Group</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Frequency</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Next Due</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[1, 2, 3].map((i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 11 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    )
-  }
+  searchQuery,
+  onSearchChange,
+}: EntriesGridProps) {
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // The entry name identifies the row and is the sticky first column, so it
+  // stays visible while the wide financial data scrolls. Money and counts are
+  // `numeric`, which right-aligns them with tabular figures so digits line up
+  // by place value (docs/DESIGN-SYSTEM.md section 4.3).
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<FinancialEntry>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'Name',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '200px',
+        accessor: (row) => row.name,
+        cell: (row) => (
+          <span className="font-medium">
+            <TruncatedCell value={row.name} maxLines={1} />
+          </span>
+        ),
+      },
+      {
+        id: 'display_id',
+        header: 'ID',
+        hideOnMobile: true,
+        width: '90px',
+        accessor: (row) => row.display_id ?? 0,
+        cell: (row) => (
+          <Badge variant="outline" className="font-mono text-xs">
+            {row.display_id || '—'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'type',
+        header: 'Type',
+        priority: 'secondary',
+        width: '110px',
+        accessor: (row) => (row.type === 'expense' ? 'Expense' : 'Revenue'),
+        cell: (row) => (
+          <Badge variant={row.type === 'expense' ? 'destructive' : 'default'}>
+            {row.type === 'expense' ? 'Expense' : 'Revenue'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'amount',
+        header: 'Amount',
+        priority: 'secondary',
+        width: '130px',
+        numeric: true,
+        accessor: (row) => row.amount,
+        cell: (row) => formatCurrency(row.amount, row.currency),
+      },
+      {
+        id: 'next_due',
+        header: 'Next Due',
+        priority: 'secondary',
+        mobileLabel: 'Next due',
+        width: '130px',
+        accessor: (row) => getNextDueDate(row),
+        cell: (row) => {
+          const nextDue = getNextDueDate(row)
+          return nextDue ? (
+            formatDate(nextDue)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )
+        },
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        priority: 'secondary',
+        width: '130px',
+        accessor: (row) => getEntryStatus(row).label,
+        cell: (row) => {
+          const status = getEntryStatus(row)
+          return <Badge variant={status.variant}>{status.label}</Badge>
+        },
+      },
+      {
+        id: 'group',
+        header: 'Group',
+        width: '150px',
+        accessor: (row) => row.group?.name ?? '',
+        cell: (row) =>
+          row.group ? (
+            <Badge
+              variant="secondary"
+              style={
+                row.group.color
+                  ? { backgroundColor: row.group.color, color: '#fff' }
+                  : undefined
+              }
+            >
+              {row.group.name}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'frequency',
+        header: 'Frequency',
+        width: '150px',
+        accessor: (row) => formatFrequency(row.frequency, row.recurrence_day),
+      },
+      {
+        id: 'start_date',
+        header: 'Start Date',
+        mobileLabel: 'Start',
+        width: '130px',
+        accessor: (row) => row.start_date,
+        cell: (row) => formatDate(row.start_date),
+      },
+      {
+        id: 'client',
+        header: 'Client',
+        width: '160px',
+        accessor: (row) => row.client?.name ?? '',
+        cell: (row) =>
+          row.client?.name ? (
+            <TruncatedCell value={row.client.name} maxLines={1} />
+          ) : (
+            <span className="text-muted-foreground">Internal</span>
+          ),
+      },
+      {
+        id: 'occurrences',
+        header: 'Occurrences',
+        mobileLabel: 'Occurrences',
+        width: '130px',
+        numeric: true,
+        accessor: (row) => (row.occurrences || []).length,
+      },
+    ],
+    []
+  )
 
-  if (entries.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="text-center py-12">
-          <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <CardTitle>No entries yet</CardTitle>
-          <CardDescription>Start by adding your first financial entry.</CardDescription>
-          <Button className="mt-4" onClick={() => openCreateModal('financial_entry')}>
+  return (
+    <DataGrid
+      columns={columns}
+      data={entries}
+      getRowId={(row) => row.id}
+      isLoading={isLoading}
+      error={error}
+      onRetry={onRetry}
+      // The densest grid in the app: compact rows, with the name pinned so the
+      // row's identity survives horizontal scrolling. Sections 2.6 and 4.4.
+      density="compact"
+      stickyFirstColumn
+      storageKey="financials"
+      defaultSort={{ columnId: 'next_due', direction: 'asc' }}
+      ariaLabel="Financial entries"
+      // Double click, Enter, or a mobile tap opens the entry. Section 4.5.
+      onRowOpen={(row) => onNavigate(`/financials/${row.id}`)}
+      hasActiveFilters={!!searchQuery}
+      onClearFilters={() => onSearchChange('')}
+      emptyState={{
+        icon: DollarSign,
+        title: 'No entries yet',
+        description: 'Start by adding your first financial entry.',
+        action: (
+          <Button onClick={() => openCreateModal('financial_entry')}>
             <Plus className="mr-2 h-4 w-4" />
             Add First Entry
           </Button>
-        </CardHeader>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[100px]">ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Group</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Frequency</TableHead>
-              <TableHead>Start Date</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Next Due</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map((entry) => {
-              const status = getEntryStatus(entry)
-              const nextDue = getNextDueDate(entry)
-
-              return (
-                <TableRow
-                  key={entry.id}
-                  className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                  onDoubleClick={() => onNavigate(`/financials/${entry.id}`)}
-                >
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {entry.display_id || '—'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{entry.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={entry.type === 'expense' ? 'destructive' : 'default'}>
-                      {entry.type === 'expense' ? 'Expense' : 'Revenue'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {entry.group ? (
-                      <Badge
-                        variant="secondary"
-                        style={
-                          entry.group.color
-                            ? { backgroundColor: entry.group.color, color: '#fff' }
-                            : undefined
-                        }
-                      >
-                        {entry.group.name}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{formatCurrency(entry.amount, entry.currency)}</TableCell>
-                  <TableCell>
-                    {formatFrequency(entry.frequency, entry.recurrence_day)}
-                  </TableCell>
-                  <TableCell>{formatDate(entry.start_date)}</TableCell>
-                  <TableCell>
-                    {entry.client?.name || (
-                      <span className="text-muted-foreground">Internal</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {nextDue ? formatDate(nextDue) : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="z-50">
-                        <DropdownMenuItem
-                          onClick={() => onNavigate(`/financials/${entry.id}?edit=true`)}
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={(e) => onDelete(entry.id, e as unknown as React.MouseEvent)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {/* Mobile-only Open button */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 md:hidden"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onNavigate(`/financials/${entry.id}`)
-                      }}
-                      title="Open"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+        ),
+      }}
+      toolbar={
+        <GridToolbar
+          search={
+            <GridSearch
+              value={searchQuery}
+              onChange={onSearchChange}
+              placeholder="Search by name, vendor, client or group..."
+            />
+          }
+        />
+      }
+      rowActions={(row) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${row.name}`}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-50">
+            <DropdownMenuItem onClick={() => onNavigate(`/financials/${row.id}?edit=true`)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => onDelete(row.id)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    />
   )
 }
 
@@ -831,7 +856,7 @@ function CalendarOccurrenceChip({
       <PopoverTrigger asChild>
         <button
           className={cn(
-            'w-full text-left text-xs px-1.5 py-0.5 rounded truncate',
+            'w-full truncate rounded px-1.5 py-0.5 text-left text-xs tabular-nums',
             entry.type === 'expense'
               ? 'bg-red-100 text-red-800 hover:bg-red-200'
               : 'bg-green-100 text-green-800 hover:bg-green-200',

@@ -200,7 +200,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
         />
 
         {/* Priority (Urgency + Importance) */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="urgency"
@@ -245,7 +245,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="expected_start_date"
@@ -276,7 +276,7 @@ export function PhaseForm({ defaultValues, onSuccess }: PhaseFormProps) {
         </div>
 
         {/* Team */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="lead_id"

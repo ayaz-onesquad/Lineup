@@ -1,12 +1,35 @@
 // Edge Function: Run Lead Automation
 // Triggers an Apify Google Places scraper and creates leads from results
+//
+// AUTHORIZATION (added in the security hardening pass)
+// This function holds the service_role key and spends Apify credits. It
+// previously ran with no authorization check, so anyone holding the public anon
+// key could pass an arbitrary automation_id, run another tenant's automation,
+// write leads into that tenant, and burn the account's scraping credits.
+//
+// Callers must now present EITHER a valid user session that is an active
+// org_admin of the automation's tenant, OR the service_role key / shared
+// webhook secret (used by the scheduled cron trigger).
+//
+// Required environment variables:
+// - APIFY_API_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
+// - ALLOWED_ORIGINS: comma-separated browser origins allowed to call this
+// - WEBHOOK_SECRET: optional shared secret for callers that cannot present the
+//   service_role key
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import {
+  AuthError,
+  checkRateLimit,
+  corsHeaders as buildCorsHeaders,
+  errorResponse,
+  hasValidWebhookSecret,
+  isServiceRoleCaller,
+  preflightResponse,
+  requireTenantMembership,
+  requireUser,
+  type AuthContext,
+} from '../_shared/security.ts'
 
 interface RequestBody {
   automation_id: string
@@ -90,9 +113,12 @@ function deriveIndustry(place: ApifyPlace, filterCategory?: string | null): stri
 Deno.serve(async (req) => {
   const functionStartTime = Date.now() // Must be first line for accurate duration tracking
 
+  // Per-request CORS headers: the origin is echoed only when allowlisted.
+  const corsHeaders = buildCorsHeaders(req)
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return preflightResponse(req)
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -162,6 +188,26 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Automation is inactive' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // -------------------------------------------------------------------------
+    // AUTHORIZATION
+    //
+    // Checked here rather than at the top of the handler because the tenant to
+    // authorise against comes from the automation row, not from the request
+    // body. Anything before this point only reads configuration; nothing has
+    // been written and no Apify credits have been spent yet.
+    // -------------------------------------------------------------------------
+    // The scheduled cron job calls in with the service_role key as its bearer
+    // token; the key is compared against this function's own copy, so the
+    // public anon key does not qualify.
+    if (isServiceRoleCaller(req) || hasValidWebhookSecret(req)) {
+      checkRateLimit(`automation:internal:${automation.tenant_id}`, 60, 60_000)
+    } else {
+      const ctx: AuthContext = await requireUser(req)
+      // Running an automation spends Apify credits, so it is an admin action.
+      await requireTenantMembership(ctx, automation.tenant_id, ['org_admin', 'sys_admin'])
+      checkRateLimit(`automation:user:${ctx.userId}`, 10, 60_000)
     }
 
     // Create a run record
@@ -550,6 +596,12 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    // An authorization failure must return 401/403, not 500, and must not be
+    // recorded as a failed automation run (nothing was attempted).
+    if (error instanceof AuthError) {
+      return errorResponse(req, error)
+    }
+
     console.error('[run-lead-automation] Unhandled error:', error)
 
     // Update run record with error

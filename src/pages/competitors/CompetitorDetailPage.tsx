@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { safeHttpUrl } from '@/lib/urlSafety'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -249,7 +250,7 @@ export function CompetitorDetailPage() {
     if (!url) return <span className="text-muted-foreground">—</span>
     return (
       <a
-        href={url}
+        href={safeHttpUrl(url) ?? undefined}
         target="_blank"
         rel="noopener noreferrer"
         className="text-primary hover:underline flex items-center gap-1"
@@ -262,7 +263,7 @@ export function CompetitorDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="page-carbon p-6 space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -283,7 +284,7 @@ export function CompetitorDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -473,7 +474,7 @@ export function CompetitorDetailPage() {
                 <DollarSign className="h-5 w-5 text-muted-foreground" />
                 Pricing
               </h3>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
                 <ViewEditField
                   type="text"
                   label="Pricing Model"
@@ -539,7 +540,7 @@ export function CompetitorDetailPage() {
                 <Globe className="h-5 w-5 text-muted-foreground" />
                 Online Presence
               </h3>
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     LinkedIn

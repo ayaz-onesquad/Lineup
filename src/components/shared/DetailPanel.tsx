@@ -12,6 +12,7 @@ import { ProjectDetail } from '@/components/details/ProjectDetail'
 import { PhaseDetail } from '@/components/details/PhaseDetail'
 import { SetDetail } from '@/components/details/SetDetail'
 import { RequirementDetail } from '@/components/details/RequirementDetail'
+import { CompanyDocumentDetail } from '@/components/details/CompanyDocumentDetail'
 
 export function DetailPanel() {
   const { detailPanel, closeDetailPanel } = useUIStore()
@@ -31,6 +32,8 @@ export function DetailPanel() {
         return <SetDetail id={entityId} />
       case 'requirement':
         return <RequirementDetail id={entityId} />
+      case 'company_document':
+        return <CompanyDocumentDetail id={entityId} />
       default:
         return null
     }
@@ -42,7 +45,7 @@ export function DetailPanel() {
       <Sheet open={isOpen} onOpenChange={(open) => !open && closeDetailPanel()}>
         <SheetContent side="bottom" className="h-[85vh] p-0">
           <SheetHeader className="border-b px-4 py-3">
-            <SheetTitle className="capitalize">{entityType} Details</SheetTitle>
+            <SheetTitle className="capitalize">{entityType?.replace(/_/g, ' ')} Details</SheetTitle>
           </SheetHeader>
           <ScrollArea className="h-[calc(85vh-4rem)]">
             <div className="p-4">{renderDetail()}</div>
@@ -65,7 +68,7 @@ export function DetailPanel() {
       <div className="flex h-full flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="font-semibold capitalize">{entityType} Details</h2>
+          <h2 className="font-semibold capitalize">{entityType.replace(/_/g, ' ')} Details</h2>
           <Button variant="ghost" size="icon" onClick={closeDetailPanel}>
             <X className="h-4 w-4" />
           </Button>

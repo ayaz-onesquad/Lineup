@@ -1,4 +1,5 @@
 import { supabase } from '@/services/supabase'
+import { escapePostgrestValue } from '@/lib/urlSafety'
 import type {
   NotificationEmailConfig,
   UpdateNotificationEmailConfigInput,
@@ -373,10 +374,14 @@ export const notificationsApi = {
     }
 
     if (filters.search) {
-      // Search in recipient_email or subject
-      query = query.or(
-        `recipient_email.ilike.%${filters.search}%,subject.ilike.%${filters.search}%`
-      )
+      // Escaped before interpolation: an unescaped comma or parenthesis in the
+      // search term would let the caller rewrite this filter expression.
+      const term = escapePostgrestValue(filters.search)
+      if (term) {
+        query = query.or(
+          `recipient_email.ilike.%${term}%,subject.ilike.%${term}%`
+        )
+      }
     }
 
     // Apply sorting and pagination
@@ -519,10 +524,14 @@ export const notificationsApi = {
     }
 
     if (filters.search) {
-      // Search in recipient_email or subject
-      query = query.or(
-        `recipient_email.ilike.%${filters.search}%,subject.ilike.%${filters.search}%`
-      )
+      // Escaped before interpolation: an unescaped comma or parenthesis in the
+      // search term would let the caller rewrite this filter expression.
+      const term = escapePostgrestValue(filters.search)
+      if (term) {
+        query = query.or(
+          `recipient_email.ilike.%${term}%,subject.ilike.%${term}%`
+        )
+      }
     }
 
     // Apply sorting and pagination

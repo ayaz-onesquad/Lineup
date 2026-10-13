@@ -30,6 +30,7 @@ import {
   Calendar,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { safeHttpUrl } from '@/lib/urlSafety'
 import { SubmitTicketDialog } from '@/components/shared'
 import type { SupportTicket, TicketType, TicketStatus } from '@/services/api/supportTickets'
 
@@ -222,7 +223,7 @@ export function MyTicketsPage() {
                   <div>
                     <h4 className="text-sm font-medium mb-2">Page URL</h4>
                     <a
-                      href={selectedTicket.page_url}
+                      href={safeHttpUrl(selectedTicket.page_url) ?? undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-primary hover:underline flex items-center gap-1"

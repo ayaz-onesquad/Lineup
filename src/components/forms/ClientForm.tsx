@@ -188,7 +188,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
         {/* Client Information Section */}
         <div className="space-y-4">
           {/* Top Row: Name and Status */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="name"
@@ -228,7 +228,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
           </div>
 
           {/* Middle Row: Industry and Location */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="industry"
@@ -416,7 +416,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
           {/* New Contact Fields */}
           {watchContactMode === 'new' && (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="contact_first_name"
@@ -446,7 +446,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="contact_email"

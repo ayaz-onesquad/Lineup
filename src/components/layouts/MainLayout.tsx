@@ -38,14 +38,26 @@ export function MainLayout() {
         </div>
 
         {/* Main Content */}
+        {/*
+          `min-w-0` is load-bearing: without it a flex child refuses to shrink
+          below its content width, so one wide table pushed the entire page
+          sideways. `overflow-x-clip` then contains anything that still
+          overflows, while leaving a table's own scroll container free to
+          scroll. See docs/DESIGN-SYSTEM.md section 2.2.
+
+          The responsive gutters live here rather than in each page, so every
+          page gets 16px on a phone / 24px from `sm` / 32px from `lg` without
+          being individually migrated. PageShell adds the header pattern on
+          top and does not re-pad.
+        */}
         <main
           id="main-content"
-          className={`flex-1 transition-all duration-200 pt-16 ${
+          className={`min-w-0 flex-1 overflow-x-clip pt-16 transition-all duration-200 ${
             sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
           } ${detailPanel.isOpen ? 'lg:mr-96' : ''}`}
           tabIndex={-1}
         >
-          <div className="p-4 md:p-6">
+          <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
             <Outlet />
           </div>
         </main>

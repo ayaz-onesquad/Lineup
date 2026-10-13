@@ -58,6 +58,7 @@ import {
   Edit,
 } from 'lucide-react'
 import { formatDate, getStatusColor, getHealthColor, getComputedStatusColor, getComputedStatusLabel } from '@/lib/utils'
+import { copySecret } from '@/lib/clipboard'
 import { toast } from '@/hooks/use-toast'
 import { isValidEmail } from '@/lib/security'
 import { useState } from 'react'
@@ -164,21 +165,23 @@ export function AdminTenantDetailPage() {
   const [editRole, setEditRole] = useState<string>('')
   const [isSavingEdit, setIsSavingEdit] = useState(false)
 
-  // Copy password to clipboard
-  const copyPassword = () => {
+  // Copy the newly issued password. copySecret clears the clipboard afterwards
+  // so a credential is not left sitting there for any other app to read.
+  const copyPassword = async () => {
     const password = createUserForm.getValues('password')
-    if (password) {
-      navigator.clipboard.writeText(password)
+    if (!password) return
+    const copied = await copySecret(password)
+    if (copied) {
       setPasswordCopied(true)
       setTimeout(() => setPasswordCopied(false), 2000)
     }
   }
 
-  // Copy reset password to clipboard
-  const copyResetPassword = () => {
+  const copyResetPassword = async () => {
     const password = resetPasswordForm.getValues('password')
-    if (password) {
-      navigator.clipboard.writeText(password)
+    if (!password) return
+    const copied = await copySecret(password)
+    if (copied) {
       setResetPasswordCopied(true)
       setTimeout(() => setResetPasswordCopied(false), 2000)
     }
@@ -815,7 +818,7 @@ export function AdminTenantDetailPage() {
                 </DialogHeader>
                 <Form {...createUserForm}>
                   <form onSubmit={createUserForm.handleSubmit(onCreateUser)} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <FormField
                         control={createUserForm.control}
                         name="firstName"
@@ -891,7 +894,7 @@ export function AdminTenantDetailPage() {
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                onClick={copyPassword}
+                                onClick={() => void copyPassword()}
                                 disabled={!field.value}
                                 title="Copy password"
                               >
@@ -930,7 +933,7 @@ export function AdminTenantDetailPage() {
                       )}
                     />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <FormField
                         control={createUserForm.control}
                         name="phone"
@@ -1173,7 +1176,7 @@ export function AdminTenantDetailPage() {
                           type="button"
                           variant="outline"
                           size="icon"
-                          onClick={copyResetPassword}
+                          onClick={() => void copyResetPassword()}
                           disabled={!field.value}
                           title="Copy password"
                         >

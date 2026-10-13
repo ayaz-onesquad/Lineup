@@ -33,3 +33,13 @@ export { financialGroupsApi, financialEntriesApi, financialOccurrencesApi } from
 
 // Competitor Tracker API
 export { competitorsApi } from './competitors'
+
+// Company Documents API (SOPs, protocols, processing guides)
+export {
+  companyDocumentsApi,
+  DownloadNotPermittedError,
+  CompanyDocumentStorageError,
+} from './companyDocuments'
+
+// Session security / audit API
+export { sessionSecurityApi } from './sessionSecurity'

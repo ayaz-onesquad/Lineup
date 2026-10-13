@@ -506,7 +506,7 @@ export function SetDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="page-carbon p-6 space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -526,7 +526,7 @@ export function SetDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Breadcrumbs: Client > [Project] > Set */}
       {/* For client-only sets (no project), show Client > Set */}
       {/* For project-linked sets, show Client > Project > Set */}
@@ -953,7 +953,7 @@ export function SetDetailPage() {
                 <Wallet className="h-5 w-5 text-muted-foreground" />
                 Budget
               </h3>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Budget Days</p>
                   {isEditing ? (
@@ -997,7 +997,7 @@ export function SetDetailPage() {
                 <Users className="h-5 w-5 text-muted-foreground" />
                 Team Information
               </h3>
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
                 {/* Lead */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>

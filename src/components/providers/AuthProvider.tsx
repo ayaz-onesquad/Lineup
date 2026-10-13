@@ -2,6 +2,14 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores'
 import { Loader2 } from 'lucide-react'
+import { sessionSecurityApi } from '@/services/api/sessionSecurity'
+import {
+  ensureSessionStart,
+  clearSessionMarkers,
+  computeDeadlines,
+  setLogoutReason,
+  DEFAULT_SESSION_POLICY,
+} from '@/lib/sessionPolicy'
 
 interface AuthProviderProps {
   children: ReactNode
@@ -21,6 +29,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
+
+        // SESSION LIMITS: a restored session must be checked against the
+        // idle/absolute limits BEFORE the app renders. Without this, closing
+        // the tab for longer than the idle timeout and reopening it would
+        // restore a session that should already have ended.
+        if (session) {
+          ensureSessionStart()
+
+          // Use the tenant's configured limits, not the built-in defaults, so
+          // a tenant that allows a longer idle window is honoured on reload.
+          let policy = DEFAULT_SESSION_POLICY
+          try {
+            policy = await sessionSecurityApi.getEffectivePolicy()
+          } catch {
+            /* keep defaults — enforcing something is safer than nothing */
+          }
+
+          const deadlines = computeDeadlines(policy)
+          if (deadlines.expiresAt <= Date.now()) {
+            setLogoutReason(deadlines.reason)
+            clearSessionMarkers()
+            await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined)
+            if (mounted) {
+              setUser(null)
+              setLoading(false)
+              useAuthStore.getState().setInitialized()
+              setReady(true)
+            }
+            return
+          }
+        }
+
         if (mounted) {
           setUser(session?.user ?? null)
           setLoading(false)
@@ -45,12 +85,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (mounted) {
-          setUser(session?.user ?? null)
-          if (!session) {
-            logout()
-          }
+      (event, session) => {
+        if (!mounted) return
+
+        // Keep the session-lifetime markers in step with the real auth state.
+        if (event === 'SIGNED_IN') {
+          // Deliberately ensure-only, never reset: supabase-js also emits
+          // SIGNED_IN on cross-tab session recovery, and resetting here would
+          // silently extend the absolute lifetime forever. The real sign-in
+          // path (useAuth) stamps a fresh start itself.
+          ensureSessionStart()
+        } else if (event === 'SIGNED_OUT') {
+          clearSessionMarkers()
+        } else if (event === 'TOKEN_REFRESHED') {
+          // A refresh must NOT extend the absolute lifetime — that is exactly
+          // the behaviour that kept sessions alive forever. Only make sure a
+          // start marker exists.
+          ensureSessionStart()
+        }
+
+        setUser(session?.user ?? null)
+        if (!session) {
+          logout()
         }
       }
     )

@@ -26,6 +26,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { escapePostgrestValue } from '@/lib/urlSafety'
 import { getStatusColor } from '@/lib/utils'
 
 // Table definitions for @ command
@@ -99,9 +100,11 @@ export function GlobalSearch() {
         .filter((table): table is string => !!table)
         .map(async (table) => {
           try {
-            // Escape special characters for ilike pattern
-            const escapedSearch = searchText.replace(/[%_]/g, '\\$&')
-            const pattern = `%${escapedSearch}%`
+            // Escape for the ilike pattern AND for the PostgREST filter
+            // grammar. The previous version escaped only % and _, so a comma,
+            // parenthesis or quote in the search box could rewrite the
+            // `.or(...)` expression below.
+            const pattern = `%${escapePostgrestValue(searchText)}%`
 
             let query
 
@@ -293,7 +296,7 @@ export function GlobalSearch() {
           </kbd>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="start" sideOffset={8}>
+      <PopoverContent className="w-[min(400px,calc(100vw-2rem))] p-0" align="start" sideOffset={8}>
         <div className="flex items-center border-b px-3">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input

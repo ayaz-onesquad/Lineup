@@ -16,6 +16,7 @@ import {
   Shield,
   UsersRound,
   Lock,
+  BookLock,
   DollarSign,
   Swords,
   Zap,
@@ -55,6 +56,10 @@ export const NAV_ITEMS: NavItem[] = [
   // Assets
   { label: 'Templates', path: '/templates', icon: LayoutTemplate, group: 'Assets' },
   { label: 'Documents', path: '/documents', icon: FileText, group: 'Assets' },
+  // Deliberately NOT org_admin-gated: SOPs and protocols exist to be read by
+  // the whole team. RLS still hides restricted and confidential records from
+  // anyone who is not an admin or the document's owner.
+  { label: 'Company Documents', path: '/company-documents', icon: BookLock, group: 'Assets' },
   { label: 'Notes', path: '/notes', icon: StickyNote, group: 'Assets' },
   { label: 'Discussions', path: '/discussions', icon: MessageSquare, group: 'Assets' },
 

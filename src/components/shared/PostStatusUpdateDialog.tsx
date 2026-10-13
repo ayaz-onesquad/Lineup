@@ -89,7 +89,7 @@ export function PostStatusUpdateDialog({
 
         <div className="space-y-4 py-4">
           {/* Update Type and Client Visibility */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="update-type">Update Type</Label>
               <Select

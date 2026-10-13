@@ -1,10 +1,21 @@
 import { supabase } from '@/services/supabase'
+import {
+  validateCompanyDocumentFile,
+  CompanyDocumentValidationError,
+  sanitizeFileName,
+} from '@/lib/companyDocuments'
 import type {
   DocumentWithUploader,
   CreateDocumentInput,
   UpdateDocumentInput,
   EntityType,
 } from '@/types/database'
+
+/**
+ * Lifetime of a document signed URL, in seconds. Short on purpose: a leaked or
+ * forwarded link stops working almost immediately.
+ */
+const SIGNED_URL_TTL_SECONDS = 120
 
 // Custom error class for storage permission errors
 export class StoragePermissionError extends Error {
@@ -272,8 +283,22 @@ export const documentsApi = {
     tenantId: string,
     file: File
   ): Promise<{ file_url: string; file_type: string; file_size_bytes: number }> => {
-    // Sanitize filename: replace spaces with underscores
-    const sanitizedName = file.name.replace(/\s+/g, '_')
+    // SECURITY: enforce the MIME/extension allowlist and the size cap before
+    // the file reaches storage. Previously any file of any type or size could
+    // be uploaded, including HTML and SVG, which are served from the same
+    // origin as signed URLs and are therefore XSS vectors.
+    try {
+      validateCompanyDocumentFile(file)
+    } catch (err) {
+      if (err instanceof CompanyDocumentValidationError) {
+        throw new StoragePermissionError(err.message)
+      }
+      throw err
+    }
+
+    // Strip path separators and control characters from the stored name, not
+    // just whitespace.
+    const sanitizedName = sanitizeFileName(file.name).replace(/\s+/g, '_')
     const fileName = `${tenantId}/${Date.now()}_${sanitizedName}`
 
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -371,10 +396,14 @@ export const documentsApi = {
   },
 
   /**
-   * @deprecated Use downloadFile() instead for proper download behavior
+   * @deprecated Use downloadFile() instead for proper download behavior.
+   *
+   * Kept only for callers that have not migrated. `noopener` is set explicitly:
+   * without it the opened tab receives a `window.opener` reference back into
+   * this app.
    */
   download: async (fileUrl: string): Promise<void> => {
-    window.open(fileUrl, '_blank')
+    window.open(fileUrl, '_blank', 'noopener,noreferrer')
   },
 
   /**
@@ -418,6 +447,10 @@ export const documentsApi = {
    * Handles both:
    * - Old documents stored with full public URLs
    * - New documents stored with just the storage path
+   *
+   * The URL is valid for SIGNED_URL_TTL_SECONDS only. It was previously an
+   * hour, which is long enough for a copied link to be shared, pasted into a
+   * ticket, or indexed. Two minutes is ample for a click-through download.
    */
   getSignedUrl: async (fileUrl: string): Promise<string> => {
     try {
@@ -425,7 +458,7 @@ export const documentsApi = {
       if (!fileUrl.startsWith('http')) {
         const { data, error } = await supabase.storage
           .from('documents')
-          .createSignedUrl(fileUrl, 3600)
+          .createSignedUrl(fileUrl, SIGNED_URL_TTL_SECONDS)
         if (error) throw error
         return data.signedUrl
       }
@@ -460,7 +493,7 @@ export const documentsApi = {
 
       const { data, error } = await supabase.storage
         .from(bucketName)
-        .createSignedUrl(storagePath, 3600) // 1 hour expiry
+        .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS)
 
       if (error) throw error
       return data.signedUrl
