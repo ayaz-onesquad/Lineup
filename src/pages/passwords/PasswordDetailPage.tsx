@@ -227,7 +227,7 @@ export function PasswordDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="page-carbon p-6 space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -248,7 +248,7 @@ export function PasswordDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -354,7 +354,7 @@ export function PasswordDetailPage() {
                 <KeyRound className="h-5 w-5 text-muted-foreground" />
                 Password
               </h3>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Password <span className="text-red-500">*</span>
@@ -444,7 +444,7 @@ export function PasswordDetailPage() {
                 <Tag className="h-5 w-5 text-muted-foreground" />
                 Organization
               </h3>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Category

@@ -197,7 +197,7 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         {/* Filter dropdowns to help find the right set */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField
             control={form.control}
             name="client_id"
@@ -296,7 +296,7 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="urgency"
@@ -345,7 +345,7 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
         </div>
 
         {/* Schedule Section */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="expected_start_date"
@@ -376,7 +376,7 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
         </div>
 
         {/* Team Assignment */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="lead_id"

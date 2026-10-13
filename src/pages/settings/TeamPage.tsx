@@ -380,7 +380,7 @@ export function TeamPage() {
               </DialogHeader>
               <Form {...createUserForm}>
                 <form onSubmit={createUserForm.handleSubmit(onCreateUser)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={createUserForm.control}
                       name="firstName"

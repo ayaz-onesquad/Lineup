@@ -21,8 +21,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Loader2, Pencil, X, MoreVertical, Trash2, Settings2, GripVertical, Eye, EyeOff } from 'lucide-react'
+import {
+  Loader2,
+  Pencil,
+  X,
+  MoreVertical,
+  Trash2,
+  Settings2,
+  GripVertical,
+  Eye,
+  EyeOff,
+  ArrowUpAZ,
+  ArrowDownAZ,
+  ChevronsUpDown,
+  Inbox,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
 import { toast } from '@/hooks/use-toast'
 import {
   DndContext,
@@ -240,7 +256,11 @@ export function GridEditTable<T extends { id: string }>({
   rowSelection = {},
   onRowSelectionChange,
   storageKey,
+  density = 'compact',
+  defaultSort,
+  ariaLabel,
 }: GridEditTableProps<T>) {
+  const isMobile = useMediaQuery('(max-width: 767px)')
   // Get initial column state from localStorage or defaults
   const getInitialColumnState = useCallback((): ColumnState => {
     const defaultOrder = columns.map(col => getColumnId(col))
@@ -307,6 +327,47 @@ export function GridEditTable<T extends { id: string }>({
   }, [columns, columnOrder, columnVisibility])
 
   // Internal state management
+  // Sorting. Persisted separately from column visibility so an older stored
+  // ColumnState (which has no sort field) still loads cleanly.
+  const [sort, setSort] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(
+    () => {
+      if (storageKey) {
+        try {
+          const saved = localStorage.getItem(`lineup_sort_${storageKey}`)
+          if (saved) return JSON.parse(saved)
+        } catch {
+          /* fall through to the default */
+        }
+      }
+      return defaultSort ?? null
+    }
+  )
+
+  const toggleSort = useCallback(
+    (columnId: string) => {
+      setSort(current => {
+        let next: { columnId: string; direction: 'asc' | 'desc' } | null
+        if (!current || current.columnId !== columnId) {
+          next = { columnId, direction: 'asc' }
+        } else if (current.direction === 'asc') {
+          next = { columnId, direction: 'desc' }
+        } else {
+          next = null
+        }
+        if (storageKey) {
+          try {
+            if (next) localStorage.setItem(`lineup_sort_${storageKey}`, JSON.stringify(next))
+            else localStorage.removeItem(`lineup_sort_${storageKey}`)
+          } catch {
+            /* sorting still works for this session */
+          }
+        }
+        return next
+      })
+    },
+    [storageKey]
+  )
+
   const [isGridEditMode, setIsGridEditMode] = useState(false)
   const [dirtyRows, setDirtyRows] = useState<Map<string, Partial<T>>>(new Map())
   const [isSaving, setIsSaving] = useState(false)
@@ -539,10 +600,125 @@ export function GridEditTable<T extends { id: string }>({
   )
 
   // Check if any columns are hideable (to show column manager)
+  /**
+   * Comparator shared with DataGrid's: empty values sort last in both
+   * directions, and strings compare numerically so "Phase 2" precedes
+   * "Phase 10".
+   */
+  const sortedData = useMemo(() => {
+    if (!sort) return data
+    const column = columns.find(c => getColumnId(c) === sort.columnId)
+    if (!column) return data
+
+    const valueOf = (row: T): string | number | undefined => {
+      if (column.getValue) return column.getValue(row)
+      const raw = getCellValue(row, column.key)
+      if (raw === null || raw === undefined) return undefined
+      if (typeof raw === 'number' || typeof raw === 'string') return raw
+      return String(raw)
+    }
+
+    const factor = sort.direction === 'asc' ? 1 : -1
+
+    return [...data].sort((a, b) => {
+      const av = valueOf(a)
+      const bv = valueOf(b)
+      const aEmpty = av === undefined || av === ''
+      const bEmpty = bv === undefined || bv === ''
+      if (aEmpty && bEmpty) return 0
+      if (aEmpty) return 1
+      if (bEmpty) return -1
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * factor
+      return (
+        String(av).localeCompare(String(bv), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        }) * factor
+      )
+    })
+  }, [data, sort, columns, getCellValue])
+
   const hasHideableColumns = useMemo(() =>
     columns.some(col => col.enableHiding !== false),
     [columns]
   )
+
+  // ---------------------------------------------------------------------------
+  // Mobile
+  //
+  // Below `md` this delegates entirely to DataGrid, which renders the card view
+  // and the sort sheet. Two reasons rather than building a second card layout
+  // here:
+  //
+  //   1. Inline cell editing is not viable on a phone. A 16-column grid with
+  //      editable date and select inputs cannot be used at 390px, so grid-edit
+  //      mode is deliberately desktop-only. Mobile is read-and-navigate.
+  //   2. One card implementation means a column added to a page gets correct
+  //      mobile treatment with no extra work.
+  //
+  // Selection and per-row delete are likewise desktop-only; on mobile the
+  // record's own page carries those actions.
+  // ---------------------------------------------------------------------------
+  const mobileColumns = useMemo<DataGridColumn<T>[]>(
+    () =>
+      columns.map(column => {
+        const columnId = getColumnId(column)
+        const label =
+          column.mobileLabel ??
+          (typeof column.header === 'string' ? column.header : columnId)
+
+        return {
+          id: columnId,
+          header: label,
+          accessor: row => {
+            if (column.getValue) return column.getValue(row)
+            const raw = getCellValue(row, column.key)
+            if (raw === null || raw === undefined) return undefined
+            if (typeof raw === 'number' || typeof raw === 'string') return raw
+            return String(raw)
+          },
+          cell: column.render ? row => column.render!(row) : undefined,
+          priority: column.priority,
+          mobileLabel: column.mobileLabel,
+          hideOnMobile: column.hideOnMobile,
+          numeric: column.numeric,
+          sortable: column.sortable ?? true,
+        }
+      }),
+    [columns, getCellValue]
+  )
+
+  if (isMobile) {
+    return (
+      <DataGrid<T>
+        columns={mobileColumns}
+        data={sortedData}
+        getRowId={row => row.id}
+        isLoading={isLoading}
+        onRowOpen={
+          onRowDoubleClick || onRowClick
+            ? row => {
+                const context: RowClickContext = {
+                  sortedIds: sortedData.map(r => r.id),
+                  source: storageKey || 'unknown',
+                }
+                ;(onRowDoubleClick ?? onRowClick)?.(row, context)
+              }
+            : undefined
+        }
+        density={density}
+        storageKey={storageKey ? `${storageKey}-mobile` : undefined}
+        defaultSort={sort ?? defaultSort}
+        toolbar={children}
+        ariaLabel={ariaLabel}
+        emptyState={{
+          icon: Inbox,
+          title: emptyMessage,
+          action: emptyAction,
+        }}
+      />
+    )
+  }
 
   // Loading state
   if (isLoading) {
@@ -555,9 +731,10 @@ export function GridEditTable<T extends { id: string }>({
 
   return (
     <>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-4 flex-1">
+      {/* Toolbar. Wraps so filters, column manager and the grid-edit toggle do
+          not overflow a narrow window. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           {children}
         </div>
         <div className="flex items-center gap-2">
@@ -620,24 +797,63 @@ export function GridEditTable<T extends { id: string }>({
                     />
                   </th>
                 )}
-                {visibleColumns.map((column) => (
-                  <th
-                    key={getColumnId(column)}
-                    style={column.size ? { width: column.size } : column.width ? { width: column.width } : undefined}
-                    className="h-10 px-3 text-left align-middle font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap"
-                  >
-                    {column.header}
-                  </th>
-                ))}
+                {visibleColumns.map((column) => {
+                  const columnId = getColumnId(column)
+                  const sortable = column.sortable ?? true
+                  const active = sort?.columnId === columnId
+                  return (
+                    <th
+                      key={columnId}
+                      style={column.size ? { width: column.size } : column.width ? { width: column.width } : undefined}
+                      aria-sort={
+                        active
+                          ? sort!.direction === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      }
+                      className={cn(
+                        'h-10 px-3 align-middle font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap',
+                        column.numeric ? 'text-right' : 'text-left'
+                      )}
+                    >
+                      {sortable ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(columnId)}
+                          className={cn(
+                            'group -mx-1 inline-flex items-center gap-1 rounded px-1',
+                            'hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            active && 'text-foreground'
+                          )}
+                        >
+                          <span className="truncate">{column.header}</span>
+                          {active ? (
+                            sort!.direction === 'asc' ? (
+                              <ArrowUpAZ className="h-3 w-3 shrink-0" />
+                            ) : (
+                              <ArrowDownAZ className="h-3 w-3 shrink-0" />
+                            )
+                          ) : (
+                            <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-50" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className="truncate">{column.header}</span>
+                      )}
+                    </th>
+                  )
+                })}
                 {onDelete && (
                   <th className="h-10 px-3" style={{ width: 50 }}></th>
                 )}
               </tr>
             </thead>
             <tbody className="[&_tr:last-child]:border-0">
-              {data.map((row) => {
-                // Get sorted IDs for Save & Next context
-                const sortedIds = data.map((r) => r.id)
+              {sortedData.map((row) => {
+                // Save & Next walks the rows in the order the user sees them,
+                // so this must be the sorted order, not the fetch order.
+                const sortedIds = sortedData.map((r) => r.id)
                 const clickContext: RowClickContext = {
                   sortedIds,
                   source: storageKey || 'unknown',
@@ -666,7 +882,10 @@ export function GridEditTable<T extends { id: string }>({
                     {visibleColumns.map((column) => (
                       <td
                         key={getColumnId(column)}
-                        className="px-3 py-2 align-middle"
+                        className={cn(
+                          'px-3 py-2 align-middle',
+                          column.numeric && 'text-right font-mono tabular-nums'
+                        )}
                         style={column.size ? { width: column.size } : column.width ? { width: column.width } : undefined}
                       >
                         {renderCell(row, column)}
@@ -705,7 +924,7 @@ export function GridEditTable<T extends { id: string }>({
 
       {/* Floating Save Bar */}
       {isGridEditMode && dirtyCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg p-4 flex justify-between items-center z-50">
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-between gap-2 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg">
           <span className="text-sm text-muted-foreground">
             {dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}
           </span>

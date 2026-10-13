@@ -3,21 +3,17 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useProjects, useProjectMutations, useClients, useDataGridFilters, type FilterConfig } from '@/hooks'
 import { useUIStore } from '@/stores'
-import { MobileActionBar, BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
+import { MobileActionBar, BulkActionBar, storeListContext, type RowClickContext } from '@/components/shared'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { GridToolbar, GridSearch, GridFilterSelect } from '@/components/shared/GridToolbar'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,21 +21,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, FolderKanban, Grid, List, MoreVertical, Edit, Building2, User, Upload, Trash2, Eye, Filter } from 'lucide-react'
+import { Plus, FolderKanban, Grid, List, MoreVertical, Edit, Building2, User, Upload, Trash2, Eye } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
-import { getHealthColor, formatDate, cn } from '@/lib/utils'
+import { getHealthColor, formatDate } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { toast } from '@/hooks/use-toast'
+import type { ProjectWithRelations } from '@/types/database'
+
+const STATUS_VALUES = ['active', 'on_deck', 'past_due', 'completed', 'future'] as const
+
+const STATUS_OPTIONS = STATUS_VALUES.map(value => ({
+  value,
+  label: getStatusLabel(value),
+}))
 
 export function ProjectsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
-  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data: projects, isLoading } = useProjects()
+  const { data: projects, isLoading, error, refetch } = useProjects()
   const { data: clients } = useClients()
   const { deleteProject } = useProjectMutations()
   const { openCreateModal, openDetailPanel } = useUIStore()
@@ -49,7 +52,7 @@ export function ProjectsPage() {
   // Filter configuration
   const filterConfig: FilterConfig = useMemo(() => ({
     search: true,
-    status: ['active', 'on_deck', 'past_due', 'completed', 'future'],
+    status: [...STATUS_VALUES],
     parentFilters: [
       {
         key: 'client_id',
@@ -73,6 +76,11 @@ export function ProjectsPage() {
     applyFilters,
   } = useDataGridFilters(filterConfig)
 
+  const clientOptions = useMemo(
+    () => clients?.map((c) => ({ value: c.id, label: c.name })) ?? [],
+    [clients]
+  )
+
   // Apply filters to projects data
   const filteredProjects = useMemo(() => {
     if (!projects) return []
@@ -93,33 +101,10 @@ export function ProjectsPage() {
   }, [filteredProjects, navigate])
 
   // Get selected rows for bulk actions
-  const selectedRows = useMemo(() => {
-    return filteredProjects.filter((project) => rowSelection[project.id])
-  }, [filteredProjects, rowSelection])
-
-  // Selection helpers
-  const isAllSelected = filteredProjects.length > 0 && selectedRows.length === filteredProjects.length
-  const isSomeSelected = selectedRows.length > 0 && selectedRows.length < filteredProjects.length
-
-  const handleSelectAll = useCallback((checked: boolean) => {
-    const newSelection: Record<string, boolean> = {}
-    if (checked) {
-      filteredProjects.forEach((project) => {
-        newSelection[project.id] = true
-      })
-    }
-    setRowSelection(newSelection)
-  }, [filteredProjects])
-
-  const handleSelectRow = useCallback((rowId: string, checked: boolean) => {
-    const newSelection = { ...rowSelection }
-    if (checked) {
-      newSelection[rowId] = true
-    } else {
-      delete newSelection[rowId]
-    }
-    setRowSelection(newSelection)
-  }, [rowSelection])
+  const selectedRows = useMemo(
+    () => filteredProjects.filter((project) => selectedIds.has(project.id)),
+    [filteredProjects, selectedIds]
+  )
 
   // Handle bulk delete
   const handleBulkDelete = useCallback(async (ids: string[]) => {
@@ -142,53 +127,225 @@ export function ProjectsPage() {
     }
   }, [deleteProject, queryClient])
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-          <p className="text-muted-foreground">Manage all your projects</p>
-        </div>
-        <Button onClick={() => openCreateModal('project')}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
-        </Button>
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // Priorities per docs/DESIGN-SYSTEM.md section 4.1: the project name is the
+  // row identity, and the four facts needed to triage a project (client,
+  // status, health, lead) are secondary. The display ID is desktop-only noise.
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<ProjectWithRelations>[]>(
+    () => [
+      {
+        id: 'display_id',
+        header: 'ID',
+        hideOnMobile: true,
+        hideable: false,
+        width: '90px',
+        accessor: row => row.display_id ?? 0,
+        cell: row =>
+          row.display_id ? (
+            <Badge variant="outline" className="font-mono text-xs">
+              #{row.display_id}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'name',
+        header: 'Project Name',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '220px',
+        accessor: row => row.name,
+        cell: row => (
+          <div className="min-w-0 font-medium">
+            <TruncatedCell value={row.name} maxLines={1} />
+          </div>
+        ),
+      },
+      {
+        id: 'client',
+        header: 'Client',
+        priority: 'secondary',
+        width: '180px',
+        accessor: row => row.clients?.name ?? '',
+        cell: row =>
+          row.clients?.id ? (
+            <Link
+              to={`/clients/${row.clients.id}`}
+              className="flex min-w-0 items-center gap-2 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <TruncatedCell value={row.clients.name} maxLines={1} />
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        priority: 'secondary',
+        width: '140px',
+        accessor: row => getStatusLabel(computeDisplayStatus(row)),
+        cell: row => (
+          <Badge variant="outline" className={getStatusColor(computeDisplayStatus(row))}>
+            {getStatusLabel(computeDisplayStatus(row))}
+          </Badge>
+        ),
+      },
+      {
+        id: 'health',
+        header: 'Health',
+        priority: 'secondary',
+        width: '130px',
+        accessor: row => row.health,
+        cell: row => (
+          <Badge variant="outline" className={getHealthColor(row.health)}>
+            {row.health.replace('_', ' ')}
+          </Badge>
+        ),
+      },
+      {
+        id: 'lead',
+        header: 'Lead',
+        priority: 'secondary',
+        width: '180px',
+        accessor: row => row.lead?.full_name ?? '',
+        cell: row =>
+          row.lead ? (
+            <div className="flex min-w-0 items-center gap-2">
+              {row.lead.avatar_url ? (
+                <img
+                  src={row.lead.avatar_url}
+                  alt=""
+                  className="h-6 w-6 shrink-0 rounded-full"
+                />
+              ) : (
+                <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+              <TruncatedCell value={row.lead.full_name} maxLines={1} />
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'completion_percentage',
+        header: 'Progress',
+        width: '150px',
+        numeric: true,
+        accessor: row => row.completion_percentage ?? 0,
+        cell: row => (
+          <div className="flex items-center gap-2">
+            <Progress value={row.completion_percentage} className="h-2 flex-1" />
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {row.completion_percentage ?? 0}%
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: 'expected_end_date',
+        header: 'Due',
+        width: '130px',
+        accessor: row => row.expected_end_date,
+        cell: row =>
+          row.expected_end_date ? (
+            formatDate(row.expected_end_date)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'project_code',
+        header: 'Code',
+        hideOnMobile: true,
+        width: '140px',
+        accessor: row => row.project_code ?? '',
+        cell: row =>
+          row.project_code ? (
+            <span className="font-mono text-xs">{row.project_code}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+    ],
+    []
+  )
+
+  const toolbar = (
+    <GridToolbar
+      activeFilterCount={activeFilterCount}
+      onClearFilters={clearAll}
+      search={
+        <GridSearch
+          value={filters.search}
+          onChange={setSearch}
+          placeholder="Search by name, code or ID..."
+        />
+      }
+    >
+      <GridFilterSelect
+        label="Status"
+        options={STATUS_OPTIONS}
+        value={filters.statuses[0] ?? ''}
+        onChange={(value) => setStatuses(value ? [value] : [])}
+      />
+      <GridFilterSelect
+        label="Client"
+        options={clientOptions}
+        value={filters.parents.client_id?.[0] ?? ''}
+        onChange={(value) => setParent('client_id', value ? [value] : [])}
+      />
+      <div className="w-full md:w-auto">
+        <Label htmlFor="projects-due-from" className="mb-1.5 block text-sm font-medium md:hidden">
+          Due from
+        </Label>
+        <Input
+          id="projects-due-from"
+          type="date"
+          aria-label="Due from"
+          value={filters.dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="md:w-[150px]"
+        />
       </div>
+      <div className="w-full md:w-auto">
+        <Label htmlFor="projects-due-to" className="mb-1.5 block text-sm font-medium md:hidden">
+          Due to
+        </Label>
+        <Input
+          id="projects-due-to"
+          type="date"
+          aria-label="Due to"
+          value={filters.dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="md:w-[150px]"
+        />
+      </div>
+    </GridToolbar>
+  )
 
-      {/* Toolbar Row */}
-      <div className="flex items-center gap-2 mb-3">
-        {/* Result count - only when filters active */}
-        {hasActiveFilters && (
-          <span className="text-xs text-muted-foreground">
-            {filteredProjects.length} of {projects?.length ?? 0}
-          </span>
-        )}
-
-        {/* Push buttons to the right */}
-        <div className="ml-auto flex items-center gap-2">
-          {/* Filter toggle button */}
-          <Button
-            variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
-            size="sm"
-            onClick={() => setFiltersOpen(v => !v)}
-            className="gap-1.5"
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
-                {activeFilterCount}
-              </Badge>
-            )}
-          </Button>
-
-          {/* View toggle */}
-          <div className="flex items-center border rounded-md">
+  return (
+    <PageShell
+      title="Projects"
+      description="Manage all your projects"
+      icon={FolderKanban}
+      actions={
+        <>
+          {/* View toggle: the card view is redundant below `md`, where the grid
+              already renders cards, but the preference is preserved. */}
+          <div className="flex items-center rounded-md border">
             <Button
               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
               size="icon"
-              className="rounded-r-none h-9 w-9"
+              className="h-9 w-9 rounded-r-none"
+              aria-label="Card view"
+              aria-pressed={viewMode === 'grid'}
               onClick={() => setViewMode('grid')}
             >
               <Grid className="h-4 w-4" />
@@ -196,70 +353,47 @@ export function ProjectsPage() {
             <Button
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="icon"
-              className="rounded-l-none h-9 w-9"
+              className="h-9 w-9 rounded-l-none"
+              aria-label="List view"
+              aria-pressed={viewMode === 'list'}
               onClick={() => setViewMode('list')}
             >
               <List className="h-4 w-4" />
             </Button>
           </div>
-
-          {/* Import button */}
           <Button
             variant="outline"
-            size="sm"
             onClick={() => setShowBulkUpload(true)}
-            className="gap-2"
+            className="w-full gap-2 sm:w-auto"
           >
             <Upload className="h-4 w-4" />
             Import
           </Button>
-        </div>
-      </div>
-
-      {/* Collapsible FilterBar */}
-      <FilterBar
-        config={filterConfig}
-        filters={filters}
-        onSearch={setSearch}
-        onStatuses={setStatuses}
-        onParent={setParent}
-        onDateFrom={setDateFrom}
-        onDateTo={setDateTo}
-        onClearAll={clearAll}
-        hasActiveFilters={hasActiveFilters}
-        resultCount={filteredProjects.length}
-        totalCount={projects?.length ?? 0}
-        collapsed={!filtersOpen}
-      />
-
-      {/* Projects Grid/List */}
-      {isLoading ? (
-        <div className={viewMode === 'grid' ? 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' : 'space-y-4'}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className={viewMode === 'grid' ? 'h-48' : 'h-24'} />
-          ))}
-        </div>
-      ) : filteredProjects?.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FolderKanban className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No projects found</p>
-            <Button className="mt-4" onClick={() => openCreateModal('project')}>
-              Create your first project
-            </Button>
-          </CardContent>
-        </Card>
-      ) : viewMode === 'grid' ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProjects?.map((project) => (
-            <Card
-              key={project.id}
-              className="h-full hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => openDetailPanel('project', project.id)}
-              onDoubleClick={() => navigateToProject(project.id)}
-            >
+          <Button onClick={() => openCreateModal('project')} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            New Project
+          </Button>
+        </>
+      }
+    >
+      {viewMode === 'grid' ? (
+        <div className="space-y-3">
+          {toolbar}
+          {hasActiveFilters && (
+            <p className="text-xs text-muted-foreground">
+              {filteredProjects.length} of {projects?.length ?? 0}
+            </p>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredProjects.map((project) => (
+              <Card
+                key={project.id}
+                className="h-full cursor-pointer transition-shadow hover:shadow-md"
+                onClick={() => openDetailPanel('project', project.id)}
+                onDoubleClick={() => navigateToProject(project.id)}
+              >
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2 flex items-center justify-between">
                     <Badge className={getStatusColor(computeDisplayStatus(project))}>
                       {getStatusLabel(computeDisplayStatus(project))}
                     </Badge>
@@ -267,7 +401,7 @@ export function ProjectsPage() {
                       {project.health.replace('_', ' ')}
                     </Badge>
                   </div>
-                  <CardTitle className="text-lg line-clamp-1">{project.name}</CardTitle>
+                  <CardTitle className="line-clamp-1 text-lg">{project.name}</CardTitle>
                   <CardDescription className="line-clamp-1">
                     {project.project_code} • {project.clients?.name}
                   </CardDescription>
@@ -293,152 +427,75 @@ export function ProjectsPage() {
                   </div>
                 </CardContent>
               </Card>
-          ))}
+            ))}
+          </div>
         </div>
       ) : (
-        // List View - Data Grid (Table) format with columns: Client, Project Name, Status, Health, Lead
-        <Card className="card-carbon">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">
-                    <Checkbox
-                      checked={isAllSelected}
-                      ref={(el) => {
-                        if (el) {
-                          (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = isSomeSelected
-                        }
-                      }}
-                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                      aria-label="Select all"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Project Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Health</TableHead>
-                  <TableHead>Lead</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProjects?.map((project) => (
-                  <TableRow
-                    key={project.id}
-                    className={cn(
-                      'cursor-pointer hover:bg-muted/50 min-h-[44px]',
-                      selectedRowId === project.id && 'bg-muted',
-                      rowSelection[project.id] && 'bg-muted/50'
-                    )}
-                    onClick={() => {
-                      if (window.innerWidth < 768) {
-                        setSelectedRowId(selectedRowId === project.id ? null : project.id)
-                      } else {
-                        openDetailPanel('project', project.id)
-                      }
-                    }}
-                    onDoubleClick={() => navigateToProject(project.id)}
-                  >
-                    {/* Checkbox column */}
-                    <TableCell>
-                      <Checkbox
-                        checked={!!rowSelection[project.id]}
-                        onCheckedChange={(checked) => handleSelectRow(project.id, !!checked)}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="Select row"
-                      />
-                    </TableCell>
-                    {/* Actions column */}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="z-50">
-                          <DropdownMenuItem onClick={() => navigateToProject(project.id)}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigateToProject(project.id, true)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteProject.mutate(project.id)
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                    <TableCell>
-                      {project.clients?.id ? (
-                        <Link
-                          to={`/clients/${project.clients.id}`}
-                          className="flex items-center gap-2 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Building2 className="h-3 w-3 text-muted-foreground" />
-                          {project.clients?.name || '—'}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {project.name}
-                        {project.display_id && (
-                          <Badge variant="outline" className="font-mono text-xs">
-                            #{project.display_id}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(computeDisplayStatus(project))} variant="outline">
-                        {getStatusLabel(computeDisplayStatus(project))}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getHealthColor(project.health)}>
-                        {project.health.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {project.lead ? (
-                        <div className="flex items-center gap-2">
-                          {project.lead.avatar_url ? (
-                            <img
-                              src={project.lead.avatar_url}
-                              alt={project.lead.full_name}
-                              className="h-6 w-6 rounded-full"
-                            />
-                          ) : (
-                            <User className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <span className="text-sm">{project.lead.full_name}</span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <DataGrid
+          columns={columns}
+          data={filteredProjects}
+          getRowId={(row) => row.id}
+          isLoading={isLoading}
+          error={error as Error | null}
+          onRetry={refetch}
+          storageKey="projects"
+          defaultSort={{ columnId: 'name', direction: 'asc' }}
+          ariaLabel="Projects"
+          stickyFirstColumn
+          // Single click opens the quick-view panel on desktop; on a phone it
+          // arms the MobileActionBar. Double click or Enter opens the record.
+          onRowClick={(row) => {
+            if (window.innerWidth < 768) {
+              setSelectedRowId(selectedRowId === row.id ? null : row.id)
+            } else {
+              openDetailPanel('project', row.id)
+            }
+          }}
+          onRowOpen={(row) => navigateToProject(row.id)}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearAll}
+          emptyState={{
+            icon: FolderKanban,
+            title: 'No projects found',
+            description: 'Create a project to start organising phases, sets and requirements.',
+            action: (
+              <Button onClick={() => openCreateModal('project')}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create your first project
+              </Button>
+            ),
+          }}
+          toolbar={toolbar}
+          rowActions={(row) => (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Project actions">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-50">
+                <DropdownMenuItem onClick={() => navigateToProject(row.id)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigateToProject(row.id, true)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => deleteProject.mutate(row.id)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        />
       )}
 
       {/* Mobile Action Bar */}
@@ -469,10 +526,10 @@ export function ProjectsPage() {
         selectedRows={selectedRows}
         entityName="project"
         entityPath="projects"
-        onClearSelection={() => setRowSelection({})}
+        onClearSelection={() => setSelectedIds(new Set())}
         onDelete={handleBulkDelete}
         onNavigate={navigate}
       />
-    </div>
+    </PageShell>
   )
 }

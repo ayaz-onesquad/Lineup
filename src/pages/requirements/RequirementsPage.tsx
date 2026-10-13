@@ -195,6 +195,7 @@ export function RequirementsPage() {
     {
       key: 'display_id',
       header: 'Req ID',
+      hideOnMobile: true,
       editable: false,
       enableHiding: false, // ID column cannot be hidden
       width: '90px',
@@ -219,12 +220,14 @@ export function RequirementsPage() {
     {
       key: 'sets.name',
       header: 'Set',
+      mobileLabel: 'Set',
       editable: false,
       render: (row) => row.sets?.name || '—',
     },
     {
       key: 'title',
       header: 'Title',
+      priority: 'primary',
       editable: true,
       type: 'text',
       render: (row) => (
@@ -234,6 +237,7 @@ export function RequirementsPage() {
     {
       key: 'urgency',
       header: 'Urgency',
+      hideOnMobile: true,
       editable: true,
       type: 'select',
       options: URGENCY_OPTIONS,
@@ -246,6 +250,7 @@ export function RequirementsPage() {
     {
       key: 'importance',
       header: 'Importance',
+      hideOnMobile: true,
       editable: true,
       type: 'select',
       options: IMPORTANCE_OPTIONS,
@@ -258,6 +263,7 @@ export function RequirementsPage() {
     {
       key: 'priority',
       header: 'Priority',
+      priority: 'secondary',
       editable: false, // Calculated field
       render: (row) => {
         const priority = (row.priority || calculateEisenhowerPriority(row.importance, row.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
@@ -271,6 +277,7 @@ export function RequirementsPage() {
     {
       key: 'assigned_to_id',
       header: 'Assigned To',
+      priority: 'secondary', mobileLabel: 'Assignee',
       editable: true,
       type: 'select',
       options: userOptions,
@@ -288,6 +295,7 @@ export function RequirementsPage() {
     {
       key: 'expected_due_date',
       header: 'Due Date',
+      priority: 'secondary', mobileLabel: 'Due',
       editable: true,
       type: 'date',
       render: (row) => row.expected_due_date ? formatDate(row.expected_due_date) : '—',
@@ -295,6 +303,7 @@ export function RequirementsPage() {
     {
       key: 'status',
       header: 'Status',
+      priority: 'secondary',
       editable: false, // Computed from dates
       render: (row) => (
         <Badge className={getStatusColor(computeRequirementStatus(row))}>

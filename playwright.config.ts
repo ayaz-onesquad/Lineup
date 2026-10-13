@@ -42,6 +42,19 @@ export default defineConfig({
   /* Configure projects for major browsers */
   projects: [
     // ==========================================================================
+    // DESIGN-SYSTEM: auth-free foundation checks
+    //
+    // No storageState and no dependency on `setup`, so this is the one suite
+    // that runs without a provisioned tenant. It guards the token pipeline,
+    // the 390px overflow rule, touch sizing and the dark-theme variables.
+    // ==========================================================================
+    {
+      name: 'design-system',
+      testMatch: /design-system\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+
+    // ==========================================================================
     // SETUP PROJECT - Runs auth.setup.ts first to create all auth states
     // ==========================================================================
     {
@@ -57,7 +70,7 @@ export default defineConfig({
     {
       name: 'chromium-admin',
       testDir: './tests',
-      testIgnore: /security\/.*/, // Security tests have their own auth handling
+      testIgnore: [/security\/.*/, /design-system\.spec\.ts/], // security suites and the auth-free suite run in their own projects
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.auth/admin.json',
@@ -72,7 +85,7 @@ export default defineConfig({
     {
       name: 'chromium-tenant',
       testDir: './tests',
-      testIgnore: /security\/.*/, // Security tests have their own auth handling
+      testIgnore: [/security\/.*/, /design-system\.spec\.ts/], // security suites and the auth-free suite run in their own projects
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.auth/tenant.json',
@@ -100,7 +113,7 @@ export default defineConfig({
     {
       name: 'chromium',
       testDir: './tests',
-      testIgnore: /security\/.*/, // Security tests run separately
+      testIgnore: [/security\/.*/, /design-system\.spec\.ts/],
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.auth/user.json',
@@ -112,7 +125,7 @@ export default defineConfig({
     {
       name: 'firefox',
       testDir: './tests',
-      testIgnore: /security\/.*/,
+      testIgnore: [/security\/.*/, /design-system\.spec\.ts/],
       use: {
         ...devices['Desktop Firefox'],
         storageState: 'playwright/.auth/user.json',
@@ -124,7 +137,7 @@ export default defineConfig({
     {
       name: 'webkit',
       testDir: './tests',
-      testIgnore: /security\/.*/,
+      testIgnore: [/security\/.*/, /design-system\.spec\.ts/],
       use: {
         ...devices['Desktop Safari'],
         storageState: 'playwright/.auth/user.json',

@@ -195,7 +195,7 @@ export function DiscussionView({
 
       {/* Side panel */}
       <div
-        className="fixed right-0 top-0 h-full w-[480px] sm:w-[540px] z-50 bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-300"
+        className="fixed right-0 top-0 h-full w-full sm:w-[480px] lg:w-[540px] z-50 bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-300"
         style={{ maxWidth: '90vw' }}
       >
         {/* Close button */}

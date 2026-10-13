@@ -41,7 +41,7 @@ export function AuthLayout() {
       </div>
 
       {/* Right side - Auth forms */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="w-full max-w-md">
           <Outlet />
         </div>

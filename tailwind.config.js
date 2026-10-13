@@ -48,17 +48,20 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Driven by CSS variables so both themes are covered and the
+        // `/opacity` modifier works. Previously hard-coded hexes with no dark
+        // variant. See docs/DESIGN-SYSTEM.md section 2.5.
         success: {
-          DEFAULT: "#10B981",
-          foreground: "#FFFFFF",
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
         },
         warning: {
-          DEFAULT: "#F59E0B",
-          foreground: "#FFFFFF",
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
         },
         danger: {
-          DEFAULT: "#EF4444",
-          foreground: "#FFFFFF",
+          DEFAULT: "hsl(var(--danger))",
+          foreground: "hsl(var(--danger-foreground))",
         },
         carbon: {
           'gray-10': '#f4f4f4',  // Page backgrounds
@@ -76,6 +79,53 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+
+      // ---------------------------------------------------------------------
+      // Design system tokens — see docs/DESIGN-SYSTEM.md
+      //
+      // Breakpoints are deliberately left at the Tailwind defaults
+      // (sm 640 / md 768 / lg 1024 / xl 1280 / 2xl 1536). `md` is the single
+      // structural breakpoint: tables below it become cards. Do not add custom
+      // breakpoints; a second switch point for the same decision makes resize
+      // behaviour unpredictable.
+      // ---------------------------------------------------------------------
+
+      spacing: {
+        // Bottom inset on notched devices. Any element docked to the bottom of
+        // the viewport must add `pb-safe` or it sits under the home indicator.
+        safe: "env(safe-area-inset-bottom)",
+      },
+
+      height: {
+        // Table row densities (section 2.6). Set once per view, never mixed.
+        "row-compact": "2.75rem",      // 44px — dense operational grids
+        "row-comfortable": "3.5rem",   // 56px — default
+        "row-spacious": "4rem",        // 64px — avatar + two lines
+      },
+
+      minHeight: {
+        // Touch targets (section 2.4). Apple HIG 44pt / Material 48dp.
+        touch: "2.75rem",        // 44px — row actions, icon buttons, tabs
+        "touch-lg": "3rem",      // 48px — primary buttons, form controls
+      },
+
+      minWidth: {
+        touch: "2.75rem",
+        "touch-lg": "3rem",
+      },
+
+      maxWidth: {
+        // Caps line length on very wide displays so a data grid does not
+        // stretch a 7-column table across 2560px.
+        content: "1600px",
+      },
+
+      boxShadow: {
+        // Affordance on a horizontally scrollable table edge, so wide data
+        // reads as scrollable rather than silently clipped (section 4.4).
+        "scroll-right": "inset -12px 0 12px -12px hsl(var(--foreground) / 0.12)",
+        "scroll-left": "inset 12px 0 12px -12px hsl(var(--foreground) / 0.12)",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -92,5 +142,16 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+
+    // `coarse:` applies only on touch input, regardless of viewport width.
+    // This is how touch targets reach 44px on a phone or a touchscreen laptop
+    // without inflating every button on a mouse-driven desktop. Sizing by
+    // breakpoint instead would miss a 1024px tablet.
+    function ({ addVariant }) {
+      addVariant("coarse", "@media (pointer: coarse)")
+      addVariant("fine", "@media (pointer: fine)")
+    },
+  ],
 }

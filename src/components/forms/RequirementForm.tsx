@@ -343,7 +343,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
         {/* Cascading Filters - Client is required, others optional */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField
             control={form.control}
             name="client_id"
@@ -410,7 +410,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField
             control={form.control}
             name="set_id"
@@ -531,7 +531,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="assigned_to_id"
@@ -555,7 +555,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="urgency"
@@ -604,7 +604,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
         </div>
 
         {/* Schedule Section - due_date removed, using expected/actual due dates */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="expected_due_date"
@@ -634,7 +634,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="completed_date"

@@ -1,3 +1,21 @@
+/**
+ * @deprecated Use `DataGrid` from `@/components/ui/data-grid` instead.
+ *
+ * This component predates the design system and is kept only for the two
+ * client-portal tables that still use it (PortalRequirementsTable,
+ * PortalSetsTable). It has three gaps that DataGrid closes:
+ *
+ *   - Headers are not sortable unless each column supplies its own sort
+ *     control, so in practice nothing sorted.
+ *   - The mobile card renders every non-primary column as a key-value row,
+ *     which becomes a wall of text past about six columns. DataGrid collapses
+ *     tertiary fields behind a disclosure.
+ *   - No column widths, so wide tables squeeze columns to illegibility rather
+ *     than scrolling.
+ *
+ * Do not use it for new views. See docs/DESIGN-SYSTEM.md section 6.
+ */
+
 import { useState } from 'react'
 import {
   type ColumnDef,

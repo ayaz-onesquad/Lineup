@@ -470,7 +470,7 @@ export function ProjectDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Breadcrumbs: Client > Project */}
       <Breadcrumbs
         items={[
@@ -998,7 +998,7 @@ export function ProjectDetailPage() {
                 <Users className="h-5 w-5 text-muted-foreground" />
                 Team
               </h3>
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
                 {/* Lead */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>

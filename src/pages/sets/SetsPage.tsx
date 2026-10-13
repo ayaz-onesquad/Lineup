@@ -145,6 +145,7 @@ export function SetsPage() {
     {
       key: 'display_id',
       header: 'Set ID',
+      hideOnMobile: true,
       editable: false,
       enableHiding: false, // ID column cannot be hidden
       width: '90px',
@@ -157,6 +158,7 @@ export function SetsPage() {
     {
       key: 'clients.name',
       header: 'Client',
+      mobileLabel: 'Client',
       editable: false,
       render: (row) => row.clients?.name || row.projects?.clients?.name || '—',
     },
@@ -169,6 +171,7 @@ export function SetsPage() {
     {
       key: 'name',
       header: 'Set Name',
+      priority: 'primary',
       editable: true,
       type: 'text',
       render: (row) => (
@@ -178,6 +181,7 @@ export function SetsPage() {
     {
       key: 'urgency',
       header: 'Urgency',
+      hideOnMobile: true,
       editable: true,
       type: 'select',
       options: URGENCY_OPTIONS,
@@ -190,6 +194,7 @@ export function SetsPage() {
     {
       key: 'importance',
       header: 'Importance',
+      hideOnMobile: true,
       editable: true,
       type: 'select',
       options: IMPORTANCE_OPTIONS,
@@ -202,6 +207,7 @@ export function SetsPage() {
     {
       key: 'priority',
       header: 'Priority',
+      priority: 'secondary',
       editable: false, // Calculated field
       render: (row) => {
         const priority = (row.priority || calculateEisenhowerPriority(row.importance, row.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
@@ -215,6 +221,7 @@ export function SetsPage() {
     {
       key: 'status',
       header: 'Status',
+      priority: 'secondary',
       editable: false, // Derived field
       render: (row) => (
         <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
@@ -225,6 +232,7 @@ export function SetsPage() {
     {
       key: 'lead_id',
       header: 'Lead',
+      priority: 'secondary', mobileLabel: 'Lead',
       editable: true,
       type: 'select',
       options: userOptions,
@@ -301,7 +309,7 @@ export function SetsPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-64" />
           ))}
@@ -374,7 +382,7 @@ export function SetsPage() {
           />
 
           {/* Eisenhower Matrix View */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Do First - High Urgency, High Importance */}
             <Card className="border-2 border-red-300 bg-red-50/50">
               <CardHeader className="pb-2">

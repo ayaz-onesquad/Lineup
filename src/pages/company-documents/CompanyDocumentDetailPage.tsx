@@ -258,7 +258,7 @@ export function CompanyDocumentDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="page-carbon space-y-6 p-6">
+      <div className="space-y-6">
         <Skeleton className="h-5 w-72" />
         <Skeleton className="h-10 w-96" />
         <Skeleton className="h-[60vh] w-full" />
@@ -268,7 +268,7 @@ export function CompanyDocumentDetailPage() {
 
   if (!doc) {
     return (
-      <div className="page-carbon p-6">
+      <div>
         <Alert variant="destructive">
           <AlertTitle>Document not found</AlertTitle>
           <AlertDescription className="space-y-3">
@@ -294,7 +294,7 @@ export function CompanyDocumentDetailPage() {
   const externalHref = safeHttpUrl(doc.external_link)
 
   return (
-    <div className="page-carbon space-y-6 p-6">
+    <div className="space-y-6">
       <Breadcrumbs
         items={[
           { label: 'Company Documents', href: '/company-documents' },

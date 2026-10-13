@@ -2,23 +2,21 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
-import { useAllDiscussions, useDataGridFilters, type FilterConfig } from '@/hooks'
+import { useAllDiscussions } from '@/hooks'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import {
+  GridToolbar,
+  GridSearch,
+  GridFilterMultiSelect,
+} from '@/components/shared/GridToolbar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import { DiscussionView } from '@/components/shared/DiscussionView'
-import { FilterBar, NewDiscussionDialog } from '@/components/shared'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { NewDiscussionDialog } from '@/components/shared'
 import {
   MessageSquare,
   Clock,
@@ -33,7 +31,6 @@ import {
   CheckCircle2,
   Lock,
   Plus,
-  Filter,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { getInitials, cn } from '@/lib/utils'
@@ -63,47 +60,35 @@ const ENTITY_URL_MAP: Partial<Record<EntityType, string>> = {
   lead: '/leads',
 }
 
+const ENTITY_TYPE_OPTIONS = [
+  { value: 'client', label: 'Client' },
+  { value: 'project', label: 'Project' },
+  { value: 'phase', label: 'Phase' },
+  { value: 'set', label: 'Set' },
+  { value: 'pitch', label: 'Pitch' },
+  { value: 'requirement', label: 'Requirement' },
+  { value: 'lead', label: 'Lead' },
+] as const
+
 export function DiscussionsPage() {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<DiscussionStatus | 'all'>('open')
   const [selectedDiscussionId, setSelectedDiscussionId] = useState<string | null>(null)
   const [showNewDiscussion, setShowNewDiscussion] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(false)
 
-  // Filter configuration for discussions
-  const filterConfig: FilterConfig = useMemo(() => ({
-    search: true,
-    parentFilters: [
-      {
-        key: 'entity_type',
-        label: 'Entity Type',
-        options: [
-          { value: 'client', label: 'Client' },
-          { value: 'project', label: 'Project' },
-          { value: 'phase', label: 'Phase' },
-          { value: 'set', label: 'Set' },
-          { value: 'pitch', label: 'Pitch' },
-          { value: 'requirement', label: 'Requirement' },
-          { value: 'lead', label: 'Lead' },
-        ],
-      },
-    ],
-  }), [])
+  const [searchQuery, setSearchQuery] = useState('')
+  // Multi-valued, as the old FilterBar's parent filter was.
+  const [entityTypeFilter, setEntityTypeFilter] = useState<string[]>([])
 
-  const {
-    filters,
-    setSearch,
-    setStatuses,
-    setParent,
-    setDateFrom,
-    setDateTo,
-    clearAll,
-    hasActiveFilters,
-    activeFilterCount,
-  } = useDataGridFilters(filterConfig)
+  const hasActiveFilters = !!searchQuery || entityTypeFilter.length > 0
+
+  const clearFilters = () => {
+    setSearchQuery('')
+    setEntityTypeFilter([])
+  }
 
   // Fetch all discussions using the fixed hook (no arguments needed)
-  const { data: allDiscussions, isLoading } = useAllDiscussions()
+  const { data: allDiscussions, isLoading, error, refetch } = useAllDiscussions()
 
   // Filter discussions by status
   const discussions = useMemo(() => {
@@ -203,20 +188,27 @@ export function DiscussionsPage() {
     enabled: !!discussions && discussions.length > 0,
   })
 
+  const entityNameOf = (entityId: string | null | undefined) =>
+    (entityId ? entityNames?.get(entityId) : undefined) ||
+    entityId?.slice(0, 8) ||
+    'Unknown'
+
   // Filter discussions by search and entity type
   const filteredDiscussions = useMemo(() => {
     if (!discussions) return []
 
     return discussions.filter(d => {
       // Entity type filter
-      const entityTypeValues = filters.parents['entity_type'] ?? []
-      if (entityTypeValues.length > 0 && !entityTypeValues.includes(d.entity_type ?? '')) {
+      if (
+        entityTypeFilter.length > 0 &&
+        !entityTypeFilter.includes(d.entity_type ?? '')
+      ) {
         return false
       }
 
       // Search filter
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase()
+      if (searchQuery) {
+        const searchLower = searchQuery.toLowerCase()
         const entityName = entityNames?.get(d.entity_id!) || ''
         const subject = d.subject || d.title || ''
         return (
@@ -229,7 +221,7 @@ export function DiscussionsPage() {
 
       return true
     })
-  }, [discussions, filters, entityNames])
+  }, [discussions, searchQuery, entityTypeFilter, entityNames])
 
   // Count by status for tab badges
   const statusCounts = useMemo(() => {
@@ -239,11 +231,6 @@ export function DiscussionsPage() {
       closed: allDiscussions.filter(d => d.status === 'closed').length,
     }
   }, [allDiscussions])
-
-  // Handle row click - open discussion view
-  const handleRowClick = (discussionId: string) => {
-    setSelectedDiscussionId(discussionId)
-  }
 
   // Get parent record for the selected discussion
   const selectedDiscussion = useMemo(() => {
@@ -263,31 +250,160 @@ export function DiscussionsPage() {
     }
   }, [selectedDiscussion, entityNames])
 
-  // Handle double-click - navigate to entity
-  const handleRowDoubleClick = (discussion: (typeof filteredDiscussions)[0]) => {
+  type Discussion = (typeof filteredDiscussions)[number]
+
+  // Double-click / mobile tap navigates to the owning entity's discussion tab.
+  const openDiscussionEntity = (discussion: Discussion) => {
     if (!discussion.entity_type || !discussion.entity_id) return
     const basePath = ENTITY_URL_MAP[discussion.entity_type as EntityType] || '/clients'
     navigate(`${basePath}/${discussion.entity_id}?tab=discussions`)
   }
 
+  const subjectOf = (discussion: Discussion) =>
+    discussion.subject || discussion.title || discussion.content.slice(0, 60)
+
+  const statusLabelOf = (discussion: Discussion) =>
+    discussion.status === 'closed' ? 'Closed' : discussion.is_internal ? 'Internal' : 'Open'
+
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // The discussion subject identifies the row; the four facts needed to triage
+  // a thread (what it is attached to, how busy it is, whether it is still open)
+  // are secondary. See docs/DESIGN-SYSTEM.md section 4.1.
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<Discussion>[]>(
+    () => [
+      {
+        id: 'subject',
+        header: 'Discussion',
+        priority: 'primary',
+        hideable: false,
+        // No fixed 300px floor: the column still gets a sensible desktop width
+        // but a 390px viewport renders cards, so nothing can overflow.
+        minWidth: '240px',
+        accessor: row => subjectOf(row),
+        cell: row => (
+          <div className="flex items-start gap-3">
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarImage src={row.author?.avatar_url} />
+              <AvatarFallback className="text-xs">
+                {getInitials(row.author?.full_name || 'U')}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div
+                className={cn(
+                  'text-sm font-medium',
+                  row.status === 'closed' && 'text-muted-foreground'
+                )}
+              >
+                <TruncatedCell value={subjectOf(row)} maxLines={1} />
+              </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {row.author?.full_name}
+              </p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'entity_type',
+        header: 'Type',
+        priority: 'secondary',
+        width: '130px',
+        accessor: row =>
+          ENTITY_TYPE_CONFIG[row.entity_type as EntityType]?.label ?? row.entity_type ?? '',
+        cell: row => {
+          const config = ENTITY_TYPE_CONFIG[row.entity_type as EntityType]
+          const Icon = config?.icon || MessageSquare
+          return (
+            <Badge variant="secondary" className={cn('gap-1 text-xs', config?.color)}>
+              <Icon className="h-3 w-3" />
+              {config?.label ?? row.entity_type}
+            </Badge>
+          )
+        },
+      },
+      {
+        id: 'entity',
+        header: 'Entity',
+        priority: 'secondary',
+        width: '180px',
+        accessor: row => entityNameOf(row.entity_id),
+        cell: row => (
+          <span className="text-sm font-medium">
+            <TruncatedCell value={entityNameOf(row.entity_id)} maxLines={1} />
+          </span>
+        ),
+      },
+      {
+        id: 'reply_count',
+        header: 'Replies',
+        priority: 'secondary',
+        width: '100px',
+        numeric: true,
+        accessor: row => row.reply_count ?? 0,
+        cell: row => (
+          <span className="inline-flex items-center justify-end gap-1 text-muted-foreground">
+            <MessageCircle className="h-3 w-3" />
+            <span className="text-xs">{row.reply_count || 0}</span>
+          </span>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        priority: 'secondary',
+        width: '120px',
+        accessor: row => statusLabelOf(row),
+        cell: row =>
+          row.status === 'closed' ? (
+            <Badge variant="secondary" className="gap-1 text-xs">
+              <CheckCircle2 className="h-3 w-3" />
+              Closed
+            </Badge>
+          ) : row.is_internal ? (
+            <Badge variant="outline" className="gap-1 text-xs">
+              <Lock className="h-3 w-3" />
+              Internal
+            </Badge>
+          ) : (
+            <Badge variant="default" className="text-xs">
+              Open
+            </Badge>
+          ),
+      },
+      {
+        id: 'created_at',
+        header: 'Created',
+        width: '140px',
+        accessor: row => new Date(row.created_at),
+        cell: row => (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            {formatDistanceToNow(new Date(row.created_at), { addSuffix: true })}
+          </span>
+        ),
+      },
+    ],
+    // entityNames feeds the Entity column; recompute when the lookup resolves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entityNames]
+  )
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Discussions
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            View and participate in all conversations across your workspace
-          </p>
-        </div>
-        <Button onClick={() => setShowNewDiscussion(true)}>
+    <PageShell
+      title="Discussions"
+      description="View and participate in all conversations across your workspace"
+      icon={MessageSquare}
+      actions={
+        <Button onClick={() => setShowNewDiscussion(true)} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           New Discussion
         </Button>
-      </div>
-
+      }
+    >
       {/* Status Tabs */}
       <Tabs
         value={statusFilter}
@@ -314,184 +430,48 @@ export function DiscussionsPage() {
         </TabsList>
       </Tabs>
 
-      {/* Toolbar Row */}
-      <div className="flex items-center gap-2">
-        {/* Result count - only when filters active */}
-        {hasActiveFilters && (
-          <span className="text-xs text-muted-foreground">
-            {filteredDiscussions.length} of {allDiscussions?.length ?? 0}
-          </span>
-        )}
-
-        {/* Push button to the right */}
-        <div className="ml-auto flex items-center gap-2">
-          {/* Filter toggle button */}
-          <Button
-            variant={filtersOpen || hasActiveFilters ? 'secondary' : 'outline'}
-            size="sm"
-            onClick={() => setFiltersOpen(v => !v)}
-            className="gap-1.5"
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <Badge variant="default" className="h-4 px-1 text-xs ml-0.5">
-                {activeFilterCount}
-              </Badge>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Collapsible FilterBar */}
-      <FilterBar
-        config={filterConfig}
-        filters={filters}
-        onSearch={setSearch}
-        onStatuses={setStatuses}
-        onParent={setParent}
-        onDateFrom={setDateFrom}
-        onDateTo={setDateTo}
-        onClearAll={clearAll}
+      <DataGrid
+        columns={columns}
+        data={filteredDiscussions}
+        getRowId={row => row.id}
+        isLoading={isLoading}
+        error={error as Error | null}
+        onRetry={refetch}
+        storageKey="discussions"
+        defaultSort={{ columnId: 'created_at', direction: 'desc' }}
+        ariaLabel="Discussions"
+        // Single click opens the thread panel, double click or a mobile tap
+        // opens the owning record. Section 4.5.
+        onRowClick={row => setSelectedDiscussionId(row.id)}
+        onRowOpen={openDiscussionEntity}
         hasActiveFilters={hasActiveFilters}
-        resultCount={filteredDiscussions.length}
-        totalCount={allDiscussions?.length ?? 0}
-        collapsed={!filtersOpen}
+        onClearFilters={clearFilters}
+        emptyState={{
+          icon: MessageSquare,
+          title: 'No discussions found',
+          description: "Start a discussion from any entity's detail page.",
+        }}
+        toolbar={
+          <GridToolbar
+            activeFilterCount={entityTypeFilter.length}
+            onClearFilters={clearFilters}
+            search={
+              <GridSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by subject, author or entity..."
+              />
+            }
+          >
+            <GridFilterMultiSelect
+              label="Entity Type"
+              options={ENTITY_TYPE_OPTIONS}
+              values={entityTypeFilter}
+              onChange={setEntityTypeFilter}
+            />
+          </GridToolbar>
+        }
       />
-
-      {/* Discussions List */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map(i => (
-            <Skeleton key={i} className="h-20 w-full" />
-          ))}
-        </div>
-      ) : !filteredDiscussions?.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No discussions found</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Start a discussion from any entity's detail page
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Type</TableHead>
-                  <TableHead className="w-[180px]">Entity</TableHead>
-                  <TableHead className="min-w-[300px]">Discussion</TableHead>
-                  <TableHead className="w-[80px]">Replies</TableHead>
-                  <TableHead className="w-[100px]">Status</TableHead>
-                  <TableHead className="w-[120px]">Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDiscussions.map(discussion => {
-                  const entityType = discussion.entity_type as EntityType
-                  const config = ENTITY_TYPE_CONFIG[entityType]
-                  const Icon = config?.icon || MessageSquare
-                  const entityName =
-                    entityNames?.get(discussion.entity_id!) ||
-                    discussion.entity_id?.slice(0, 8) ||
-                    'Unknown'
-                  const subject =
-                    discussion.subject ||
-                    discussion.title ||
-                    discussion.content.slice(0, 60)
-                  const isClosed = discussion.status === 'closed'
-
-                  return (
-                    <TableRow
-                      key={discussion.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleRowClick(discussion.id)}
-                      onDoubleClick={() => handleRowDoubleClick(discussion)}
-                    >
-                      <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={cn('text-xs gap-1', config?.color)}
-                        >
-                          <Icon className="h-3 w-3" />
-                          {config?.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-medium text-sm">{entityName}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-start gap-3">
-                          <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarImage src={discussion.author?.avatar_url} />
-                            <AvatarFallback className="text-xs">
-                              {getInitials(discussion.author?.full_name || 'U')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={cn(
-                                'text-sm font-medium truncate max-w-[300px]',
-                                isClosed && 'text-muted-foreground'
-                              )}
-                            >
-                              {subject.length > 60
-                                ? subject.slice(0, 60) + '...'
-                                : subject}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {discussion.author?.full_name}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <MessageCircle className="h-3 w-3" />
-                          <span className="text-xs">
-                            {discussion.reply_count || 0}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {isClosed ? (
-                          <Badge variant="secondary" className="text-xs gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Closed
-                          </Badge>
-                        ) : discussion.is_internal ? (
-                          <Badge variant="outline" className="text-xs gap-1">
-                            <Lock className="h-3 w-3" />
-                            Internal
-                          </Badge>
-                        ) : (
-                          <Badge variant="default" className="text-xs">
-                            Open
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                          <Clock className="h-3 w-3" />
-                          <span>
-                            {formatDistanceToNow(new Date(discussion.created_at), {
-                              addSuffix: true,
-                            })}
-                          </span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Discussion View Sheet */}
       <DiscussionView
@@ -508,6 +488,6 @@ export function DiscussionsPage() {
         open={showNewDiscussion}
         onOpenChange={setShowNewDiscussion}
       />
-    </div>
+    </PageShell>
   )
 }

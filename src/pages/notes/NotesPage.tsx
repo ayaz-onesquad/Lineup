@@ -1,22 +1,16 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { notesApi } from '@/services/api'
 import { useTenantStore } from '@/stores'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { GridToolbar, GridSearch, GridFilterSelect } from '@/components/shared/GridToolbar'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,30 +18,26 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  Search,
   StickyNote,
   MoreVertical,
   ExternalLink,
-  Filter,
   Video,
   Lock,
   Users,
   Pin,
 } from 'lucide-react'
-import { formatDateTime } from '@/lib/utils'
-import { SearchableSelect } from '@/components/ui/searchable-select'
-import { cn } from '@/lib/utils'
-import type { NoteType, NoteParentEntityType } from '@/types/database'
+import { formatDateTime, cn } from '@/lib/utils'
+import type { NoteType, NoteParentEntityType, NoteWithAuthor } from '@/types/database'
 
+// Filter options. `GridFilterSelect` is clearable, so there is no "All" entry:
+// clearing the select is what "all" means.
 const NOTE_TYPE_OPTIONS = [
-  { value: '', label: 'All Types' },
   { value: 'meeting', label: 'Meeting' },
   { value: 'internal', label: 'Internal' },
   { value: 'client', label: 'Client' },
 ]
 
 const ENTITY_TYPE_OPTIONS = [
-  { value: '', label: 'All Entities' },
   { value: 'client', label: 'Clients' },
   { value: 'project', label: 'Projects' },
   { value: 'phase', label: 'Phases' },
@@ -84,6 +74,10 @@ function getNoteTypeColor(noteType: NoteType) {
   }
 }
 
+function getNoteTypeLabel(noteType: NoteType) {
+  return NOTE_TYPE_OPTIONS.find(o => o.value === noteType)?.label ?? noteType
+}
+
 function getEntityTypeLabel(entityType: NoteParentEntityType) {
   const labels: Record<NoteParentEntityType, string> = {
     client: 'Client',
@@ -98,6 +92,13 @@ function getEntityTypeLabel(entityType: NoteParentEntityType) {
   return labels[entityType] || entityType
 }
 
+function authorInitials(fullName: string): string {
+  return fullName
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+}
+
 export function NotesPage() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -107,26 +108,42 @@ export function NotesPage() {
   const { currentTenant } = useTenantStore()
 
   // Fetch all notes for the tenant
-  const { data: notes, isLoading } = useQuery({
+  const {
+    data: notes,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['notes', 'all', currentTenant?.id],
     queryFn: () => notesApi.getAll(currentTenant!.id),
     enabled: !!currentTenant?.id,
   })
 
+  const hasActiveFilters = !!search || !!typeFilter || !!entityTypeFilter
+
+  const clearFilters = () => {
+    setSearch('')
+    setTypeFilter('')
+    setEntityTypeFilter('')
+  }
+
   // Filter notes
   const filteredNotes = useMemo(() => {
     if (!notes) return []
-    return notes.filter((note) => {
+    const query = search.trim().toLowerCase()
+    return notes.filter(note => {
       // Search filter
       const matchesSearch =
-        note.title.toLowerCase().includes(search.toLowerCase()) ||
-        note.description?.toLowerCase().includes(search.toLowerCase())
+        !query ||
+        note.title.toLowerCase().includes(query) ||
+        !!note.description?.toLowerCase().includes(query)
 
       // Type filter
       const matchesType = !typeFilter || note.note_type === typeFilter
 
       // Entity type filter
-      const matchesEntityType = !entityTypeFilter || note.parent_entity_type === entityTypeFilter
+      const matchesEntityType =
+        !entityTypeFilter || note.parent_entity_type === entityTypeFilter
 
       return matchesSearch && matchesType && matchesEntityType
     })
@@ -137,40 +154,138 @@ export function NotesPage() {
     if (!notes) return { total: 0, meeting: 0, internal: 0, client: 0 }
     return {
       total: notes.length,
-      meeting: notes.filter((n) => n.note_type === 'meeting').length,
-      internal: notes.filter((n) => n.note_type === 'internal').length,
-      client: notes.filter((n) => n.note_type === 'client').length,
+      meeting: notes.filter(n => n.note_type === 'meeting').length,
+      internal: notes.filter(n => n.note_type === 'internal').length,
+      client: notes.filter(n => n.note_type === 'client').length,
     }
   }, [notes])
 
-  const handleRowClick = (noteId: string) => {
-    navigate(`/notes/${noteId}`)
-  }
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // Priorities per docs/DESIGN-SYSTEM.md section 4.1: the title identifies the
+  // row; type, entity, author and the creation time are the four triage facts.
+  // The type cell carries its label as well as the coloured icon, because a
+  // colour on its own is not a status (section 2.5).
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<NoteWithAuthor>[]>(
+    () => [
+      {
+        id: 'note_type',
+        header: 'Type',
+        priority: 'secondary',
+        width: '150px',
+        accessor: row => getNoteTypeLabel(row.note_type),
+        cell: row => {
+          const Icon = getNoteTypeIcon(row.note_type)
+          return (
+            <div className="flex items-center gap-2">
+              <span className={cn('w-fit rounded p-1.5', getNoteTypeColor(row.note_type))}>
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="truncate text-sm">{getNoteTypeLabel(row.note_type)}</span>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'title',
+        header: 'Title',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '240px',
+        accessor: row => row.title,
+        cell: row => (
+          <div className="flex min-w-0 items-start gap-2">
+            {row.is_pinned && (
+              <Pin className="mt-1 h-3 w-3 shrink-0 text-amber-500" aria-label="Pinned" />
+            )}
+            <div className="min-w-0">
+              <p className="font-medium">
+                <TruncatedCell value={row.title} maxLines={1} />
+              </p>
+              {row.description && (
+                <span className="block text-xs text-muted-foreground">
+                  <TruncatedCell value={row.description} maxLines={1} />
+                </span>
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'parent_entity_type',
+        header: 'Entity',
+        priority: 'secondary',
+        width: '150px',
+        accessor: row => getEntityTypeLabel(row.parent_entity_type),
+        cell: row => (
+          <Badge variant="outline">{getEntityTypeLabel(row.parent_entity_type)}</Badge>
+        ),
+      },
+      {
+        id: 'author',
+        header: 'Author',
+        priority: 'secondary',
+        width: '190px',
+        // Composite avatar cell, so it opts out of sorting (section 4.2).
+        sortable: false,
+        accessor: row => row.author?.full_name ?? '',
+        cell: row =>
+          row.author?.full_name ? (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-6 w-6 shrink-0">
+                <AvatarFallback className="text-xs">
+                  {authorInitials(row.author.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="min-w-0 truncate text-sm">{row.author.full_name}</span>
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'created_at',
+        header: 'Created',
+        priority: 'secondary',
+        width: '180px',
+        accessor: row => row.created_at,
+        cell: row => (
+          <span className="text-muted-foreground">{formatDateTime(row.created_at)}</span>
+        ),
+      },
+      {
+        id: 'display_id',
+        header: 'ID',
+        hideOnMobile: true,
+        width: '110px',
+        accessor: row => row.display_id ?? 0,
+        cell: row => (
+          <Badge variant="outline" className="font-mono text-xs">
+            NOTE-{String(row.display_id ?? 0).padStart(4, '0')}
+          </Badge>
+        ),
+      },
+    ],
+    []
+  )
 
   return (
-    <div className="page-carbon p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <StickyNote className="h-8 w-8" />
-            Notes
-          </h1>
-          <p className="text-muted-foreground">
-            View and manage notes across all records
-          </p>
-        </div>
-      </div>
-
+    <PageShell
+      title="Notes"
+      description="View and manage notes across all records"
+      icon={StickyNote}
+    >
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <StickyNote className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Total Notes</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.total}</p>
+            <p className="mt-1 text-2xl font-bold">{stats.total}</p>
           </CardContent>
         </Card>
         <Card>
@@ -179,7 +294,7 @@ export function NotesPage() {
               <Video className="h-4 w-4 text-blue-600" />
               <span className="text-sm text-muted-foreground">Meeting Notes</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.meeting}</p>
+            <p className="mt-1 text-2xl font-bold text-blue-600">{stats.meeting}</p>
           </CardContent>
         </Card>
         <Card>
@@ -188,7 +303,7 @@ export function NotesPage() {
               <Lock className="h-4 w-4 text-gray-600" />
               <span className="text-sm text-muted-foreground">Internal</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-gray-600">{stats.internal}</p>
+            <p className="mt-1 text-2xl font-bold text-gray-600">{stats.internal}</p>
           </CardContent>
         </Card>
         <Card>
@@ -197,165 +312,74 @@ export function NotesPage() {
               <Users className="h-4 w-4 text-green-600" />
               <span className="text-sm text-muted-foreground">Client Notes</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-green-600">{stats.client}</p>
+            <p className="mt-1 text-2xl font-bold text-green-600">{stats.client}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search notes..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <SearchableSelect
-            options={NOTE_TYPE_OPTIONS}
-            value={typeFilter}
-            onValueChange={(v) => setTypeFilter(v || '')}
-            placeholder="Note Type"
-            className="w-36"
-          />
-          <SearchableSelect
-            options={ENTITY_TYPE_OPTIONS}
-            value={entityTypeFilter}
-            onValueChange={(v) => setEntityTypeFilter(v || '')}
-            placeholder="Entity"
-            className="w-36"
-          />
-        </div>
-      </div>
-
-      {/* Data Grid */}
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
-        </div>
-      ) : filteredNotes.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <StickyNote className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No notes found</p>
-            {(search || typeFilter || entityTypeFilter) && (
-              <Button
-                variant="link"
-                onClick={() => {
-                  setSearch('')
-                  setTypeFilter('')
-                  setEntityTypeFilter('')
-                }}
-              >
-                Clear filters
+      <DataGrid
+        columns={columns}
+        data={filteredNotes}
+        getRowId={row => row.id}
+        isLoading={isLoading}
+        error={error as Error | null}
+        onRetry={refetch}
+        storageKey="notes"
+        defaultSort={{ columnId: 'created_at', direction: 'desc' }}
+        ariaLabel="Notes"
+        // This page has never had a quick-view panel: a click has always opened
+        // the note, so both the click and the open handler navigate.
+        onRowClick={row => navigate(`/notes/${row.id}`)}
+        onRowOpen={row => navigate(`/notes/${row.id}`)}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
+        emptyState={{
+          icon: StickyNote,
+          title: 'No notes found',
+          description: 'Notes added to any client, project or requirement appear here.',
+        }}
+        toolbar={
+          <GridToolbar
+            activeFilterCount={[typeFilter, entityTypeFilter].filter(Boolean).length}
+            onClearFilters={clearFilters}
+            search={
+              <GridSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search notes by title or description..."
+              />
+            }
+          >
+            <GridFilterSelect
+              label="Types"
+              options={NOTE_TYPE_OPTIONS}
+              value={typeFilter}
+              onChange={setTypeFilter}
+            />
+            <GridFilterSelect
+              label="Entities"
+              options={ENTITY_TYPE_OPTIONS}
+              value={entityTypeFilter}
+              onChange={setEntityTypeFilter}
+            />
+          </GridToolbar>
+        }
+        rowActions={row => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Note actions">
+                <MoreVertical className="h-4 w-4" />
               </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="card-carbon">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">Type</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Entity</TableHead>
-                  <TableHead>Author</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredNotes.map((note) => {
-                  const Icon = getNoteTypeIcon(note.note_type)
-                  const colorClass = getNoteTypeColor(note.note_type)
-
-                  return (
-                    <TableRow
-                      key={note.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleRowClick(note.id)}
-                    >
-                      <TableCell>
-                        <div className={cn('p-2 rounded w-fit', colorClass)}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {note.is_pinned && (
-                            <Pin className="h-3 w-3 text-amber-500 shrink-0" />
-                          )}
-                          <div>
-                            <p className="font-medium">{note.title}</p>
-                            {note.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-1">
-                                {note.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {getEntityTypeLabel(note.parent_entity_type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {note.author?.full_name ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarFallback className="text-xs">
-                                {note.author.full_name
-                                  .split(' ')
-                                  .map((n: string) => n[0])
-                                  .join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm">{note.author.full_name}</span>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDateTime(note.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                navigate(`/notes/${note.id}`)
-                              }}
-                            >
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              Open Details
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/notes/${row.id}`)}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open Details
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      />
+    </PageShell>
   )
 }

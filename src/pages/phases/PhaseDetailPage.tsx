@@ -362,7 +362,7 @@ export function PhaseDetailPage() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <Card className="page-carbon">
+        <Card>
           <CardContent className="text-center py-12">
             <h2 className="text-xl font-semibold mb-2">Phase Not Found</h2>
             <p className="text-muted-foreground mb-4">
@@ -378,7 +378,7 @@ export function PhaseDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Breadcrumbs: Client > Project > Phase */}
       <Breadcrumbs
         items={[
@@ -786,7 +786,7 @@ export function PhaseDetailPage() {
                 <Users className="h-5 w-5 text-muted-foreground" />
                 Team
               </h3>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
                 {/* Lead */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>

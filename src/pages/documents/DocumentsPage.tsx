@@ -11,30 +11,19 @@ import {
   useRequirementsBySet,
   useRequirementsByPitch,
 } from '@/hooks'
+import { useNavigate } from 'react-router-dom'
 import { useLeads } from '@/hooks/useLeads'
 import { useTenantStore, useAuthStore } from '@/stores'
 import { documentsApi, StoragePermissionError, StorageBucketNotFoundError } from '@/services/api'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { GridToolbar, GridSearch, GridFilterSelect } from '@/components/shared/GridToolbar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,7 +48,6 @@ import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { formatDateTime, formatFileSize } from '@/lib/utils'
 import {
-  Search,
   Upload,
   Download,
   Trash2,
@@ -132,7 +120,6 @@ interface FileUploadState {
 }
 
 const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All Entities' },
   { value: 'client', label: 'Clients' },
   { value: 'project', label: 'Projects' },
   { value: 'set', label: 'Sets' },
@@ -143,7 +130,6 @@ const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
 
 
 const FILE_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All Types' },
   { value: 'image', label: 'Images' },
   { value: 'pdf', label: 'PDFs' },
   { value: 'document', label: 'Documents' },
@@ -174,14 +160,15 @@ const DOCUMENT_TYPE_CATALOG: { value: string; label: string; description?: strin
 ]
 
 export function DocumentsPage() {
+  const navigate = useNavigate()
   const { currentTenant } = useTenantStore()
   const { user } = useAuthStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Filters and view
   const [search, setSearch] = useState('')
-  const [entityTypeFilter, setEntityTypeFilter] = useState('all')
-  const [fileTypeFilter, setFileTypeFilter] = useState('all')
+  const [entityTypeFilter, setEntityTypeFilter] = useState('')
+  const [fileTypeFilter, setFileTypeFilter] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   const [isDragging, setIsDragging] = useState(false)
 
@@ -211,7 +198,7 @@ export function DocumentsPage() {
   const [editName, setEditName] = useState('')
 
   // Fetch data
-  const { data: documents, isLoading } = useDocuments()
+  const { data: documents, isLoading, error, refetch } = useDocuments()
   const { data: clients } = useClients()
   const { data: leads } = useLeads()
   const { deleteDocument, updateDocument } = useDocumentMutations()
@@ -308,9 +295,9 @@ export function DocumentsPage() {
       doc.name.toLowerCase().includes(search.toLowerCase()) ||
       doc.description?.toLowerCase().includes(search.toLowerCase())
     const matchesEntityType =
-      entityTypeFilter === 'all' || doc.entity_type === entityTypeFilter
+      !entityTypeFilter || doc.entity_type === entityTypeFilter
     const matchesFileType =
-      fileTypeFilter === 'all' ||
+      !fileTypeFilter ||
       (fileTypeFilter === 'image' && doc.file_type.startsWith('image/')) ||
       (fileTypeFilter === 'pdf' && doc.file_type.includes('pdf')) ||
       (fileTypeFilter === 'document' &&
@@ -500,38 +487,222 @@ export function DocumentsPage() {
     setUploadQueue((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const hasActiveFilters = !!search || !!entityTypeFilter || !!fileTypeFilter
+
+  const clearFilters = () => {
+    setSearch('')
+    setEntityTypeFilter('')
+    setFileTypeFilter('')
+  }
+
+  const isLinkDoc = (doc: DocumentWithUploader) =>
+    (doc as { document_type?: string }).document_type === 'link'
+
+  /** Single click / mobile tap: open the link, or download the file. */
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // The file name identifies the row; the four facts needed to triage a file
+  // (what it hangs off, how big it is, when it landed, whether the client can
+  // see it) are secondary. See docs/DESIGN-SYSTEM.md section 4.1.
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<DocumentWithUploader>[]>(
+    () => [
+      {
+        id: 'file_icon',
+        header: 'Type',
+        // Decorative glyph: nothing to sort, and the card title already shows
+        // the file name, so it is desktop-only.
+        sortable: false,
+        hideable: false,
+        mobileHidden: true,
+        align: 'center',
+        width: '64px',
+        cell: (doc) => {
+          const isLink = isLinkDoc(doc)
+          const Icon = isLink ? LinkIcon : getFileIcon(doc.file_type)
+          return (
+            <div
+              className={cn(
+                'w-fit rounded p-2',
+                isLink ? 'bg-blue-100 text-blue-700' : getFileTypeColor(doc.file_type)
+              )}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </div>
+          )
+        },
+      },
+      {
+        id: 'name',
+        header: 'Name',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '240px',
+        accessor: (doc) => doc.name,
+        cell: (doc) => (
+          <div className="min-w-0 font-medium">
+            <div className="flex items-center gap-2">
+              <TruncatedCell value={doc.name} maxLines={1} />
+              {isLinkDoc(doc) && (
+                <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+              )}
+            </div>
+            {doc.description && (
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                <TruncatedCell value={doc.description} maxLines={1} />
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'entity_type',
+        header: 'Entity',
+        priority: 'secondary',
+        width: '140px',
+        accessor: (doc) => getEntityTypeLabel(doc.entity_type),
+        cell: (doc) => (
+          <Badge variant="outline">{getEntityTypeLabel(doc.entity_type)}</Badge>
+        ),
+      },
+      {
+        id: 'file_size_bytes',
+        header: 'Size',
+        priority: 'secondary',
+        width: '120px',
+        numeric: true,
+        accessor: (doc) => (isLinkDoc(doc) ? null : doc.file_size_bytes),
+        cell: (doc) =>
+          isLinkDoc(doc) ? (
+            <span className="text-xs text-muted-foreground">External Link</span>
+          ) : (
+            <span className="text-muted-foreground">
+              {formatFileSize(doc.file_size_bytes)}
+            </span>
+          ),
+      },
+      {
+        id: 'created_at',
+        header: 'Uploaded',
+        priority: 'secondary',
+        width: '180px',
+        accessor: (doc) => new Date(doc.created_at),
+        cell: (doc) => (
+          <span className="text-muted-foreground">{formatDateTime(doc.created_at)}</span>
+        ),
+      },
+      {
+        id: 'show_in_client_portal',
+        header: 'Portal',
+        priority: 'secondary',
+        mobileLabel: 'Portal',
+        width: '110px',
+        accessor: (doc) => !!doc.show_in_client_portal,
+        cell: (doc) =>
+          doc.show_in_client_portal ? (
+            <Badge variant="secondary" className="text-xs">
+              Visible
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+    ],
+    // The cells only read from the row, so the definition is stable.
+    []
+  )
+
+  const rowActions = (doc: DocumentWithUploader) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${doc.name}`}>
+          <MoreVertical className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => handleDownload(doc)}>
+          <Download className="mr-2 h-4 w-4" />
+          Download
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => window.open(doc.file_url, '_blank')}>
+          <Eye className="mr-2 h-4 w-4" />
+          Preview
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleEdit(doc)}>
+          <Edit className="mr-2 h-4 w-4" />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => handleDelete(doc)} className="text-destructive">
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  // Search and filters are shared by the list and grid views, so they are
+  // defined once and handed to whichever view is active.
+  const toolbar = (
+    <GridToolbar
+      activeFilterCount={[entityTypeFilter, fileTypeFilter].filter(Boolean).length}
+      onClearFilters={clearFilters}
+      search={
+        <GridSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search documents..."
+        />
+      }
+    >
+      <GridFilterSelect
+        label="Entity Type"
+        options={ENTITY_TYPE_OPTIONS}
+        value={entityTypeFilter}
+        onChange={setEntityTypeFilter}
+      />
+      <GridFilterSelect
+        label="File Type"
+        options={FILE_TYPE_OPTIONS}
+        value={fileTypeFilter}
+        onChange={setFileTypeFilter}
+      />
+    </GridToolbar>
+  )
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Documents</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage all files across your workspace
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => fileInputRef.current?.click()}>
+    <PageShell
+      title="Documents"
+      description="Manage all files across your workspace"
+      icon={FileIcon}
+      actions={
+        <>
+          <Button onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto">
             <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
             Upload Files
           </Button>
-          <Button variant="outline" onClick={() => {
-            setUploadMode('link')
-            setShowUploadDialog(true)
-          }}>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setUploadMode('link')
+              setShowUploadDialog(true)
+            }}
+          >
             <LinkIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Add Link
           </Button>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-        />
-      </div>
-
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFilesSelected(e.target.files)}
+          />
+        </>
+      }
+    >
       {/* Drop Zone */}
       <div
         onDragOver={handleDragOver}
@@ -608,42 +779,14 @@ export function DocumentsPage() {
         </Card>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search documents..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Entity Type" />
-          </SelectTrigger>
-          <SelectContent>
-            {ENTITY_TYPE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={fileTypeFilter} onValueChange={setFileTypeFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="File Type" />
-          </SelectTrigger>
-          <SelectContent>
-            {FILE_TYPE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex items-center border rounded-md" role="group" aria-label="View mode">
+      {/* View mode + result count */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Info className="h-3 w-3" aria-hidden="true" />
+          {filteredDocuments?.length ?? 0} document
+          {(filteredDocuments?.length ?? 0) !== 1 ? 's' : ''} found
+        </span>
+        <div className="flex items-center rounded-md border" role="group" aria-label="View mode">
           <Button
             variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="icon"
@@ -668,206 +811,137 @@ export function DocumentsPage() {
       </div>
 
       {/* Documents */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
-        </div>
-      ) : !filteredDocuments?.length ? (
-        <Card className="card-carbon">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FileIcon className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No documents found</p>
-            <Button className="mt-4" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="mr-2 h-4 w-4" />
-              Upload your first document
-            </Button>
-          </CardContent>
-        </Card>
-      ) : viewMode === 'list' ? (
-        <Card className="card-carbon">
-          <CardContent className="p-0">
-            {/* Table interaction hint */}
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-muted/30 border-b text-xs text-muted-foreground">
-              <Info className="h-3 w-3" aria-hidden="true" />
-              <span>
-                {filteredDocuments.length} document{filteredDocuments.length !== 1 ? 's' : ''} found
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">Type</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Entity</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Uploaded</TableHead>
-                    <TableHead>Portal</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDocuments.map((doc) => {
-                    const isLink = (doc as { document_type?: string }).document_type === 'link'
-                    const docUrl = isLink ? (doc as { url?: string }).url : doc.file_url
-                    const Icon = isLink ? LinkIcon : getFileIcon(doc.file_type)
-                    return (
-                      <TableRow
-                        key={doc.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => isLink ? window.open(docUrl, '_blank') : handleDownload(doc)}
-                      >
-                        <TableCell>
-                          <div
-                            className={cn(
-                              'p-2 rounded w-fit',
-                              isLink ? 'bg-blue-100 text-blue-700' : getFileTypeColor(doc.file_type)
-                            )}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                              <span className="truncate max-w-[300px]">{doc.name}</span>
-                              {isLink && <ExternalLink className="h-3 w-3 text-muted-foreground" />}
-                            </div>
-                            {doc.description && (
-                              <span className="text-xs text-muted-foreground truncate max-w-[300px]">
-                                {doc.description}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {getEntityTypeLabel(doc.entity_type)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {isLink ? <span className="text-xs">External Link</span> : formatFileSize(doc.file_size_bytes)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatDateTime(doc.created_at)}
-                        </TableCell>
-                        <TableCell>
-                          {doc.show_in_client_portal && (
-                            <Badge variant="secondary" className="text-xs">
-                              Visible
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                aria-label={`Actions for ${doc.name}`}
-                              >
-                                <MoreVertical className="h-4 w-4" aria-hidden="true" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleDownload(doc)}>
-                                <Download className="mr-2 h-4 w-4" />
-                                Download
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => window.open(doc.file_url, '_blank')}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleEdit(doc)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDelete(doc)}
-                                className="text-red-600"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+      {viewMode === 'list' ? (
+        <DataGrid
+          columns={columns}
+          data={filteredDocuments}
+          getRowId={(doc) => doc.id}
+          isLoading={isLoading}
+          error={error as Error | null}
+          onRetry={refetch}
+          storageKey="documents"
+          defaultSort={{ columnId: 'created_at', direction: 'desc' }}
+          ariaLabel="Documents"
+          // Preserved behaviour: activating a row opens an external link or
+          // downloads the file. Row-level actions live in the dropdown.
+          // Activating a row opens the record, as everywhere else (section
+          // 4.5). Row click used to trigger a download, which was surprising
+          // and left /documents/:id unreachable from this page. Download and
+          // open-link remain one tap away in the row actions.
+          onRowOpen={row => navigate(`/documents/${row.id}`)}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
+          emptyState={{
+            icon: FileIcon,
+            title: 'No documents found',
+            description: 'Upload a file or add an external link to get started.',
+            action: (
+              <Button onClick={() => fileInputRef.current?.click()}>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload your first document
+              </Button>
+            ),
+          }}
+          toolbar={toolbar}
+          rowActions={rowActions}
+        />
       ) : (
-        /* Grid View */
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {filteredDocuments.map((doc) => {
-            const Icon = getFileIcon(doc.file_type)
-            return (
-              <Card
-                key={doc.id}
-                className="group cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => handleDownload(doc)}
-              >
-                <CardContent className="p-4">
-                  <div
-                    className={cn(
-                      'w-full aspect-square rounded-lg flex items-center justify-center mb-3',
-                      getFileTypeColor(doc.file_type)
-                    )}
-                  >
-                    <Icon className="h-12 w-12" />
-                  </div>
-                  <p className="text-sm font-medium truncate" title={doc.name}>
-                    {doc.name}
+        /* Grid View — a visual-asset thumbnail grid, per section 3. */
+        <div className="space-y-3">
+          {toolbar}
+          {!filteredDocuments?.length ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-8 text-center sm:p-12">
+              <FileIcon className="h-8 w-8 text-muted-foreground" />
+              <div>
+                <p className="font-medium">No documents found</p>
+                {hasActiveFilters ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Adjust or clear the filters to see more.
                   </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-muted-foreground">
-                      {formatFileSize(doc.file_size_bytes)}
-                    </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        asChild
-                        onClick={(e) => e.stopPropagation()}
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Upload a file or add an external link to get started.
+                  </p>
+                )}
+              </div>
+              {hasActiveFilters ? (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              ) : (
+                <Button onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload your first document
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {filteredDocuments.map((doc) => {
+                const Icon = getFileIcon(doc.file_type)
+                return (
+                  <Card
+                    key={doc.id}
+                    className="group cursor-pointer transition-shadow hover:shadow-md"
+                    // Same contract as a grid row: activating opens the record.
+                    onClick={() => navigate(`/documents/${doc.id}`)}
+                  >
+                    <CardContent className="p-4">
+                      <div
+                        className={cn(
+                          'mb-3 flex aspect-square w-full items-center justify-center rounded-lg',
+                          getFileTypeColor(doc.file_type)
+                        )}
                       >
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <MoreVertical className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleDownload(doc)}>
-                          <Download className="mr-2 h-4 w-4" />
-                          Download
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(doc)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Rename
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(doc)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+                        <Icon className="h-12 w-12" />
+                      </div>
+                      <p className="truncate text-sm font-medium" title={doc.name}>
+                        {doc.name}
+                      </p>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {formatFileSize(doc.file_size_bytes)}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            asChild
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Actions for ${doc.name}`}
+                              className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                            >
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleDownload(doc)}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEdit(doc)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(doc)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1227,6 +1301,6 @@ export function DocumentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   )
 }

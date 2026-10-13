@@ -9,7 +9,6 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
-  type DragOverEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -21,20 +20,15 @@ import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
 import { useLeads, useLeadMutations, useLeadPipelineStats } from '@/hooks/useLeads'
 import { useUIStore } from '@/stores'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { GridToolbar, GridSearch, GridFilterSelect } from '@/components/shared/GridToolbar'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,7 +48,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Plus,
-  Search,
   MoreVertical,
   Target,
   DollarSign,
@@ -99,6 +92,7 @@ const LOST_REASONS = [
 
 export function LeadsPage() {
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [showClosed, setShowClosed] = useState(false)
   const [lostDialogOpen, setLostDialogOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<LeadWithRelations | null>(null)
@@ -109,7 +103,7 @@ export function LeadsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const automationFilter = searchParams.get('automation')
-  const { data: leads, isLoading } = useLeads()
+  const { data: leads, isLoading, error, refetch } = useLeads()
   const { data: stats } = useLeadPipelineStats()
   const { updateLeadStatus, deleteLead } = useLeadMutations()
   const { openCreateModal, leadsViewMode, setLeadsViewMode } = useUIStore()
@@ -138,6 +132,12 @@ export function LeadsPage() {
     )
   }, [leads, search])
 
+  // Table view adds a status filter on top of the shared search.
+  const tableLeads = useMemo(
+    () => (statusFilter ? filteredLeads.filter((l) => l.status === statusFilter) : filteredLeads),
+    [filteredLeads, statusFilter]
+  )
+
   // Group leads by status
   const leadsByStatus = useMemo(() => {
     const grouped: Record<string, LeadWithRelations[]> = {}
@@ -162,7 +162,7 @@ export function LeadsPage() {
     setActiveId(event.active.id as string)
   }
 
-  const handleDragOver = (_event: DragOverEvent) => {
+  const handleDragOver = () => {
     // Visual feedback handled by CSS
   }
 
@@ -228,86 +228,19 @@ export function LeadsPage() {
   }
 
   return (
-    <div className="page-carbon min-h-screen">
-      {/* Fixed Header */}
-      <div className="sticky top-0 z-20 bg-[#f4f4f4] border-b px-6 py-4 space-y-4">
-        {/* Title Row */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight font-[system-ui]">Sales Pipeline</h1>
-            <p className="text-muted-foreground">Manage leads and track your sales funnel</p>
-          </div>
-          <Button
-            onClick={() => openCreateModal('lead')}
-            className="shadow-lg rounded-lg"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Lead
-          </Button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="shadow-md rounded-xl border-0">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Pipeline Value</span>
-              </div>
-              <p className="text-2xl font-bold mt-1">{formatCurrency(stats?.totalValue || 0)}</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-md rounded-xl border-0">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-600" />
-                <span className="text-sm text-muted-foreground">Won Value</span>
-              </div>
-              <p className="text-2xl font-bold mt-1 text-green-600">
-                {formatCurrency(stats?.wonValue || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-md rounded-xl border-0">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-red-600" />
-                <span className="text-sm text-muted-foreground">Lost Value</span>
-              </div>
-              <p className="text-2xl font-bold mt-1 text-red-600">
-                {formatCurrency(stats?.lostValue || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-md rounded-xl border-0">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Conversion Rate</span>
-              </div>
-              <p className="text-2xl font-bold mt-1">{(stats?.conversionRate || 0).toFixed(1)}%</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Search and View Toggle */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search leads..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 rounded-lg shadow-sm"
-            />
-          </div>
-
-          {/* View Toggle */}
-          <div className="flex items-center border rounded-lg bg-white shadow-sm p-1">
+    <PageShell
+      title="Sales Pipeline"
+      description="Manage leads and track your sales funnel"
+      icon={Target}
+      actions={
+        <>
+          {/* View toggle. Pipeline and List are board views; Table is the grid. */}
+          <div className="flex items-center rounded-lg border p-1">
             <Button
               variant={leadsViewMode === 'pipeline' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setLeadsViewMode('pipeline')}
+              aria-pressed={leadsViewMode === 'pipeline'}
               className="gap-2"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -317,6 +250,7 @@ export function LeadsPage() {
               variant={leadsViewMode === 'list' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setLeadsViewMode('list')}
+              aria-pressed={leadsViewMode === 'list'}
               className="gap-2"
             >
               <List className="h-4 w-4" />
@@ -326,6 +260,7 @@ export function LeadsPage() {
               variant={leadsViewMode === 'table' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setLeadsViewMode('table')}
+              aria-pressed={leadsViewMode === 'table'}
               className="gap-2"
             >
               <TableIcon className="h-4 w-4" />
@@ -336,20 +271,23 @@ export function LeadsPage() {
           <Button
             variant={showClosed ? 'secondary' : 'outline'}
             onClick={() => setShowClosed(!showClosed)}
-            className="rounded-lg"
+            aria-pressed={showClosed}
+            className="w-full sm:w-auto"
           >
             {showClosed ? 'Hide Closed' : 'Show Closed'}
           </Button>
-        </div>
-      </div>
 
-      {/* Content Area */}
-      <div className="p-6">
-        {/* Automation filter banner */}
-        {automationFilter && filterAutomation && (
-          <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
-            <Zap className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-sm flex-1">
+          <Button onClick={() => openCreateModal('lead')} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            New Lead
+          </Button>
+        </>
+      }
+      banner={
+        automationFilter && filterAutomation ? (
+          <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+            <Zap className="h-4 w-4 shrink-0 text-primary" />
+            <span className="flex-1 text-sm">
               Showing leads from: <span className="font-medium">{filterAutomation.name}</span>
             </span>
             <Button
@@ -358,57 +296,121 @@ export function LeadsPage() {
               className="h-7"
               onClick={() => setSearchParams({})}
             >
-              <X className="h-3 w-3 mr-1" />
+              <X className="mr-1 h-3 w-3" />
               Clear filter
             </Button>
           </div>
-        )}
+        ) : null
+      }
+    >
+      {/* Pipeline KPIs */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Pipeline Value</span>
+            </div>
+            <p className="mt-1 text-2xl font-bold">{formatCurrency(stats?.totalValue || 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-success" />
+              <span className="text-sm text-muted-foreground">Won Value</span>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-success">
+              {formatCurrency(stats?.wonValue || 0)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-destructive" />
+              <span className="text-sm text-muted-foreground">Lost Value</span>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-destructive">
+              {formatCurrency(stats?.lostValue || 0)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Conversion Rate</span>
+            </div>
+            <p className="mt-1 text-2xl font-bold">{(stats?.conversionRate || 0).toFixed(1)}%</p>
+          </CardContent>
+        </Card>
+      </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-5 gap-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-96 w-full rounded-xl" />
+      {/* The board views keep a standalone search; the table view gets the
+          same state through its own GridToolbar. */}
+      {leadsViewMode !== 'table' && (
+        <div className="max-w-sm">
+          <GridSearch value={search} onChange={setSearch} placeholder="Search leads..." />
+        </div>
+      )}
+
+      {leadsViewMode === 'table' ? (
+        <LeadsTableView
+          leads={tableLeads}
+          isLoading={isLoading}
+          error={error as Error | null}
+          onRetry={refetch}
+          search={search}
+          onSearch={setSearch}
+          statusFilter={statusFilter}
+          onStatusFilter={setStatusFilter}
+          onClearFilters={() => {
+            setSearch('')
+            setStatusFilter('')
+          }}
+          onCreate={() => openCreateModal('lead')}
+          onNavigate={(id) => navigate(`/leads/${id}`)}
+          onDelete={(id) => deleteLead.mutate(id)}
+        />
+      ) : isLoading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-64 w-full rounded-xl sm:h-96" />
+          ))}
+        </div>
+      ) : leadsViewMode === 'pipeline' ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {visibleStages.map((stage) => (
+              <KanbanColumn
+                key={stage.status}
+                stage={stage}
+                leads={leadsByStatus[stage.status] || []}
+                count={getStageCount(stage.status)}
+                value={getStageValue(stage.status)}
+                onNavigate={(id) => navigate(`/leads/${id}`)}
+                onDelete={(id) => deleteLead.mutate(id)}
+              />
             ))}
           </div>
-        ) : leadsViewMode === 'pipeline' ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {visibleStages.map((stage) => (
-                <KanbanColumn
-                  key={stage.status}
-                  stage={stage}
-                  leads={leadsByStatus[stage.status] || []}
-                  count={getStageCount(stage.status)}
-                  value={getStageValue(stage.status)}
-                  onNavigate={(id) => navigate(`/leads/${id}`)}
-                  onDelete={(id) => deleteLead.mutate(id)}
-                />
-              ))}
-            </div>
-            <DragOverlay>
-              {activeLead && <LeadCardOverlay lead={activeLead} />}
-            </DragOverlay>
-          </DndContext>
-        ) : leadsViewMode === 'list' ? (
-          <LeadsListView
-            leads={filteredLeads}
-            stages={visibleStages}
-            onNavigate={(id) => navigate(`/leads/${id}`)}
-          />
-        ) : (
-          <LeadsTableView
-            leads={filteredLeads}
-            onNavigate={(id) => navigate(`/leads/${id}`)}
-            onDelete={(id) => deleteLead.mutate(id)}
-          />
-        )}
-      </div>
+          <DragOverlay>
+            {activeLead && <LeadCardOverlay lead={activeLead} />}
+          </DragOverlay>
+        </DndContext>
+      ) : (
+        <LeadsListView
+          leads={filteredLeads}
+          stages={visibleStages}
+          onNavigate={(id) => navigate(`/leads/${id}`)}
+        />
+      )}
 
       {/* Lost Reason Dialog */}
       <Dialog open={lostDialogOpen} onOpenChange={setLostDialogOpen}>
@@ -460,7 +462,7 @@ export function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   )
 }
 
@@ -798,122 +800,224 @@ function LeadsListView({
   )
 }
 
-// Table View Component
+// Table View Component — DataGrid per docs/DESIGN-SYSTEM.md sections 4 and 5.
+//
+// The lead name identifies the row; the four facts needed to triage a lead
+// (stage, value, industry, close date) are secondary. The internal lead ID is
+// desktop-only noise.
 function LeadsTableView({
   leads,
+  isLoading,
+  error,
+  onRetry,
+  search,
+  onSearch,
+  statusFilter,
+  onStatusFilter,
+  onClearFilters,
+  onCreate,
   onNavigate,
   onDelete,
 }: {
   leads: LeadWithRelations[]
+  isLoading?: boolean
+  error?: Error | null
+  onRetry?: () => void
+  search: string
+  onSearch: (value: string) => void
+  statusFilter: string
+  onStatusFilter: (value: string) => void
+  onClearFilters: () => void
+  onCreate: () => void
   onNavigate: (id: string) => void
   onDelete: (id: string) => void
 }) {
-  const statusColor = (status: LeadStatus) => {
-    const stage = PIPELINE_STAGES.find((s) => s.status === status)
-    return stage?.color || 'bg-gray-500'
-  }
+  const columns = useMemo<DataGridColumn<LeadWithRelations>[]>(
+    () => [
+      {
+        id: 'lead_id_display',
+        header: 'Lead ID',
+        hideOnMobile: true,
+        hideable: false,
+        width: '130px',
+        accessor: (row) => row.lead_id_display ?? '',
+        cell: (row) =>
+          row.lead_id_display ? (
+            <span className="font-mono text-xs">{row.lead_id_display}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'lead_name',
+        header: 'Lead',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '220px',
+        accessor: (row) => row.lead_name,
+        cell: (row) => (
+          <div className="min-w-0 font-semibold">
+            <TruncatedCell value={row.lead_name} maxLines={1} />
+          </div>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        priority: 'secondary',
+        mobileLabel: 'Stage',
+        width: '150px',
+        accessor: (row) => row.status,
+        cell: (row) => {
+          const stage = PIPELINE_STAGES.find((s) => s.status === row.status)
+          return (
+            <Badge variant="outline" className="gap-1.5 rounded-lg capitalize">
+              <div className={`h-2 w-2 rounded-full ${stage?.color ?? 'bg-muted-foreground'}`} />
+              {stage?.label ?? row.status}
+            </Badge>
+          )
+        },
+      },
+      {
+        id: 'estimated_value',
+        header: 'Value',
+        priority: 'secondary',
+        numeric: true,
+        width: '140px',
+        accessor: (row) => row.estimated_value ?? null,
+        cell: (row) =>
+          row.estimated_value ? (
+            formatCurrency(row.estimated_value)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'industry',
+        header: 'Industry',
+        priority: 'secondary',
+        width: '160px',
+        accessor: (row) => row.industry ?? '',
+        cell: (row) => <TruncatedCell value={row.industry} maxLines={1} />,
+      },
+      {
+        id: 'estimated_close_date',
+        header: 'Close Date',
+        priority: 'secondary',
+        mobileLabel: 'Close',
+        width: '140px',
+        accessor: (row) => row.estimated_close_date,
+        cell: (row) =>
+          row.estimated_close_date ? (
+            formatDate(row.estimated_close_date)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'owner',
+        header: 'Owner',
+        width: '190px',
+        accessor: (row) => row.lead_owner?.full_name ?? '',
+        cell: (row) =>
+          row.lead_owner ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <Avatar className="h-6 w-6 shrink-0">
+                <AvatarFallback className="text-xs">
+                  {row.lead_owner.full_name
+                    ?.split(' ')
+                    .map((n) => n[0])
+                    .join('')}
+                </AvatarFallback>
+              </Avatar>
+              <TruncatedCell value={row.lead_owner.full_name} maxLines={1} />
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'email',
+        header: 'Email',
+        hideOnMobile: true,
+        width: '200px',
+        accessor: (row) => row.email ?? '',
+        cell: (row) => <TruncatedCell value={row.email} maxLines={1} />,
+      },
+    ],
+    []
+  )
 
   return (
-    <Card className="rounded-xl shadow-md border-0">
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Lead</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Value</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead>Close Date</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {leads.map((lead) => (
-              <TableRow
-                key={lead.id}
-                className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                onClick={() => onNavigate(lead.id)}
-              >
-                <TableCell>
-                  <div>
-                    <p className="font-semibold">{lead.lead_name}</p>
-                    {lead.lead_id_display && (
-                      <p className="text-xs text-muted-foreground">{lead.lead_id_display}</p>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="gap-1.5 rounded-lg">
-                    <div className={`w-2 h-2 rounded-full ${statusColor(lead.status)}`} />
-                    {lead.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {lead.estimated_value ? formatCurrency(lead.estimated_value) : '—'}
-                </TableCell>
-                <TableCell>{lead.industry || '—'}</TableCell>
-                <TableCell>
-                  {lead.estimated_close_date ? formatDate(lead.estimated_close_date) : '—'}
-                </TableCell>
-                <TableCell>
-                  {lead.lead_owner ? (
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarFallback className="text-xs">
-                          {lead.lead_owner.full_name
-                            ?.split(' ')
-                            .map((n) => n[0])
-                            .join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm">{lead.lead_owner.full_name}</span>
-                    </div>
-                  ) : (
-                    '—'
-                  )}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-lg z-50">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onNavigate(lead.id) }}>
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={(e) => { e.stopPropagation(); onDelete(lead.id) }}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Archive
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  {/* Mobile-only Open button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 md:hidden"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onNavigate(lead.id)
-                    }}
-                    title="Open"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <DataGrid
+      columns={columns}
+      data={leads}
+      getRowId={(row) => row.id}
+      isLoading={isLoading}
+      error={error}
+      onRetry={onRetry}
+      storageKey="leads"
+      defaultSort={{ columnId: 'estimated_close_date', direction: 'asc' }}
+      ariaLabel="Leads"
+      // A list you cannot open is the defect this fixes: double click, Enter or
+      // a tap on the mobile card opens the lead.
+      onRowOpen={(row) => onNavigate(row.id)}
+      hasActiveFilters={!!search || !!statusFilter}
+      onClearFilters={onClearFilters}
+      emptyState={{
+        icon: Target,
+        title: 'No leads yet',
+        description: 'Add your first lead to start tracking the sales funnel.',
+        action: (
+          <Button onClick={onCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Lead
+          </Button>
+        ),
+      }}
+      toolbar={
+        <GridToolbar
+          activeFilterCount={statusFilter ? 1 : 0}
+          onClearFilters={() => onStatusFilter('')}
+          search={
+            <GridSearch
+              value={search}
+              onChange={onSearch}
+              placeholder="Search by name, email or industry..."
+            />
+          }
+        >
+          <GridFilterSelect
+            label="Stage"
+            options={PIPELINE_STAGES.map((stage) => ({
+              value: stage.status,
+              label: stage.label,
+            }))}
+            value={statusFilter}
+            onChange={onStatusFilter}
+          />
+        </GridToolbar>
+      }
+      rowActions={(row) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label="Lead actions">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-50 rounded-lg">
+            <DropdownMenuItem onClick={() => onNavigate(row.id)}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View Details
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive" onClick={() => onDelete(row.id)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Archive
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    />
   )
 }

@@ -124,6 +124,7 @@ export function PhasesPage() {
     {
       key: 'phase_id_display',
       header: 'Phase ID',
+      hideOnMobile: true,
       editable: false, // Display ID is read-only
       enableHiding: false, // ID column cannot be hidden
       render: (row) => (
@@ -135,6 +136,7 @@ export function PhasesPage() {
     {
       key: 'projects.clients.name',
       header: 'Client',
+      mobileLabel: 'Client',
       editable: false, // Nested relation
       render: (row) => row.projects?.clients?.id ? (
         <Link
@@ -152,6 +154,7 @@ export function PhasesPage() {
     {
       key: 'projects.name',
       header: 'Project',
+      priority: 'secondary', mobileLabel: 'Project',
       editable: false, // Nested relation
       render: (row) => row.projects ? (
         <Link
@@ -166,6 +169,7 @@ export function PhasesPage() {
     {
       key: 'name',
       header: 'Phase Name',
+      priority: 'primary',
       editable: true,
       type: 'text',
       render: (row) => <span className="font-medium">{row.name}</span>,
@@ -173,6 +177,7 @@ export function PhasesPage() {
     {
       key: 'status',
       header: 'Status',
+      priority: 'secondary',
       editable: false, // Computed from dates
       render: (row) => (
         <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
@@ -183,6 +188,7 @@ export function PhasesPage() {
     {
       key: 'lead_id',
       header: 'Lead',
+      priority: 'secondary', mobileLabel: 'Lead',
       editable: true,
       type: 'select',
       options: userOptions,
@@ -203,6 +209,7 @@ export function PhasesPage() {
     {
       key: 'expected_end_date',
       header: 'End Date',
+      priority: 'secondary', mobileLabel: 'Due',
       editable: true,
       type: 'date',
       render: (row) => row.expected_end_date ? (
@@ -215,6 +222,7 @@ export function PhasesPage() {
     {
       key: 'completion_percentage',
       header: 'Progress',
+      numeric: true, mobileLabel: 'Complete',
       editable: false, // Calculated field
       render: (row) => (
         <div className="flex items-center gap-2">

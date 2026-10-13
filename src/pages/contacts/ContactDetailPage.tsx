@@ -284,7 +284,7 @@ export function ContactDetailPage() {
 
   if (contactLoading) {
     return (
-      <div className="page-carbon p-6 space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -304,7 +304,7 @@ export function ContactDetailPage() {
   }
 
   return (
-    <div className="page-carbon p-6 space-y-6">
+    <div className="space-y-6">
       {/* Breadcrumbs: Contacts > Contact Name */}
       <Breadcrumbs
         items={[
@@ -571,7 +571,7 @@ export function ContactDetailPage() {
                     />
                   </div>
                   {/* City & State - Side by Side */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ViewEditField
                       type="text"
                       label="City"
@@ -590,7 +590,7 @@ export function ContactDetailPage() {
                     />
                   </div>
                   {/* Country & Postal Code - Side by Side */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ViewEditField
                       type="text"
                       label="Country"

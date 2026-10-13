@@ -5,20 +5,12 @@ import {
   useCompanyDocumentMutations,
 } from '@/hooks/useCompanyDocuments'
 import { useUIStore } from '@/stores'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { GridToolbar, GridSearch, GridFilterSelect } from '@/components/shared/GridToolbar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Input } from '@/components/ui/input'
-import { SearchableSelect } from '@/components/ui/searchable-select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +31,6 @@ import {
 import {
   BookLock,
   Plus,
-  Search,
   MoreVertical,
   Eye,
   Edit,
@@ -49,7 +40,6 @@ import {
   CalendarClock,
   FileText,
   Link2,
-  X,
 } from 'lucide-react'
 import { formatDate, formatFileSize, cn } from '@/lib/utils'
 import {
@@ -72,21 +62,26 @@ function isReviewOverdue(doc: CompanyDocumentWithPeople): boolean {
 
 export function CompanyDocumentsPage() {
   const navigate = useNavigate()
-  const { data: documents, isLoading } = useCompanyDocuments()
+  const { data: documents, isLoading, error, refetch } = useCompanyDocuments()
   const { deleteDocument, downloadDocument } = useCompanyDocumentMutations()
   const { openCreateModal, openDetailPanel } = useUIStore()
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [categoryFilter, setCategoryFilter] = useState<string>('')
-  const [confidentialityFilter, setConfidentialityFilter] = useState<string>('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [confidentialityFilter, setConfidentialityFilter] = useState('')
   const [docToDelete, setDocToDelete] = useState<CompanyDocumentWithPeople | null>(null)
 
   const hasActiveFilters =
-    !!typeFilter || !!statusFilter || !!categoryFilter || !!confidentialityFilter
+    !!searchQuery ||
+    !!typeFilter ||
+    !!statusFilter ||
+    !!categoryFilter ||
+    !!confidentialityFilter
 
   const clearFilters = () => {
+    setSearchQuery('')
     setTypeFilter('')
     setStatusFilter('')
     setCategoryFilter('')
@@ -119,296 +114,298 @@ export function CompanyDocumentsPage() {
     [documents]
   )
 
-  const confirmDelete = async () => {
-    if (!docToDelete) return
-    await deleteDocument.mutateAsync(docToDelete.id)
-    setDocToDelete(null)
-  }
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // Priorities per docs/DESIGN-SYSTEM.md section 4.1: the title identifies the
+  // row, the four facts needed to triage a document are secondary, and the
+  // display ID is hidden on mobile because the card title already names it.
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<CompanyDocumentWithPeople>[]>(
+    () => [
+      {
+        id: 'display_id',
+        header: 'ID',
+        hideOnMobile: true,
+        hideable: false,
+        width: '100px',
+        accessor: row => row.display_id ?? 0,
+        cell: row => (
+          <Badge variant="outline" className="font-mono text-xs">
+            DOC-{String(row.display_id ?? 0).padStart(4, '0')}
+          </Badge>
+        ),
+      },
+      {
+        id: 'title',
+        header: 'Title',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '220px',
+        accessor: row => row.title,
+        cell: row => (
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              {row.storage_path ? (
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
+              <TruncatedCell value={row.title} maxLines={1} />
+            </div>
+            {row.reference_code && (
+              <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                {row.reference_code}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'document_type',
+        header: 'Type',
+        priority: 'secondary',
+        width: '150px',
+        accessor: row => companyDocumentTypeLabel(row.document_type),
+        cell: row => (
+          <Badge variant="secondary">{companyDocumentTypeLabel(row.document_type)}</Badge>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        priority: 'secondary',
+        width: '130px',
+        accessor: row => companyDocumentStatusLabel(row.status),
+        cell: row => (
+          <Badge
+            variant="outline"
+            className={cn('text-xs', COMPANY_DOCUMENT_STATUS_STYLES[row.status])}
+          >
+            {companyDocumentStatusLabel(row.status)}
+          </Badge>
+        ),
+      },
+      {
+        id: 'owner',
+        header: 'Owner',
+        priority: 'secondary',
+        width: '160px',
+        accessor: row => row.owner?.full_name ?? '',
+        cell: row => <TruncatedCell value={row.owner?.full_name} maxLines={1} />,
+      },
+      {
+        id: 'review_due_date',
+        header: 'Review Due',
+        priority: 'secondary',
+        mobileLabel: 'Review',
+        width: '140px',
+        accessor: row => row.review_due_date,
+        cell: row =>
+          row.review_due_date ? (
+            <span
+              className={cn(
+                isReviewOverdue(row) && 'font-medium text-warning'
+              )}
+            >
+              {formatDate(row.review_due_date)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'confidentiality',
+        header: 'Sensitivity',
+        width: '140px',
+        accessor: row => row.confidentiality,
+        cell: row => (
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-xs capitalize',
+              COMPANY_DOCUMENT_CONFIDENTIALITY_STYLES[row.confidentiality]
+            )}
+          >
+            {row.confidentiality}
+          </Badge>
+        ),
+      },
+      {
+        id: 'category',
+        header: 'Category',
+        width: '150px',
+        accessor: row => row.category ?? '',
+      },
+      {
+        id: 'version',
+        header: 'Version',
+        width: '100px',
+        numeric: true,
+        accessor: row => row.version,
+      },
+      {
+        id: 'access',
+        header: 'Access',
+        width: '140px',
+        sortable: true,
+        accessor: row => (row.allow_download ? 'Download' : 'View only'),
+        cell: row => (
+          <div className="space-y-0.5">
+            <Badge variant="outline" className="gap-1 text-xs">
+              {row.allow_download ? (
+                <>
+                  <Download className="h-3 w-3" />
+                  Download
+                </>
+              ) : (
+                <>
+                  <Lock className="h-3 w-3" />
+                  View only
+                </>
+              )}
+            </Badge>
+            {row.file_size_bytes ? (
+              <span className="block text-xs text-muted-foreground">
+                {formatFileSize(row.file_size_bytes)}
+              </span>
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    []
+  )
 
   return (
-    <div className="page-carbon space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <BookLock className="h-8 w-8 text-muted-foreground" />
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Company Documents</h1>
-            <p className="text-muted-foreground">
-              SOPs, protocols and processing guides, read in the app rather than
-              downloaded
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => openCreateModal('company_document')}>
+    <PageShell
+      title="Company Documents"
+      description="SOPs, protocols and processing guides, read in the app rather than downloaded"
+      icon={BookLock}
+      actions={
+        <Button onClick={() => openCreateModal('company_document')} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Add Document
         </Button>
-      </div>
-
-      {overdueCount > 0 && (
-        <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
-          <CalendarClock className="h-4 w-4 shrink-0" />
-          <span>
-            {overdueCount} {overdueCount === 1 ? 'document is' : 'documents are'} due
-            for review.
-          </span>
-        </div>
-      )}
-
-      {/* Search + filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by title, reference, owner or tag..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="w-[170px]">
-          <SearchableSelect
-            options={[...COMPANY_DOCUMENT_TYPE_OPTIONS]}
-            value={typeFilter}
-            onValueChange={v => setTypeFilter(v ?? '')}
-            placeholder="All types"
-            clearable
-          />
-        </div>
-        <div className="w-[170px]">
-          <SearchableSelect
-            options={[...COMPANY_DOCUMENT_STATUS_OPTIONS]}
-            value={statusFilter}
-            onValueChange={v => setStatusFilter(v ?? '')}
-            placeholder="All statuses"
-            clearable
-          />
-        </div>
-        <div className="w-[180px]">
-          <SearchableSelect
-            options={[...COMPANY_DOCUMENT_CATEGORY_OPTIONS]}
-            value={categoryFilter}
-            onValueChange={v => setCategoryFilter(v ?? '')}
-            placeholder="All categories"
-            clearable
-          />
-        </div>
-        <div className="w-[180px]">
-          <SearchableSelect
-            options={[...COMPANY_DOCUMENT_CONFIDENTIALITY_OPTIONS]}
-            value={confidentialityFilter}
-            onValueChange={v => setConfidentialityFilter(v ?? '')}
-            placeholder="All sensitivities"
-            clearable
-          />
-        </div>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <X className="mr-1 h-4 w-4" />
-            Clear
-          </Button>
-        )}
-      </div>
-
-      {/* Grid */}
-      {isLoading ? (
-        <Card>
-          <CardContent className="space-y-3 p-6">
-            {[1, 2, 3, 4].map(i => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </CardContent>
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardHeader className="py-12 text-center">
-            <BookLock className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-            <CardTitle>
-              {documents?.length ? 'No documents match your filters' : 'No company documents yet'}
-            </CardTitle>
-            <CardDescription>
-              {documents?.length
-                ? 'Adjust the search or clear the filters to see more.'
-                : 'Upload your first SOP, protocol or processing guide to get started.'}
-            </CardDescription>
-            {!documents?.length && (
-              <Button className="mt-4" onClick={() => openCreateModal('company_document')}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add First Document
+      }
+      banner={
+        overdueCount > 0 ? (
+          <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+            <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {overdueCount} {overdueCount === 1 ? 'document is' : 'documents are'} due
+              for review.
+            </span>
+          </div>
+        ) : null
+      }
+    >
+      <DataGrid
+        columns={columns}
+        data={filtered}
+        getRowId={row => row.id}
+        isLoading={isLoading}
+        error={error as Error | null}
+        onRetry={refetch}
+        storageKey="company-documents"
+        defaultSort={{ columnId: 'title', direction: 'asc' }}
+        ariaLabel="Company documents"
+        // Single click opens the quick-view panel, double click or a mobile tap
+        // opens the record. Section 4.5.
+        onRowClick={row => openDetailPanel('company_document', row.id, row)}
+        onRowOpen={row => navigate(`/company-documents/${row.id}`)}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
+        emptyState={{
+          icon: BookLock,
+          title: 'No company documents yet',
+          description:
+            'Upload your first SOP, protocol or processing guide to get started.',
+          action: (
+            <Button onClick={() => openCreateModal('company_document')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add First Document
+            </Button>
+          ),
+        }}
+        toolbar={
+          <GridToolbar
+            activeFilterCount={
+              [typeFilter, statusFilter, categoryFilter, confidentialityFilter].filter(
+                Boolean
+              ).length
+            }
+            onClearFilters={clearFilters}
+            search={
+              <GridSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by title, reference, owner or tag..."
+              />
+            }
+          >
+            <GridFilterSelect
+              label="Type"
+              options={COMPANY_DOCUMENT_TYPE_OPTIONS}
+              value={typeFilter}
+              onChange={setTypeFilter}
+            />
+            <GridFilterSelect
+              label="Status"
+              options={COMPANY_DOCUMENT_STATUS_OPTIONS}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
+            <GridFilterSelect
+              label="Category"
+              options={COMPANY_DOCUMENT_CATEGORY_OPTIONS}
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+            />
+            <GridFilterSelect
+              label="Sensitivity"
+              options={COMPANY_DOCUMENT_CONFIDENTIALITY_OPTIONS}
+              value={confidentialityFilter}
+              onChange={setConfidentialityFilter}
+            />
+          </GridToolbar>
+        }
+        rowActions={row => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Document actions">
+                <MoreVertical className="h-4 w-4" />
               </Button>
-            )}
-          </CardHeader>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[90px]">ID</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Sensitivity</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>Review Due</TableHead>
-                  <TableHead>Access</TableHead>
-                  <TableHead className="w-[60px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(doc => (
-                  <TableRow
-                    key={doc.id}
-                    className="min-h-[44px] cursor-pointer hover:bg-muted/50"
-                    // Single click opens the quick-view panel, double click
-                    // navigates to the full detail page (CLAUDE.md interaction rule).
-                    onClick={() => openDetailPanel('company_document', doc.id, doc)}
-                    onDoubleClick={() => navigate(`/company-documents/${doc.id}`)}
-                  >
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        DOC-{String(doc.display_id ?? 0).padStart(4, '0')}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="max-w-[260px] font-medium">
-                      <div className="flex items-center gap-2">
-                        {doc.storage_path ? (
-                          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{doc.title}</span>
-                      </div>
-                      {doc.reference_code && (
-                        <span className="block truncate font-mono text-xs text-muted-foreground">
-                          {doc.reference_code}
-                        </span>
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {companyDocumentTypeLabel(doc.document_type)}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="text-sm">
-                      {doc.category || <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-
-                    <TableCell className="font-mono text-xs">{doc.version}</TableCell>
-
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={cn('text-xs', COMPANY_DOCUMENT_STATUS_STYLES[doc.status])}
-                      >
-                        {companyDocumentStatusLabel(doc.status)}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          'text-xs capitalize',
-                          COMPANY_DOCUMENT_CONFIDENTIALITY_STYLES[doc.confidentiality]
-                        )}
-                      >
-                        {doc.confidentiality}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="max-w-[140px] truncate text-sm">
-                      {doc.owner?.full_name || <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-
-                    <TableCell className="text-sm">
-                      {doc.review_due_date ? (
-                        <span
-                          className={cn(
-                            isReviewOverdue(doc) &&
-                              'font-medium text-amber-700 dark:text-amber-300'
-                          )}
-                        >
-                          {formatDate(doc.review_due_date)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      {doc.allow_download ? (
-                        <Badge variant="outline" className="gap-1 text-xs">
-                          <Download className="h-3 w-3" />
-                          Download
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="gap-1 text-xs">
-                          <Lock className="h-3 w-3" />
-                          View only
-                        </Badge>
-                      )}
-                      {doc.file_size_bytes ? (
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {formatFileSize(doc.file_size_bytes)}
-                        </span>
-                      ) : null}
-                    </TableCell>
-
-                    <TableCell onClick={e => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-50">
-                          <DropdownMenuItem
-                            onClick={() => navigate(`/company-documents/${doc.id}`)}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Open &amp; Read
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              navigate(`/company-documents/${doc.id}?edit=true`)
-                            }
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          {doc.allow_download && doc.storage_path && (
-                            <DropdownMenuItem
-                              onClick={() => downloadDocument.mutate(doc)}
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => setDocToDelete(doc)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-50">
+              <DropdownMenuItem onClick={() => navigate(`/company-documents/${row.id}`)}>
+                <Eye className="mr-2 h-4 w-4" />
+                Open &amp; Read
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate(`/company-documents/${row.id}?edit=true`)}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              {row.allow_download && row.storage_path && (
+                <DropdownMenuItem onClick={() => downloadDocument.mutate(row)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setDocToDelete(row)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      />
 
       <AlertDialog
         open={!!docToDelete}
@@ -425,7 +422,11 @@ export function CompanyDocumentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDelete}
+              onClick={async () => {
+                if (!docToDelete) return
+                await deleteDocument.mutateAsync(docToDelete.id)
+                setDocToDelete(null)
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
@@ -433,6 +434,6 @@ export function CompanyDocumentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   )
 }

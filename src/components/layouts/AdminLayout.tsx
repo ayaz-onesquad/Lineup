@@ -276,9 +276,15 @@ export function AdminLayout() {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar - flex-based, not fixed, z-10 to stay below TopNav */}
+      {/*
+        Hidden below `md`: this rail is not collapsible to zero, so on a 390px
+        phone it consumed a 48px column and the admin pages were unusable.
+        Navigation below `md` goes through the hamburger sheet in TopNav.
+        See docs/DESIGN-SYSTEM.md section 5.3.
+      */}
       <aside
         className={cn(
-          'flex-shrink-0 h-full flex flex-col transition-all duration-200 z-10',
+          'hidden md:flex flex-shrink-0 h-full flex-col transition-all duration-200 z-10',
           'bg-[#161616]',
           sidebarCollapsed ? 'w-12' : 'w-60'
         )}
@@ -418,12 +424,12 @@ export function AdminLayout() {
       </aside>
 
       {/* Right Zone - TopNav + Content */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* TopNav - contains Support Ticket button */}
         <TopNav />
 
         {/* Main Content - mt-16 accounts for fixed TopNav height (h-16) */}
-        <main className="flex-1 overflow-y-auto bg-[#f4f4f4] p-6 md:p-8 mt-16">
+        <main className="mt-16 min-w-0 flex-1 overflow-y-auto overflow-x-clip bg-[#f4f4f4] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
           <Outlet />
         </main>
       </div>

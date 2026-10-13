@@ -1,25 +1,19 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePasswords, usePasswordMutations } from '@/hooks/usePasswords'
 import { passwordsApi } from '@/services/api'
 import { useUIStore } from '@/stores'
+import { PageShell } from '@/components/layouts/PageShell'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { GridToolbar, GridSearch } from '@/components/shared/GridToolbar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -35,7 +29,6 @@ import {
 import {
   Lock,
   Plus,
-  Search,
   MoreVertical,
   ExternalLink,
   Copy,
@@ -47,10 +40,20 @@ import { formatDate } from '@/lib/utils'
 import { safeHttpUrl } from '@/lib/urlSafety'
 import { toast } from '@/hooks/use-toast'
 import { copySecret, secretClipboardTtlSeconds } from '@/lib/clipboard'
+import type { Password } from '@/types/database'
+
+/** Hostname only, so a long URL does not dominate the column. */
+function urlHostname(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
 
 export function PasswordsPage() {
   const navigate = useNavigate()
-  const { data: passwords, isLoading } = usePasswords()
+  const { data: passwords, isLoading, error, refetch } = usePasswords()
   const { deletePassword } = usePasswordMutations()
   const { openCreateModal } = useUIStore()
   const [searchQuery, setSearchQuery] = useState('')
@@ -58,13 +61,21 @@ export function PasswordsPage() {
   const [passwordToDelete, setPasswordToDelete] = useState<string | null>(null)
   const [copyingId, setCopyingId] = useState<string | null>(null)
 
+  const hasActiveFilters = !!searchQuery
+  const clearFilters = () => setSearchQuery('')
+
   // Filter passwords by search query
-  const filteredPasswords = passwords?.filter((p) =>
-    p.application_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || []
+  const filteredPasswords = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return passwords ?? []
+    return (passwords ?? []).filter(
+      p =>
+        p.application_name.toLowerCase().includes(query) ||
+        p.username?.toLowerCase().includes(query) ||
+        p.email?.toLowerCase().includes(query) ||
+        p.category?.toLowerCase().includes(query)
+    )
+  }, [passwords, searchQuery])
 
   /**
    * Fetches the secret for one record, then copies it.
@@ -72,7 +83,7 @@ export function PasswordsPage() {
    * The grid no longer carries the secrets: reveal happens one row at a time,
    * on demand, and is recorded in the password access log.
    */
-  const handleCopyPassword = async (id: string) => {
+  const handleCopyPassword = useCallback(async (id: string) => {
     setCopyingId(id)
     try {
       const secret = await passwordsApi.reveal(id)
@@ -84,16 +95,16 @@ export function PasswordsPage() {
           : 'Your browser blocked clipboard access. Open the record and reveal it there.',
         variant: copied ? undefined : 'destructive',
       })
-    } catch (error) {
+    } catch (err) {
       toast({
         title: 'Could not retrieve the password',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+        description: err instanceof Error ? err.message : 'An unknown error occurred.',
         variant: 'destructive',
       })
     } finally {
       setCopyingId(null)
     }
-  }
+  }, [])
 
   const handleDelete = async () => {
     if (passwordToDelete) {
@@ -103,242 +114,256 @@ export function PasswordsPage() {
     }
   }
 
-  const confirmDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const confirmDelete = (id: string) => {
     setPasswordToDelete(id)
     setDeleteDialogOpen(true)
   }
 
-  return (
-    <div className="page-carbon p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Lock className="h-8 w-8 text-muted-foreground" />
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Password Manager</h1>
-            <p className="text-muted-foreground">
-              Manage credentials for your tools and services
-            </p>
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // Priorities per docs/DESIGN-SYSTEM.md section 4.1. The application name
+  // identifies the row; category, username, email and the rotation date are the
+  // four facts needed to triage a credential without opening it.
+  //
+  // The secret is deliberately absent from the row data: the masked cell is a
+  // constant, and the value is only ever fetched one row at a time through
+  // `passwordsApi.reveal`, which is audited server-side.
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<Password>[]>(
+    () => [
+      {
+        id: 'display_id',
+        header: 'ID',
+        hideOnMobile: true,
+        hideable: false,
+        width: '110px',
+        accessor: row => row.display_id ?? 0,
+        cell: row => (
+          <Badge variant="outline" className="font-mono text-xs">
+            PWD-{String(row.display_id ?? 0).padStart(4, '0')}
+          </Badge>
+        ),
+      },
+      {
+        id: 'application_name',
+        header: 'Application',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '200px',
+        accessor: row => row.application_name,
+        cell: row => (
+          <span className="font-medium">
+            <TruncatedCell value={row.application_name} maxLines={1} />
+          </span>
+        ),
+      },
+      {
+        id: 'category',
+        header: 'Category',
+        priority: 'secondary',
+        width: '150px',
+        accessor: row => row.category ?? '',
+        cell: row =>
+          row.category ? (
+            <Badge variant="secondary">{row.category}</Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'username',
+        header: 'Username',
+        priority: 'secondary',
+        width: '160px',
+        accessor: row => row.username ?? '',
+        cell: row => <TruncatedCell value={row.username} maxLines={1} />,
+      },
+      {
+        id: 'email',
+        header: 'Email',
+        priority: 'secondary',
+        width: '200px',
+        accessor: row => row.email ?? '',
+        cell: row => <TruncatedCell value={row.email} maxLines={1} />,
+      },
+      {
+        id: 'password_changed_at',
+        header: 'Changed',
+        priority: 'secondary',
+        mobileLabel: 'Changed',
+        width: '150px',
+        accessor: row => row.password_changed_at,
+        cell: row =>
+          row.password_changed_at ? (
+            <span>{formatDate(row.password_changed_at)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'url',
+        header: 'URL',
+        width: '180px',
+        accessor: row => (row.url ? urlHostname(row.url) : ''),
+        cell: row =>
+          row.url ? (
+            // safeHttpUrl rejects anything that is not http(s), so a stored
+            // `javascript:` value cannot become an executable href.
+            <a
+              href={safeHttpUrl(row.url) ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex max-w-[160px] items-center gap-1 truncate text-primary hover:underline"
+              onClick={e => e.stopPropagation()}
+            >
+              <ExternalLink className="h-3 w-3 shrink-0" />
+              <span className="truncate">{urlHostname(row.url)}</span>
+            </a>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'password',
+        header: 'Password',
+        // Never sortable and never accessible as data: there is no secret in
+        // the row to sort by, and there must never be one.
+        sortable: false,
+        hideOnMobile: true,
+        width: '130px',
+        cell: row => (
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">••••••••</span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={copyingId === row.id}
+              aria-label={`Copy password for ${row.application_name}`}
+              title="Copy password (recorded in the access log)"
+              onClick={e => {
+                e.stopPropagation()
+                void handleCopyPassword(row.id)
+              }}
+            >
+              {copyingId === row.id ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
           </div>
-        </div>
-        <Button onClick={() => openCreateModal('password')}>
+        ),
+      },
+      {
+        id: 'created_at',
+        header: 'Created',
+        hideOnMobile: true,
+        width: '150px',
+        accessor: row => row.created_at,
+        cell: row => formatDate(row.created_at),
+      },
+    ],
+    // `copyingId` drives the spinner on the copy button.
+    [copyingId, handleCopyPassword]
+  )
+
+  return (
+    <PageShell
+      title="Password Manager"
+      description="Manage credentials for your tools and services"
+      icon={Lock}
+      actions={
+        <Button onClick={() => openCreateModal('password')} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Add Password
         </Button>
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search passwords..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
-      {/* Passwords Table */}
-      {isLoading ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Application</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Password Changed</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[1, 2, 3].map((i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : filteredPasswords.length === 0 ? (
-        <Card>
-          <CardHeader className="text-center py-12">
-            <Lock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <CardTitle>No passwords yet</CardTitle>
-            <CardDescription>
-              {searchQuery
-                ? 'No passwords match your search.'
-                : 'Start by adding your first credential.'}
-            </CardDescription>
-            {!searchQuery && (
-              <Button className="mt-4" onClick={() => openCreateModal('password')}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add First Password
-              </Button>
+      }
+    >
+      <DataGrid
+        columns={columns}
+        data={filteredPasswords}
+        getRowId={row => row.id}
+        isLoading={isLoading}
+        error={error as Error | null}
+        onRetry={refetch}
+        storageKey="passwords"
+        defaultSort={{ columnId: 'application_name', direction: 'asc' }}
+        ariaLabel="Passwords"
+        // Double click, Enter or a mobile tap opens the record. There is no
+        // quick-view panel for credentials, so single click does nothing.
+        onRowOpen={row => navigate(`/passwords/${row.id}`)}
+        // Copying a credential IS the point of this list, so it is the one
+        // row action that stays on the mobile card rather than moving to the
+        // detail page. See docs/DESIGN-SYSTEM.md section 4.5.
+        mobileCardActions={row => (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={copyingId === row.id}
+            aria-label={`Copy password for ${row.application_name}`}
+            onClick={() => void handleCopyPassword(row.id)}
+          >
+            {copyingId === row.id ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Copy className="mr-2 h-4 w-4" />
             )}
-          </CardHeader>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px]">ID</TableHead>
-                  <TableHead>Application</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Password</TableHead>
-                  <TableHead>Changed</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPasswords.map((password) => (
-                  <TableRow
-                    key={password.id}
-                    className="cursor-pointer hover:bg-muted/50 min-h-[44px]"
-                    onDoubleClick={() => navigate(`/passwords/${password.id}`)}
-                  >
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        PWD-{String(password.display_id).padStart(4, '0')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {password.application_name}
-                    </TableCell>
-                    <TableCell>
-                      {password.category ? (
-                        <Badge variant="secondary">{password.category}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {password.username || <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {password.email || <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {password.url ? (
-                        <a
-                          href={safeHttpUrl(password.url) ?? undefined}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline flex items-center gap-1 truncate max-w-[150px]"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                          <span className="truncate">
-                            {(() => {
-                              try {
-                                return new URL(password.url).hostname
-                              } catch {
-                                return password.url
-                              }
-                            })()}
-                          </span>
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">••••••••</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          disabled={copyingId === password.id}
-                          title="Copy password (recorded in the access log)"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void handleCopyPassword(password.id)
-                          }}
-                        >
-                          {copyingId === password.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {password.password_changed_at
-                        ? formatDate(password.password_changed_at)
-                        : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {formatDate(password.created_at)}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-50">
-                          <DropdownMenuItem onClick={() => navigate(`/passwords/${password.id}?edit=true`)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/passwords/${password.id}`)}>
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => confirmDelete(password.id, e as unknown as React.MouseEvent)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {/* Mobile-only Open button */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 md:hidden"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/passwords/${password.id}`)
-                        }}
-                        title="Open"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+            Copy password
+          </Button>
+        )}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
+        emptyState={{
+          icon: Lock,
+          title: 'No passwords yet',
+          description: 'Start by adding your first credential.',
+          action: (
+            <Button onClick={() => openCreateModal('password')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add First Password
+            </Button>
+          ),
+        }}
+        toolbar={
+          <GridToolbar
+            search={
+              <GridSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by application, username, email or category..."
+              />
+            }
+          />
+        }
+        rowActions={row => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Password actions">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-50">
+              <DropdownMenuItem onClick={() => navigate(`/passwords/${row.id}?edit=true`)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/passwords/${row.id}`)}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => confirmDelete(row.id)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -360,6 +385,6 @@ export function PasswordsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   )
 }

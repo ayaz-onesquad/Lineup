@@ -25,6 +25,29 @@ export interface GridColumn<T> {
   size?: number
   /** Whether this column can be hidden. Default: true. Set to false for ID columns. */
   enableHiding?: boolean
+
+  // ---------------------------------------------------------------------
+  // Responsive + sorting metadata. See docs/DESIGN-SYSTEM.md sections 4 and 5.
+  //
+  // Below `md` the grid renders a card list instead of a table, driven by
+  // these fields. Without a `priority` a column lands behind "More details",
+  // which is a safe default but means the card has no title — set exactly one
+  // column to `primary`.
+  // ---------------------------------------------------------------------
+
+  /** `primary` is the mobile card title (exactly one per grid). */
+  priority?: 'primary' | 'secondary' | 'tertiary'
+  /** Shorter label for the mobile card, where width is tight. */
+  mobileLabel?: string
+  /** Desktop-only noise. Never appears on a card. */
+  hideOnMobile?: boolean
+  /** Right-align and use tabular figures. */
+  numeric?: boolean
+  /**
+   * Defaults to true. Set false for avatars, checkboxes and action columns,
+   * where there is no meaningful value to order by.
+   */
+  sortable?: boolean
 }
 
 /** Context passed to row click handlers with the current sorted row IDs */
@@ -76,6 +99,12 @@ export interface GridEditTableProps<T extends { id: string }> {
   rowSelection?: Record<string, boolean>
   /** Callback when row selection changes */
   onRowSelectionChange?: (selection: Record<string, boolean>) => void
-  /** Storage key for persisting column visibility and order in localStorage */
+  /** Storage key for persisting column visibility, order and sort in localStorage */
   storageKey?: string
+  /** Row density for the desktop table. Default: 'compact'. */
+  density?: 'compact' | 'comfortable' | 'spacious'
+  /** Initial sort, applied when nothing is persisted. */
+  defaultSort?: { columnId: string; direction: 'asc' | 'desc' }
+  /** Accessible name describing what the grid contains. */
+  ariaLabel?: string
 }

@@ -296,7 +296,7 @@ export function GlobalSearch() {
           </kbd>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="start" sideOffset={8}>
+      <PopoverContent className="w-[min(400px,calc(100vw-2rem))] p-0" align="start" sideOffset={8}>
         <div className="flex items-center border-b px-3">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
