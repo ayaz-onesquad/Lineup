@@ -8,6 +8,8 @@ import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useScrollToError } from '@/hooks/useScrollToError'
+import { useParentContext } from '@/hooks/useParentContext'
+import { isParentLocked, withLockedOption } from '@/lib/parentContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -50,6 +52,11 @@ interface PitchFormProps {
 }
 
 export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
+  // Contextual creation (docs/DESIGN-SYSTEM.md section 9): a pitch created
+  // from a Set inherits that set's project and client, and none of them may be
+  // cleared by a cascade reset.
+  const { values: parentValues, locked: lockedParents } = useParentContext(defaultValues)
+
   const { createPitch } = usePitchMutations()
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
@@ -102,23 +109,23 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
   useEffect(() => {
     if (selectedClientId) {
       const currentProject = form.getValues('project_id')
-      if (currentProject) {
+      if (currentProject && !isParentLocked('project_id', lockedParents)) {
         const projectStillValid = filteredProjects.some((p) => p.id === currentProject)
         if (!projectStillValid) {
           form.setValue('project_id', '')
-          form.setValue('set_id', '')
+          if (!isParentLocked('set_id', lockedParents)) form.setValue('set_id', '')
         }
       }
       // Reset set if not valid for new client
       const currentSet = form.getValues('set_id')
-      if (currentSet) {
+      if (currentSet && !isParentLocked('set_id', lockedParents)) {
         const setStillValid = filteredSets.some((s) => s.id === currentSet)
         if (!setStillValid) {
           form.setValue('set_id', '')
         }
       }
     }
-  }, [selectedClientId, filteredProjects, filteredSets, form])
+  }, [selectedClientId, filteredProjects, filteredSets, form, lockedParents])
 
   // Initialize from defaultValues - derive client/project from set if provided
   useEffect(() => {
@@ -134,6 +141,15 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
       }
     }
   }, [defaultValues?.set_id, allSets, form])
+
+  useEffect(() => {
+    for (const field of ['client_id', 'project_id', 'set_id'] as const) {
+      const value = parentValues[field]
+      if (value && form.getValues(field) !== value) {
+        form.setValue(field, value, { shouldDirty: false })
+      }
+    }
+  }, [parentValues, form])
 
   // Scroll to first error on validation failure
   const { scrollToFirstError } = useScrollToError(form.formState.errors)
@@ -206,8 +222,9 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
                 <FormLabel>Filter by Client</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={clientOptions}
+                    options={withLockedOption(clientOptions, lockedParents.has('client_id') ? field.value : undefined, 'Selected client')}
                     value={field.value}
+                    disabled={lockedParents.has('client_id')}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="All clients..."
                     searchPlaceholder="Search clients..."
@@ -228,8 +245,9 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
                 <FormLabel>Filter by Project</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={projectOptions}
+                    options={withLockedOption(projectOptions, lockedParents.has('project_id') ? field.value : undefined, 'Selected project')}
                     value={field.value}
+                    disabled={lockedParents.has('project_id')}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="All projects..."
                     searchPlaceholder="Search projects..."
@@ -250,8 +268,9 @@ export function PitchForm({ defaultValues, onSuccess }: PitchFormProps) {
                 <FormLabel required>Set</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={setOptions}
+                    options={withLockedOption(setOptions, lockedParents.has('set_id') ? field.value : undefined, 'Selected set')}
                     value={field.value}
+                    disabled={lockedParents.has('set_id')}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="Select set..."
                     searchPlaceholder="Search sets..."

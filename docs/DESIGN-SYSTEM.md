@@ -465,7 +465,105 @@ Copy this into the pull request.
 
 ---
 
-## 9. Migration status
+---
+
+## 9. Contextual creation: the parent chain
+
+When a record is created from inside a parent — a Requirement from a Set's
+Requirements tab, a Pitch from a Set, a Phase from a Project — every ancestor
+is already determined. The user must not have to re-pick them, and the form
+must not quietly discard them.
+
+This was a live bug: a Requirement created from a Set arrived with no set. The
+id was passed correctly and held in form state, but an async cascade reset
+cleared it before submit, and the select rendered blank because the value was
+not yet in its option list.
+
+### 9.1 The three rules
+
+1. **The caller passes the one id it knows.** A Set detail page passes
+   `set_id`. It does not assemble the whole chain by hand; that duplicates
+   knowledge of the hierarchy across every page.
+
+2. **Ancestors are derived, not retyped.** `set_id` determines the phase,
+   project and client. `useParentContext` resolves the chain from whatever was
+   supplied.
+
+3. **Supplied and derived fields are locked.** A locked field renders
+   read-only and is *never* cleared by a cascade reset. Both halves matter: the
+   read-only control is the visible contract, and the reset guard is what
+   actually prevents data loss.
+
+**A locked field is not necessarily a stored field.** Locking governs the form;
+the payload is governed by the entity's schema. A requirement created from a
+Set locks the project and phase selects so the user sees where they are, but
+only `set_id`, `pitch_id` and `client_id` are written, because the requirements
+table has no project or phase column. Keep the two concerns separate.
+
+### 9.2 How to implement it
+
+Use the shared pieces. Do not hand-roll per-form effects; that is what
+produced the race.
+
+```tsx
+import { useParentContext } from '@/hooks/useParentContext'
+import { isParentLocked, withLockedOption } from '@/lib/parentContext'
+
+const { values: parentValues, locked: lockedParents } = useParentContext(defaultValues)
+
+// Apply the resolved chain in ONE effect, not one per ancestor.
+useEffect(() => {
+  for (const field of ['client_id', 'project_id', 'phase_id', 'set_id'] as const) {
+    const value = parentValues[field]
+    if (value && form.getValues(field) !== value) {
+      form.setValue(field, value, { shouldDirty: false })
+    }
+  }
+}, [parentValues, form])
+
+// Guard EVERY cascade reset.
+if (currentSet && !isParentLocked('set_id', lockedParents)) {
+  // ...only now may it be cleared
+}
+
+// Keep the control truthful while its option list loads.
+<SearchableSelect
+  options={withLockedOption(setOptions, lockedParents.has('set_id') ? field.value : undefined, 'Selected set')}
+  value={field.value}
+  disabled={lockedParents.has('set_id')}
+/>
+```
+
+### 9.3 Why the option injection is needed
+
+`SearchableSelect` renders its label by looking the value up in `options`.
+Cascading option lists arrive asynchronously, so a pre-filled parent displays
+as blank until its list loads. To the user that reads as "not linked" even when
+the form state is correct, which is how this bug was reported.
+`withLockedOption` injects a placeholder so the control never lies.
+
+### 9.4 Checklist for a create form
+
+- [ ] Parent ids come from `useParentContext`, not from ad-hoc `defaultValues` effects
+- [ ] One effect applies the chain, not one per ancestor
+- [ ] Every cascade reset is wrapped in `isParentLocked`
+- [ ] Locked selects are `disabled` and pass through `withLockedOption`
+- [ ] Locked parents carry a `FormDescription` saying where the value came from
+- [ ] Every parent column **the table actually stores** is in the submit
+      payload — and nothing that it does not. These differ per entity: a
+      requirement stores `set_id`, `pitch_id` and `client_id`, but has **no**
+      `phase_id` column (its phase is derived through its set). So `project_id`
+      and `phase_id` are cascade filter fields on that form and must be
+      destructured out. Check the entity's `Create…Input` type before adding a
+      field to a payload; sending a column that does not exist fails the insert
+
+### 9.5 Where the hierarchy lives
+
+`src/lib/parentContext.ts` holds the one ordered definition of the six levels
+and their foreign-key columns. Anything that needs to walk the hierarchy reads
+it from there rather than hard-coding the order again.
+
+## 10. Migration status
 
 `DataGrid` and `PageShell` are adopted incrementally. Converting a page is
 mechanical: describe the columns, delete the markup.

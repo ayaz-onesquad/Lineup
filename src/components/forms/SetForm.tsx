@@ -7,6 +7,8 @@ import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useScrollToError } from '@/hooks/useScrollToError'
+import { useParentContext } from '@/hooks/useParentContext'
+import { isParentLocked, withLockedOption } from '@/lib/parentContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -51,6 +53,9 @@ interface SetFormProps {
 }
 
 export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
+  // Contextual creation (docs/DESIGN-SYSTEM.md section 9).
+  const { values: parentValues, locked: lockedParents } = useParentContext(defaultValues)
+
   const { createSet } = useSetMutations()
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
@@ -89,14 +94,14 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
   useEffect(() => {
     if (selectedClientId) {
       const currentProject = form.getValues('project_id')
-      if (currentProject) {
+      if (currentProject && !isParentLocked('project_id', lockedParents)) {
         const projectStillValid = filteredProjects.some((p) => p.id === currentProject)
         if (!projectStillValid) {
           form.setValue('project_id', '')
         }
       }
     }
-  }, [selectedClientId, filteredProjects, form])
+  }, [selectedClientId, filteredProjects, form, lockedParents])
 
   // Initialize from defaultValues - find client from project if not directly provided
   useEffect(() => {
@@ -113,6 +118,15 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
   }, [defaultValues?.project_id, defaultValues?.client_id, allProjects, form])
 
   // Scroll to first error on validation failure
+  useEffect(() => {
+    for (const field of ['client_id', 'project_id', 'phase_id'] as const) {
+      const value = parentValues[field]
+      if (value && form.getValues(field) !== value) {
+        form.setValue(field, value, { shouldDirty: false })
+      }
+    }
+  }, [parentValues, form])
+
   const { scrollToFirstError } = useScrollToError(form.formState.errors)
 
   const onSubmit = async (data: SetFormData) => {
@@ -173,8 +187,9 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
                 <FormLabel required>Client</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={clientOptions}
+                    options={withLockedOption(clientOptions, lockedParents.has('client_id') ? field.value : undefined, 'Selected client')}
                     value={field.value}
+                    disabled={lockedParents.has('client_id')}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="Select client..."
                     searchPlaceholder="Search clients..."
@@ -194,8 +209,9 @@ export function SetForm({ defaultValues, onSuccess }: SetFormProps) {
                 <FormLabel>Project</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={projectOptions}
+                    options={withLockedOption(projectOptions, lockedParents.has('project_id') ? field.value : undefined, 'Selected project')}
                     value={field.value}
+                    disabled={lockedParents.has('project_id')}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="Select project (optional)..."
                     searchPlaceholder="Search projects..."
