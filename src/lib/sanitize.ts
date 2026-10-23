@@ -132,3 +132,37 @@ export function richTextToPlainText(
   const text = clean.replace(/\s+/g, ' ').trim()
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
 }
+
+/** Markup the rich-text fields produce; its presence means a value is already HTML. */
+const RICH_TEXT_TAG = /<\/?(?:p|br|strong|b|em|i|u|s|ul|ol|li|h[1-6]|blockquote|pre|code|a|span|div)\b[^>]*>/i
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Turns a stored value into HTML for the rich-text editor and viewer. A field that
+ * used to be plain text (no tags) reads as one paragraph per line, escaped; a
+ * value that already has markup is returned as is (render it through
+ * `sanitizeRichText`, which RichTextView does).
+ */
+export function toRichTextHtml(value: string | null | undefined): string {
+  if (!value) return ''
+  if (RICH_TEXT_TAG.test(value)) return value
+  return value
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => `<p>${escapeHtml(line)}</p>`)
+    .join('')
+}
+
+/** True when rich text has no visible text (an empty editor gives `<p></p>`). */
+export function isRichTextEmpty(html: string | null | undefined): boolean {
+  return richTextToPlainText(html, Number.MAX_SAFE_INTEGER) === ''
+}

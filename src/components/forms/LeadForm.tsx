@@ -8,8 +8,9 @@ import { useAllContacts, useCreateContact } from '@/hooks/useContacts'
 import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { RichTextEditor } from '@/components/shared/RichTextEditor'
+import { isRichTextEmpty } from '@/lib/sanitize'
 import { REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, CONTACT_ROLE_OPTIONS, US_STATE_OPTIONS } from '@/lib/utils'
 import type { LeadStatus, CompanySize, ReferralSource, ContactRole } from '@/types/database'
 import {
@@ -152,7 +153,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
     // 1. Create the lead first
     const lead = await createLead.mutateAsync({
       lead_name: data.lead_name,
-      description: data.description,
+      description: isRichTextEmpty(data.description) ? undefined : data.description,
       status: data.status as LeadStatus,
       industry: data.industry,
       website: data.website,
@@ -165,7 +166,7 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
       estimated_close_date: data.estimated_close_date || undefined,
       source: (data.source as ReferralSource) || undefined,
       lead_owner_id: data.lead_owner_id || undefined,
-      notes: data.notes,
+      notes: isRichTextEmpty(data.notes) ? undefined : data.notes,
     })
 
     // 2. Handle contact linking
@@ -250,7 +251,12 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
               <FormItem>
                 <FormLabel>Description</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Brief description of the lead..." {...field} rows={2} />
+                  <RichTextEditor
+                    content={field.value || ''}
+                    onChange={field.onChange}
+                    placeholder="Brief description of the lead..."
+                    minHeight="60px"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -639,7 +645,12 @@ export function LeadForm({ defaultValues, onSuccess }: LeadFormProps) {
             <FormItem>
               <FormLabel>Notes</FormLabel>
               <FormControl>
-                <Textarea placeholder="Any additional notes..." {...field} rows={2} />
+                <RichTextEditor
+                  content={field.value || ''}
+                  onChange={field.onChange}
+                  placeholder="Any additional notes..."
+                  minHeight="80px"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

@@ -43,3 +43,4 @@ export {
 
 // Session security / audit API
 export { sessionSecurityApi } from './sessionSecurity'
+export { leadIntakeSettingsApi } from './leadIntakeSettings'

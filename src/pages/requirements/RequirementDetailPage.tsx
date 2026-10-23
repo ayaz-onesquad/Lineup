@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRequirement, useRequirementMutations } from '@/hooks/useRequirements'
 import { useClients } from '@/hooks/useClients'
+import { useLeads } from '@/hooks/useLeads'
+import { ParentTypeToggle } from '@/components/shared/ParentTypeToggle'
 import { useProjects } from '@/hooks/useProjects'
 import { usePhasesByProject } from '@/hooks/usePhases'
 import { useSets } from '@/hooks/useSets'
@@ -68,9 +70,11 @@ const REVIEW_STATUS_OPTIONS = [
 const requirementFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  // Parent hierarchy - all editable. Client is required unless the task belongs to a sales Lead.
+  // Parent: a Client (with the full hierarchy) or a sales pipeline Lead. Both directions can be
+  // changed here, so a lead task can move to another lead, or to a client once the lead converts.
+  parent_type: z.enum(['client', 'lead']),
   client_id: z.string().optional(),
-  sales_lead_id: z.string().optional(), // Locked parent for tasks on a Lead (not editable here)
+  sales_lead_id: z.string().optional(),
   project_id: z.string().optional(), // For filtering phases/sets
   phase_id: z.string().optional(), // For filtering sets
   set_id: z.string().optional(), // Parent set
@@ -94,10 +98,18 @@ const requirementFormSchema = z.object({
   // Order field for manual sorting
   requirement_order: z.number().optional(),
 }).superRefine((values, ctx) => {
-  if (!values.client_id?.trim() && !values.sales_lead_id?.trim()) {
+  if (values.parent_type === 'lead') {
+    if (!values.sales_lead_id?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sales_lead_id'], message: 'Lead is required' })
+    }
+  } else if (!values.client_id?.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['client_id'], message: 'Client is required' })
   }
 })
+
+/** A task with a client is a client task; one with only a lead is a lead task. */
+const parentTypeOf = (req?: { client_id?: string | null; sales_lead_id?: string | null } | null): 'client' | 'lead' =>
+  !req?.client_id && req?.sales_lead_id ? 'lead' : 'client'
 
 type RequirementFormValues = z.infer<typeof requirementFormSchema>
 
@@ -107,6 +119,7 @@ export function RequirementDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: requirement, isLoading } = useRequirement(requirementId!)
   const { data: clients } = useClients()
+  const { data: leads } = useLeads()
   const { data: allProjects } = useProjects()
   const { data: allSets } = useSets()
   const { data: tenantUsers } = useTenantUsers()
@@ -139,6 +152,7 @@ export function RequirementDetailPage() {
     defaultValues: {
       title: requirement?.title || '',
       description: requirement?.description || '',
+      parent_type: parentTypeOf(requirement),
       client_id: requirement?.client_id || '',
       sales_lead_id: requirement?.sales_lead_id || '',
       project_id: requirement?.sets?.project_id || '',
@@ -164,6 +178,7 @@ export function RequirementDetailPage() {
   })
 
   // Watch parent fields for cascading dropdown filtering
+  const watchedParentType = useWatch({ control: form.control, name: 'parent_type' })
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' })
   const selectedProjectId = useWatch({ control: form.control, name: 'project_id' })
   const selectedPhaseId = useWatch({ control: form.control, name: 'phase_id' })
@@ -317,6 +332,7 @@ export function RequirementDetailPage() {
       form.reset({
         title: requirement.title,
         description: requirement.description || '',
+        parent_type: parentTypeOf(requirement),
         client_id: requirement.client_id || '',
         sales_lead_id: requirement.sales_lead_id || '',
         project_id: requirement.sets?.project_id || '',
@@ -370,14 +386,18 @@ export function RequirementDetailPage() {
       // and won't update the column, but null explicitly clears the field
       const toNullableFK = (val: string | undefined | null): string | null =>
         val?.trim() ? val.trim() : null
+      const isLeadParent = data.parent_type === 'lead'
 
       await updateRequirement.mutateAsync({
         id: requirementId,
         title: data.title,
         description: data.description,
-        client_id: toNullableFK(data.client_id),
-        set_id: toNullableFK(data.set_id),
-        pitch_id: toNullableFK(data.pitch_id),
+        // A lead task has only its lead; a client task has no lead (moving it to a client
+        // once the lead converts makes it an ordinary client task).
+        client_id: isLeadParent ? null : toNullableFK(data.client_id),
+        sales_lead_id: isLeadParent ? toNullableFK(data.sales_lead_id) : null,
+        set_id: isLeadParent ? null : toNullableFK(data.set_id),
+        pitch_id: isLeadParent ? null : toNullableFK(data.pitch_id),
         requirement_type: data.requirement_type as RequirementType,
         is_task: data.is_task,
         urgency: data.urgency as UrgencyLevel,
@@ -433,6 +453,7 @@ export function RequirementDetailPage() {
     form.reset({
       title: requirement?.title || '',
       description: requirement?.description || '',
+      parent_type: parentTypeOf(requirement),
       client_id: requirement?.client_id || '',
       sales_lead_id: requirement?.sales_lead_id || '',
       project_id: requirement?.sets?.project_id || '',
@@ -481,6 +502,13 @@ export function RequirementDetailPage() {
 
   // A task that belongs to a sales Lead and has no client yet
   const isLeadTask = !requirement.client_id && !!requirement.sales_lead_id
+  // In edit mode the Belongs to choice decides which parent fields show
+  const showLeadParent = isEditing ? watchedParentType === 'lead' : isLeadTask
+  const leadOptions = (leads || []).map((l) => ({
+    value: l.id,
+    label: l.lead_name,
+    description: l.lead_id_display || undefined,
+  }))
 
   return (
     <div className="space-y-6">
@@ -702,19 +730,50 @@ export function RequirementDetailPage() {
                 <CheckSquare className="h-5 w-5 text-muted-foreground" />
                 Requirement Information
               </h3>
-              {/* Parent Hierarchy: Client → Project → Phase → Set → Pitch (all editable) */}
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
-                {/* 1. Client - Editable (or the locked Lead for a task on a Lead) */}
-                {isLeadTask && requirement.sales_lead_id ? (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>
-                  <Link
-                    to={`/leads/${requirement.sales_lead_id}`}
-                    className="font-medium hover:underline flex items-center gap-1"
-                  >
-                    <Target className="h-3 w-3" />
-                    {requirement.sales_lead?.lead_name || '—'}
-                  </Link>
+              {/* Belongs to: Client | Lead (edit mode) */}
+              {isEditing && (
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Belongs to</p>
+                  <ParentTypeToggle
+                    value={watchedParentType}
+                    onChange={(value) => {
+                      form.setValue('parent_type', value)
+                      form.clearErrors(['client_id', 'sales_lead_id'])
+                    }}
+                  />
+                </div>
+              )}
+              {/* Parent Hierarchy: Client → Project → Phase → Set → Pitch (all editable), or the Lead */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-6">
+                {/* 1. Client - Editable (or the Lead for a task on a Lead) */}
+                {showLeadParent ? (
+                <div className="md:col-span-2">
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Lead{isEditing && ' *'}</p>
+                  {isEditing ? (
+                    <>
+                      <SearchableSelect
+                        options={leadOptions}
+                        value={form.watch('sales_lead_id') || ''}
+                        onValueChange={(value) => form.setValue('sales_lead_id', value || '', { shouldValidate: form.formState.isSubmitted })}
+                        placeholder="Select lead..."
+                        searchPlaceholder="Search leads..."
+                        emptyMessage="No leads found."
+                      />
+                      {form.formState.errors.sales_lead_id && (
+                        <p className="text-xs text-destructive mt-1">{form.formState.errors.sales_lead_id.message}</p>
+                      )}
+                    </>
+                  ) : requirement.sales_lead_id ? (
+                    <Link
+                      to={`/leads/${requirement.sales_lead_id}`}
+                      className="font-medium hover:underline flex items-center gap-1"
+                    >
+                      <Target className="h-3 w-3" />
+                      {requirement.sales_lead?.lead_name || '—'}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">—</span>
+                  )}
                 </div>
                 ) : (
                 <div>
@@ -763,8 +822,12 @@ export function RequirementDetailPage() {
                   ) : (
                     <span className="font-medium">—</span>
                   )}
+                  {isEditing && form.formState.errors.client_id && (
+                    <p className="text-xs text-destructive mt-1">{form.formState.errors.client_id.message}</p>
+                  )}
                 </div>
                 )}
+                {!showLeadParent && (<>
                 {/* 2. Project - Editable (filters sets) */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Project</p>
@@ -899,6 +962,7 @@ export function RequirementDetailPage() {
                     <p className="text-muted-foreground">—</p>
                   )}
                 </div>
+                </>)}
                 {/* Order */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Order</p>
