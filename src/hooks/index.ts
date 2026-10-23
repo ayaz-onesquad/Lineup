@@ -26,6 +26,7 @@ export {
   useRequirementsByPitch,
   useRequirementsByProject,
   useRequirementsByClient,
+  useRequirementsBySalesLead,
   useMyRequirements,
   useMyActiveTasks,
   useRequirement,

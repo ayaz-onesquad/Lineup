@@ -31,6 +31,7 @@ import {
   Presentation,
   ChevronLeft,
   ChevronRight,
+  Target,
 } from 'lucide-react'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatDate, URGENCY_OPTIONS, IMPORTANCE_OPTIONS, calculateEisenhowerPriority, getPriorityLabel, getPriorityColor } from '@/lib/utils'
@@ -67,8 +68,9 @@ const REVIEW_STATUS_OPTIONS = [
 const requirementFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  // Parent hierarchy - all editable
-  client_id: z.string().min(1, 'Client is required'),
+  // Parent hierarchy - all editable. Client is required unless the task belongs to a sales Lead.
+  client_id: z.string().optional(),
+  sales_lead_id: z.string().optional(), // Locked parent for tasks on a Lead (not editable here)
   project_id: z.string().optional(), // For filtering phases/sets
   phase_id: z.string().optional(), // For filtering sets
   set_id: z.string().optional(), // Parent set
@@ -91,6 +93,10 @@ const requirementFormSchema = z.object({
   actual_hours: z.number().optional(),
   // Order field for manual sorting
   requirement_order: z.number().optional(),
+}).superRefine((values, ctx) => {
+  if (!values.client_id?.trim() && !values.sales_lead_id?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['client_id'], message: 'Client is required' })
+  }
 })
 
 type RequirementFormValues = z.infer<typeof requirementFormSchema>
@@ -134,6 +140,7 @@ export function RequirementDetailPage() {
       title: requirement?.title || '',
       description: requirement?.description || '',
       client_id: requirement?.client_id || '',
+      sales_lead_id: requirement?.sales_lead_id || '',
       project_id: requirement?.sets?.project_id || '',
       phase_id: requirement?.sets?.phase_id || '',
       set_id: requirement?.set_id || '',
@@ -311,6 +318,7 @@ export function RequirementDetailPage() {
         title: requirement.title,
         description: requirement.description || '',
         client_id: requirement.client_id || '',
+        sales_lead_id: requirement.sales_lead_id || '',
         project_id: requirement.sets?.project_id || '',
         phase_id: requirement.sets?.phase_id || '',
         set_id: requirement.set_id || '',
@@ -426,6 +434,7 @@ export function RequirementDetailPage() {
       title: requirement?.title || '',
       description: requirement?.description || '',
       client_id: requirement?.client_id || '',
+      sales_lead_id: requirement?.sales_lead_id || '',
       project_id: requirement?.sets?.project_id || '',
       phase_id: requirement?.sets?.phase_id || '',
       set_id: requirement?.set_id || '',
@@ -470,12 +479,26 @@ export function RequirementDetailPage() {
     )
   }
 
+  // A task that belongs to a sales Lead and has no client yet
+  const isLeadTask = !requirement.client_id && !!requirement.sales_lead_id
+
   return (
     <div className="space-y-6">
-      {/* Breadcrumbs: Client > Project > Phase > Set > Pitch > Requirement (hierarchy order) */}
+      {/* Breadcrumbs: Client > Project > Phase > Set > Pitch > Requirement (hierarchy order),
+          or Sales Pipeline > Lead > Task for a task that belongs to a Lead */}
       <Breadcrumbs
         items={(() => {
           const items: { label: string; href?: string; displayId?: number | string }[] = []
+
+          if (isLeadTask && requirement.sales_lead_id) {
+            items.push({ label: 'Sales Pipeline', href: '/leads' })
+            items.push({
+              label: requirement.sales_lead?.lead_name || 'Lead',
+              href: `/leads/${requirement.sales_lead_id}`,
+            })
+            items.push({ label: requirement.title, displayId: requirement.display_id })
+            return items
+          }
 
           // 1. Client (use requirement's client_id directly)
           const clientName = clients?.find((c) => c.id === requirement.client_id)?.name || 'Client'
@@ -681,7 +704,19 @@ export function RequirementDetailPage() {
               </h3>
               {/* Parent Hierarchy: Client → Project → Phase → Set → Pitch (all editable) */}
               <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
-                {/* 1. Client - Editable */}
+                {/* 1. Client - Editable (or the locked Lead for a task on a Lead) */}
+                {isLeadTask && requirement.sales_lead_id ? (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Lead</p>
+                  <Link
+                    to={`/leads/${requirement.sales_lead_id}`}
+                    className="font-medium hover:underline flex items-center gap-1"
+                  >
+                    <Target className="h-3 w-3" />
+                    {requirement.sales_lead?.lead_name || '—'}
+                  </Link>
+                </div>
+                ) : (
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Client *</p>
                   {isEditing ? (
@@ -717,7 +752,7 @@ export function RequirementDetailPage() {
                       searchPlaceholder="Search clients..."
                       emptyMessage="No clients found."
                     />
-                  ) : (
+                  ) : requirement.client_id ? (
                     <Link
                       to={`/clients/${requirement.client_id}`}
                       className="font-medium hover:underline flex items-center gap-1"
@@ -725,8 +760,11 @@ export function RequirementDetailPage() {
                       <Building2 className="h-3 w-3" />
                       {clients?.find((c) => c.id === requirement.client_id)?.name || '—'}
                     </Link>
+                  ) : (
+                    <span className="font-medium">—</span>
                   )}
                 </div>
+                )}
                 {/* 2. Project - Editable (filters sets) */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Project</p>

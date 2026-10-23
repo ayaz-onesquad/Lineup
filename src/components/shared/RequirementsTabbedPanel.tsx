@@ -41,6 +41,7 @@ interface RequirementsTabbedPanelProps {
     pitch_id?: string
     project_id?: string
     phase_id?: string
+    sales_lead_id?: string // Task belongs to a sales pipeline Lead (no client needed)
   }
   // Optional custom create handler (overrides createContext behavior)
   onCreateClick?: () => void

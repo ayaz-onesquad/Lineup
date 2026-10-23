@@ -9,9 +9,11 @@ import { useSets, useSetsByProject, useSetsByPhase } from '@/hooks/useSets'
 import { usePhasesByProject } from '@/hooks/usePhases'
 import { usePitchesBySet } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
+import { useLead } from '@/hooks/useLeads'
 import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -39,6 +41,8 @@ const requirementSchema = z.object({
   client_id: z.string().optional(),
   project_id: z.string().optional(),
   phase_id: z.string().optional(),
+  // Sales pipeline Lead parent (from context only). When set, a client is not required.
+  sales_lead_id: z.string().optional(),
   // Actual fields - Set is optional (can be assigned later), Client is required contextually
   set_id: z.string().optional(),
   pitch_id: z.string().optional(),
@@ -75,6 +79,11 @@ interface RequirementFormProps {
 }
 
 export function RequirementForm({ defaultValues, onSuccess }: RequirementFormProps) {
+  // A task created from a Lead belongs to the lead: the lead is the locked parent and the
+  // client / project / set cascade does not apply.
+  const salesLeadId = defaultValues?.sales_lead_id || ''
+  const isLeadTask = !!salesLeadId
+  const { data: salesLead } = useLead(salesLeadId)
   const { createRequirement } = useRequirementMutations()
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
@@ -89,7 +98,8 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       phase_id: defaultValues?.phase_id || '',
       set_id: defaultValues?.set_id || '',
       pitch_id: defaultValues?.pitch_id || '',
-      is_task: defaultValues?.is_task ?? false,
+      sales_lead_id: salesLeadId,
+      is_task: defaultValues?.is_task ?? isLeadTask,
       title: '',
       description: '',
       requirement_type: 'task',
@@ -286,17 +296,34 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   const { scrollToFirstError } = useScrollToError(form.formState.errors)
 
   const onSubmit = async (data: RequirementFormData) => {
+    // Extract only the fields we need (exclude filter fields, but include client_id for context)
+    const { project_id, phase_id, client_id, sales_lead_id, ...rest } = data
+    void project_id // filter fields, not persisted
+    void phase_id
+
+    if (isLeadTask) {
+      // Task on a Lead: the lead is the parent, no client / set / pitch
+      await createRequirement.mutateAsync({
+        ...rest,
+        client_id: null,
+        sales_lead_id: sales_lead_id || salesLeadId,
+        set_id: undefined,
+        pitch_id: undefined,
+        is_task: rest.is_task,
+      })
+      form.reset()
+      onSuccess?.()
+      return
+    }
+
     // Validate client_id is required (even though it's just a filter field)
-    if (!data.client_id) {
+    if (!client_id) {
       form.setError('client_id', { message: 'Client is required' })
       return
     }
-    // Extract only the fields we need (exclude filter fields, but include client_id for context)
-    const { project_id, phase_id, client_id, ...rest } = data
-    // Ensure client_id is passed as string (already validated above)
     const requirementData = {
       ...rest,
-      client_id: client_id as string,
+      client_id,
       set_id: rest.set_id || undefined, // Convert empty string to undefined
       pitch_id: rest.pitch_id || undefined, // Convert empty string to undefined
       is_task: rest.is_task,
@@ -342,7 +369,23 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
+        {/* Task on a Lead: the lead is the locked parent (Contextual Creation) */}
+        {isLeadTask && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Lead</Label>
+              <Input
+                value={salesLead?.lead_name ?? 'Loading lead...'}
+                readOnly
+                disabled
+                aria-readonly="true"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Cascading Filters - Client is required, others optional */}
+        {!isLeadTask && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField
             control={form.control}
@@ -409,8 +452,10 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
             )}
           />
         </div>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {!isLeadTask && (
           <FormField
             control={form.control}
             name="set_id"
@@ -434,6 +479,9 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
             )}
           />
 
+          )}
+
+          {!isLeadTask && (
           <FormField
             control={form.control}
             name="pitch_id"
@@ -455,6 +503,7 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
               </FormItem>
             )}
           />
+          )}
 
           <FormField
             control={form.control}

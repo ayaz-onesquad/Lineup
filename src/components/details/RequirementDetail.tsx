@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useRequirement } from '@/hooks/useRequirements'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -53,14 +54,26 @@ export function RequirementDetail({ id }: RequirementDetailProps) {
 
         <TabsContent value="details" className="mt-4 space-y-4">
           <div className="space-y-3">
-            <div className="text-sm">
-              <span className="text-muted-foreground">Project: </span>
-              <span>{requirement.sets?.projects?.name}</span>
-            </div>
-            <div className="text-sm">
-              <span className="text-muted-foreground">Set: </span>
-              <span>{requirement.sets?.name}</span>
-            </div>
+            {requirement.sales_lead_id && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Lead: </span>
+                <Link to={`/leads/${requirement.sales_lead_id}`} className="hover:underline">
+                  {requirement.sales_lead?.lead_name || 'Lead'}
+                </Link>
+              </div>
+            )}
+            {(requirement.client_id || !requirement.sales_lead_id) && (
+              <>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Project: </span>
+                  <span>{requirement.sets?.projects?.name}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Set: </span>
+                  <span>{requirement.sets?.name}</span>
+                </div>
+              </>
+            )}
             {requirement.assigned_to && (
               <div className="flex items-center gap-2 text-sm">
                 <User className="h-4 w-4 text-muted-foreground" />
