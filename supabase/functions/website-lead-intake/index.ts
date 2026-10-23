@@ -1,50 +1,39 @@
 // Supabase Edge Function: website-lead-intake
 //
-// Receives free mock-up requests from a tenant's public website (first: theonesquad.com, the
-// OneSquad tenant) and files each one as a Lead with its Contact, so it shows up in LineUp's
-// Leads view like any other lead.
+// Receives requests from a tenant's public website (first: theonesquad.com, the OneSquad tenant)
+// and files each one in LineUp:
+//   - a Lead with its primary Contact, every detail in plain text (LineUp's fields are plain)
+//   - for a free mock-up request, a Task on that lead, assigned to INTAKE_USER_ID and due one
+//     business day before the mock-up is (assigning it fires LineUp's task.assigned email)
+//   - a `lead.website` notification email to each address in INTAKE_NOTIFY_TO
 //
 // Deploy:
 //   npx supabase functions deploy website-lead-intake --no-verify-jwt
 //
 // Secrets (Supabase Dashboard > Edge Functions > website-lead-intake > Secrets):
 //   INTAKE_SECRET     A long random string. The website sends it as `x-intake-secret`.
-//   INTAKE_TENANT_ID  The tenant every lead from this intake is filed under (OneSquad).
-//   INTAKE_USER_ID    The user recorded as creator of the lead and contact
-//                     (contacts.created_by is required). Use a real team member or a
-//                     dedicated "Website" user in that tenant.
+//   INTAKE_TENANT_ID  The tenant every request is filed under (OneSquad).
+//   INTAKE_USER_ID    The login (auth) id of the user recorded as creator; their profile owns the
+//                     lead and is assigned the mock-up task.
+//   INTAKE_NOTIFY_TO  Who gets the new-request email: one address or a comma-separated list.
+//   INTAKE_APP_URL    LineUp's address for links in the email (default https://www.lineupco.io).
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   Auto-provided.
 //
 // SECURITY
-//   - Server-to-server only: the website's server calls this, never a browser. Every request
-//     must carry INTAKE_SECRET (compared in constant time). Without it the function refuses.
-//   - The tenant and the creating user come from this function's own secrets, never from the
-//     request body, so a caller can only ever add leads to the configured tenant.
-//   - Input is validated and length-limited here again; text that lands in rich-text fields is
-//     HTML-escaped.
+//   - Server-to-server only, behind INTAKE_SECRET (constant-time compare).
+//   - The tenant, the creating user and the email recipients come from this function's own
+//     secrets, never from the request body.
+//   - Input is validated and length-limited again. Nothing from the request is rendered as HTML
+//     here; send-notification escapes every variable before it reaches the email.
 //   - Best-effort rate limit per instance (30 a minute).
-//   - Leads created here carry source_automation_name = INTAKE_MARKER, which
-//     send-waitlist-welcome skips, so website leads never get the LineUp waitlist email.
+//   - Leads carry source_automation_name = INTAKE_MARKER, which send-waitlist-welcome skips.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { AuthError, checkRateLimit, createServiceClient, errorResponse, escapeHtml, isValidEmail, jsonResponse } from '../_shared/security.ts'
+import { AuthError, checkRateLimit, createServiceClient, errorResponse, isValidEmail, jsonResponse } from '../_shared/security.ts'
 
 export const INTAKE_MARKER = 'Website form'
 
-interface IntakePayload {
-  first_name: string
-  last_name?: string
-  business: string
-  email: string
-  phone?: string
-  needs?: string[]
-  message?: string
-  estimate?: string
-  /** "Friday, October 23": when the free mock-up is due, worked out by the website */
-  mockup_due?: string
-  /** Where the request came from, e.g. "theonesquad.com" */
-  site?: string
-}
+type Kind = 'mockup' | 'question'
 
 const LIMITS = { name: 80, business: 255, email: 254, phone: 30, need: 60, needs: 12, message: 2000, estimate: 3000, short: 120 }
 
@@ -66,12 +55,16 @@ function requireIntakeSecret(req: Request): void {
 }
 
 const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+const isoDate = (v: unknown): string => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '')
 
 /** Validates and trims the body. Throws a 400 with a plain reason when it isn't usable. */
-function readPayload(body: unknown): Required<IntakePayload> {
+function readPayload(body: unknown) {
   if (!body || typeof body !== 'object') throw new AuthError('Body must be a JSON object', 400)
   const b = body as Record<string, unknown>
+  const kind: Kind = b.kind === 'question' ? 'question' : 'mockup'
+  const value = typeof b.estimate_value === 'number' && Number.isFinite(b.estimate_value) && b.estimate_value >= 0 ? Math.round(b.estimate_value) : null
   const p = {
+    kind,
     first_name: str(b.first_name, LIMITS.name),
     last_name: str(b.last_name, LIMITS.name),
     business: str(b.business, LIMITS.business),
@@ -80,23 +73,27 @@ function readPayload(body: unknown): Required<IntakePayload> {
     needs: Array.isArray(b.needs) ? b.needs.slice(0, LIMITS.needs).map((n) => str(n, LIMITS.need)).filter(Boolean) : [],
     message: str(b.message, LIMITS.message),
     estimate: str(b.estimate, LIMITS.estimate),
+    estimate_value: value,
     mockup_due: str(b.mockup_due, LIMITS.short),
+    mockup_due_date: isoDate(b.mockup_due_date),
     site: str(b.site, LIMITS.short),
   }
   if (!p.first_name) throw new AuthError('first_name is required', 400)
-  if (!p.business) throw new AuthError('business is required', 400)
   if (!p.email || !isValidEmail(p.email)) throw new AuthError('A valid email is required', 400)
+  if (kind === 'mockup' && !p.business) throw new AuthError('business is required for a mock-up request', 400)
+  if (kind === 'question' && !p.message) throw new AuthError('message is required for a question', 400)
   return p
 }
 
-/** Plain text to the small HTML the rich-text fields expect: escaped, one paragraph per line. */
-const paragraphs = (text: string) =>
-  text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => `<p>${escapeHtml(line)}</p>`)
-    .join('')
+/** The business day before an ISO date (Friday before a Monday). */
+function businessDayBefore(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`)
+  do d.setUTCDate(d.getUTCDate() - 1)
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6)
+  return d.toISOString().slice(0, 10)
+}
+
+const longDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
 
 serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse(req, { error: 'Method not allowed' }, 405)
@@ -118,11 +115,25 @@ serve(async (req) => {
     const p = readPayload(body)
     const supabase = createServiceClient()
 
+    // INTAKE_USER_ID is the login (auth) id, used for created_by. Owners and assignees reference
+    // user_profiles.id, a different id, so look the profile up.
+    const { data: profile } = await supabase.from('user_profiles').select('id').eq('user_id', userId).single()
+    const profileId: string | null = profile?.id ?? null
+    const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
+    const kindLabel = p.kind === 'mockup' ? 'Free mock-up request' : 'Question'
+    const leadName = p.business || `${fullName} (question)`
+
+    // Everything about the request, one fact per line (plain text: LineUp shows it as written)
     const notes = [
+      `Request: ${kindLabel}`,
+      `From: ${fullName}`,
+      `Email: ${p.email}`,
+      `Phone: ${p.phone || 'not given'}`,
+      p.business ? `Business: ${p.business}` : '',
       p.needs.length ? `What they need: ${p.needs.join(', ')}` : '',
-      p.mockup_due ? `Free mock-up due: ${p.mockup_due}` : '',
-      p.estimate ? `Estimate from the calculator:\n${p.estimate}` : '',
-      `Sent from the website form${p.site ? ` on ${p.site}` : ''}.`,
+      p.kind === 'mockup' && p.mockup_due ? `Free mock-up due: ${p.mockup_due}` : '',
+      p.estimate ? `\nEstimate from the calculator:\n${p.estimate}` : '',
+      `\nSent from the website form${p.site ? ` on ${p.site}` : ''}.`,
     ]
       .filter(Boolean)
       .join('\n')
@@ -132,15 +143,16 @@ serve(async (req) => {
       .from('leads')
       .insert({
         tenant_id: tenantId,
-        lead_name: p.business,
+        lead_name: leadName,
         email: p.email,
         phone: p.phone || null,
-        website: null,
         source: 'website',
         status: 'new',
-        description: p.message ? paragraphs(p.message) : null,
-        notes: paragraphs(notes),
+        description: p.message || null,
+        notes,
+        estimated_value: p.estimate_value,
         source_automation_name: INTAKE_MARKER,
+        lead_owner_id: profileId,
         created_by: userId,
         updated_by: userId,
       })
@@ -151,39 +163,109 @@ serve(async (req) => {
       throw new Error('Lead insert failed')
     }
 
-    // 2. The person, linked to the lead as its primary contact. A failure here keeps the lead
-    //    (it already has the email and phone) and is reported in the response.
+    // 2. The person, linked to the lead as its primary contact. A failure here keeps the lead.
     let contactLinked = false
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
-      .insert({
-        tenant_id: tenantId,
-        first_name: p.first_name,
-        last_name: p.last_name,
-        email: p.email,
-        phone: p.phone || null,
-        created_by: userId,
-        updated_by: userId,
-      })
+      .insert({ tenant_id: tenantId, first_name: p.first_name, last_name: p.last_name, email: p.email, phone: p.phone || null, created_by: userId, updated_by: userId })
       .select('id')
       .single()
     if (contactError || !contact) {
       console.error('[website-lead-intake] contact insert failed', contactError)
     } else {
-      const { error: linkError } = await supabase.from('lead_contacts').insert({
-        tenant_id: tenantId,
-        lead_id: lead.id,
-        contact_id: contact.id,
-        is_primary: true,
-        is_decision_maker: true,
-        created_by: userId,
-        updated_by: userId,
-      })
+      const { error: linkError } = await supabase
+        .from('lead_contacts')
+        .insert({ tenant_id: tenantId, lead_id: lead.id, contact_id: contact.id, is_primary: true, is_decision_maker: true, created_by: userId, updated_by: userId })
       if (linkError) console.error('[website-lead-intake] lead_contacts insert failed', linkError)
       else contactLinked = true
     }
 
-    return jsonResponse(req, { lead_id: lead.id, contact_linked: contactLinked }, 201)
+    // 3. For a mock-up: a task on the lead, assigned and due a business day before the mock-up
+    let taskId: string | null = null
+    let taskDue = ''
+    if (p.kind === 'mockup') {
+      taskDue = p.mockup_due_date ? businessDayBefore(p.mockup_due_date) : ''
+      const today = new Date().toISOString().slice(0, 10)
+      const description = [
+        `${fullName}${p.business ? ` from ${p.business}` : ''} asked for a free homepage mock-up on the website.`,
+        '',
+        `Make the mock-up and send it to ${p.email}${p.mockup_due ? ` by ${p.mockup_due}` : ''}.${taskDue ? ` This task is due ${longDate(taskDue)}, a business day early, so there is time to review it.` : ''}`,
+        '',
+        `Contact: ${fullName}, ${p.email}, ${p.phone || 'no phone given'}`,
+        p.needs.length ? `What they need: ${p.needs.join(', ')}` : '',
+        p.message ? `Their message: ${p.message}` : '',
+        p.estimate ? `\nEstimate from the calculator:\n${p.estimate}` : '',
+      ]
+        .filter((line, i, all) => line !== '' || (i > 0 && all[i - 1] !== ''))
+        .join('\n')
+      const { data: task, error: taskError } = await supabase
+        .from('requirements')
+        .insert({
+          tenant_id: tenantId,
+          sales_lead_id: lead.id,
+          client_id: null,
+          title: `Mock-up for ${p.business}`,
+          description,
+          requirement_type: 'task',
+          is_task: true,
+          status: 'open',
+          urgency: 'high',
+          importance: 'high',
+          assigned_to_id: profileId,
+          expected_start_date: today,
+          expected_end_date: taskDue || null,
+          created_by: userId,
+          updated_by: userId,
+        })
+        .select('id')
+        .single()
+      if (taskError || !task) console.error('[website-lead-intake] task insert failed', taskError)
+      else taskId = task.id
+    }
+
+    // 4. The new-request email, through LineUp's own send-notification (logged, editable template)
+    const appUrl = (Deno.env.get('INTAKE_APP_URL') || 'https://www.lineupco.io').replace(/\/$/, '')
+    const recipients = (Deno.env.get('INTAKE_NOTIFY_TO') || '')
+      .split(',')
+      .map((a) => a.trim())
+      .filter((a) => a && isValidEmail(a))
+    const { data: tenant } = await supabase.from('tenants').select('name').eq('id', tenantId).single()
+    const variables = {
+      subject_line: p.kind === 'mockup' ? `New mock-up request: ${p.business}` : `New question from ${fullName}${p.business ? ` (${p.business})` : ''}`,
+      request_kind: kindLabel,
+      tenant_name: tenant?.name ?? '',
+      site: p.site || 'your website',
+      business: leadName,
+      contact_name: fullName,
+      email: p.email,
+      phone: p.phone || 'No phone given',
+      needs: p.needs.length ? p.needs.join(', ') : 'Not picked',
+      mockup_due: p.kind === 'mockup' ? p.mockup_due || 'Not given' : 'Not a mock-up request',
+      task_line: taskId ? `Mock-up for ${p.business}, due ${taskDue ? longDate(taskDue) : 'not set'}` : p.kind === 'mockup' ? 'The task could not be created; add it from the lead' : 'No task',
+      message: p.message || 'No message',
+      estimate: p.estimate || 'None',
+      lead_url: `${appUrl}/leads/${lead.id}`,
+    }
+    const notifyUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const notified = await Promise.all(
+      recipients.map(async (to) => {
+        try {
+          const res = await fetch(notifyUrl, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trigger_key: 'lead.website', tenant_id: tenantId, recipient_email: to, variables }),
+          })
+          if (!res.ok) console.error('[website-lead-intake] notification failed', to, res.status)
+          return res.ok
+        } catch (err) {
+          console.error('[website-lead-intake] notification error', to, err)
+          return false
+        }
+      }),
+    )
+
+    return jsonResponse(req, { lead_id: lead.id, contact_linked: contactLinked, task_id: taskId, notified: notified.filter(Boolean).length }, 201)
   } catch (err) {
     return errorResponse(req, err)
   }
