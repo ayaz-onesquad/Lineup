@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useClients, useClientMutations, useDataGridFilters, type FilterConfig } from '@/hooks'
+import { useClients, useClientMutations, useDataGridFilters, useBulkDelete, type FilterConfig } from '@/hooks'
 import { useUIStore } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
@@ -22,8 +21,7 @@ import { Plus, MoreVertical, Building2, ExternalLink, Trash2, Edit, Info, Upload
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { formatDate } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
-import { MobileActionBar, BulkActionBar, storeListContext } from '@/components/shared'
-import { toast } from '@/hooks/use-toast'
+import { MobileActionBar, storeListContext } from '@/components/shared'
 import type { ClientWithRelations } from '@/types/database'
 
 /** Human label for an industry enum value, e.g. `real_estate` -> `real estate`. */
@@ -34,12 +32,14 @@ function industryLabel(industry: string | null | undefined): string {
 export function ClientsPage() {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
-  // DataGrid takes a Set; the page previously used a Record<string, boolean>.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { data: clients, isLoading, error, refetch } = useClients()
   const { deleteClient } = useClientMutations()
+  const onBulkDelete = useBulkDelete(deleteClient.mutateAsync, {
+    singular: 'client',
+    plural: 'clients',
+    queryKey: ['clients'],
+  })
   const { openCreateModal, openDetailPanel } = useUIStore()
 
   const selectedClient = clients?.find((c) => c.id === selectedRowId) ?? null
@@ -86,32 +86,6 @@ export function ClientsPage() {
     navigate(`/clients/${id}${editMode ? '?edit=true' : ''}`)
   }, [filteredClients, navigate])
 
-  // Get selected rows for bulk actions
-  const selectedRows = useMemo(() => {
-    return filteredClients.filter((client) => selectedIds.has(client.id))
-  }, [filteredClients, selectedIds])
-
-  // Handle bulk delete
-  const handleBulkDelete = useCallback(async (ids: string[]) => {
-    const results = await Promise.allSettled(
-      ids.map((id) => deleteClient.mutateAsync(id))
-    )
-    const failures = results.filter((r) => r.status === 'rejected')
-    await queryClient.invalidateQueries({ queryKey: ['clients'] })
-    if (failures.length > 0) {
-      toast({
-        title: 'Some deletions failed',
-        description: `${ids.length - failures.length} of ${ids.length} clients deleted.`,
-        variant: 'destructive',
-      })
-    } else {
-      toast({
-        title: 'Clients deleted',
-        description: `${ids.length} client${ids.length !== 1 ? 's' : ''} deleted successfully.`,
-      })
-    }
-  }, [deleteClient, queryClient])
-
   // ---------------------------------------------------------------------------
   // Columns
   //
@@ -128,6 +102,7 @@ export function ClientsPage() {
         hideable: false,
         width: '100px',
         accessor: (row) => row.display_id ?? 0,
+        exportValue: (row) => `CL-${String(row.display_id ?? 0).padStart(4, '0')}`,
         cell: (row) => (
           <Badge variant="outline" className="font-mono text-xs">
             CL-{String(row.display_id ?? 0).padStart(4, '0')}
@@ -254,8 +229,8 @@ export function ClientsPage() {
             navigateToClient(row.id)
           }
         }}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
+        bulkDelete={{ entityName: 'client', onDelete: onBulkDelete, entityPath: 'clients', onNavigate: navigate }}
+        exportOptions={{ fileName: 'Clients' }}
         hasActiveFilters={hasActiveFilters}
         onClearFilters={clearAll}
         emptyState={{
@@ -352,16 +327,6 @@ export function ClientsPage() {
         isOpen={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         defaultEntity="clients"
-      />
-
-      {/* Bulk Action Bar */}
-      <BulkActionBar
-        selectedRows={selectedRows}
-        entityName="client"
-        entityPath="clients"
-        onClearSelection={() => setSelectedIds(new Set())}
-        onDelete={handleBulkDelete}
-        onNavigate={navigate}
       />
     </PageShell>
   )

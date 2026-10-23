@@ -70,7 +70,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar, DeleteRecordButton } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
@@ -119,7 +119,7 @@ export function SetDetailPage() {
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
   const { data: users } = useTenantUsers()
-  const { updateSet } = useSetMutations()
+  const { updateSet, deleteSet } = useSetMutations()
   const { openCreateModal } = useUIStore()
 
   // Check for ?edit=true query param to auto-enter edit mode
@@ -626,6 +626,13 @@ export function SetDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="set"
+                  recordName={set.name}
+                  onDelete={() => deleteSet.mutateAsync(set.id)}
+                  redirectTo="/sets"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"

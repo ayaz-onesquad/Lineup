@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import type { UserProfile } from '@/types/database'
 import {
   ArrowLeft,
@@ -100,7 +101,7 @@ export function CompetitorDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: competitor, isLoading } = useCompetitor(competitorId!)
-  const { updateCompetitor } = useCompetitorMutations()
+  const { updateCompetitor, deleteCompetitor } = useCompetitorMutations()
   const { data: clients } = useClients()
 
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
@@ -320,6 +321,13 @@ export function CompetitorDetailPage() {
           <div className="flex flex-wrap justify-end gap-2 mb-6">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="competitor"
+                  recordName={competitor.name}
+                  onDelete={() => deleteCompetitor.mutateAsync(competitor.id)}
+                  redirectTo="/competitors"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"

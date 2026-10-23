@@ -68,13 +68,13 @@ export function PageShell({
       <div className={cn('space-y-6', constrainWidth && 'mx-auto max-w-content')}>
         {breadcrumbs}
 
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             {Icon && (
               <Icon className="mt-0.5 h-7 w-7 shrink-0 text-muted-foreground sm:h-8 sm:w-8" />
             )}
             <div className="min-w-0">
-              <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">
+              <h1 className="break-words text-2xl font-bold tracking-tight md:text-3xl">
                 {title}
               </h1>
               {description && (
@@ -85,8 +85,11 @@ export function PageShell({
 
           {actions && (
             // Full width on a phone so the primary action is a comfortable
-            // target; auto width and right-aligned from `sm`.
-            <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            // target. From `md` it sits beside the title and wraps (the whole
+            // group drops below the title when it does not fit) instead of
+            // overflowing: a page with a view switcher plus two buttons is
+            // wider than the content area of a tablet.
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:w-auto md:max-w-full md:justify-end">
               {actions}
             </div>
           )}

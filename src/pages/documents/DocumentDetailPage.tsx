@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import { formatFileSize } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import type { UserProfile } from '@/types/database'
@@ -113,7 +114,7 @@ export function DocumentDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: document, isLoading } = useDocument(documentId!)
-  const { updateDocument } = useDocumentMutations()
+  const { updateDocument, deleteDocument } = useDocumentMutations()
 
   // Fetch all related entities for dropdowns
   const { data: allClients } = useClients()
@@ -520,6 +521,13 @@ export function DocumentDetailPage() {
           <div className="flex flex-wrap justify-end gap-2 mb-6">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="document"
+                  recordName={document.name}
+                  onDelete={() => deleteDocument.mutateAsync(document.id)}
+                  redirectTo="/documents"
+                  disabled={isSaving}
+                />
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
                   <X className="mr-2 h-4 w-4" />
                   Cancel

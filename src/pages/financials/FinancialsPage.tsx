@@ -7,6 +7,7 @@ import {
   useFinancialGroupMutations,
   useFinancialOccurrenceMutations,
 } from '@/hooks/useFinancials'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useUIStore, type EntityType } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
@@ -102,6 +103,11 @@ export function FinancialsPage() {
   } = useFinancialEntries()
   const { data: groups = [], isLoading: groupsLoading } = useFinancialGroups()
   const { deleteEntry } = useFinancialEntryMutations()
+  const onBulkDelete = useBulkDelete(deleteEntry.mutateAsync, {
+    singular: 'entry',
+    plural: 'entries',
+    queryKey: ['financial_entries'],
+  })
   const { deleteGroup } = useFinancialGroupMutations()
   const { updateOccurrenceStatus } = useFinancialOccurrenceMutations()
   const { openCreateModal } = useUIStore()
@@ -253,6 +259,7 @@ export function FinancialsPage() {
       error={entriesError as Error | null}
       onRetry={refetchEntries}
       onDelete={confirmDelete}
+      onBulkDelete={onBulkDelete}
       onNavigate={navigate}
       openCreateModal={openCreateModal}
       searchQuery={searchQuery}
@@ -606,6 +613,7 @@ interface EntriesGridProps {
   error: Error | null
   onRetry: () => void
   onDelete: (id: string) => void
+  onBulkDelete: (ids: string[]) => Promise<void>
   onNavigate: (path: string) => void
   openCreateModal: (type: EntityType) => void
   searchQuery: string
@@ -618,6 +626,7 @@ function EntriesGrid({
   error,
   onRetry,
   onDelete,
+  onBulkDelete,
   onNavigate,
   openCreateModal,
   searchQuery,
@@ -782,6 +791,8 @@ function EntriesGrid({
       ariaLabel="Financial entries"
       // Double click, Enter, or a mobile tap opens the entry. Section 4.5.
       onRowOpen={(row) => onNavigate(`/financials/${row.id}`)}
+      bulkDelete={{ entityName: 'entry', onDelete: onBulkDelete, entityPath: 'financials', onNavigate }}
+      exportOptions={{ fileName: 'Financial Entries' }}
       hasActiveFilters={!!searchQuery}
       onClearFilters={() => onSearchChange('')}
       emptyState={{

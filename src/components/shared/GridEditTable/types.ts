@@ -19,6 +19,8 @@ export interface GridColumn<T> {
   render?: (row: T) => React.ReactNode
   /** Custom getter for the cell value (useful for nested/computed values) */
   getValue?: (row: T) => string | number | undefined
+  /** Value written to the Excel export. Defaults to getValue, then the field. */
+  exportValue?: (row: T) => unknown
   /** Optional Tailwind width class or CSS width string */
   width?: string
   /** Column width in pixels (used with table-fixed layout) */
@@ -107,4 +109,6 @@ export interface GridEditTableProps<T extends { id: string }> {
   defaultSort?: { columnId: string; direction: 'asc' | 'desc' }
   /** Accessible name describing what the grid contains. */
   ariaLabel?: string
+  /** Adds an "Export" button that downloads the visible rows as .xlsx. */
+  exportFileName?: string
 }

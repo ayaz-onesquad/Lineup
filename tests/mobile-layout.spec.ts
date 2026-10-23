@@ -75,6 +75,39 @@ async function measure(page: Page) {
   })
 }
 
+/**
+ * Containers that hide overflow while their content is wider than they are,
+ * i.e. content the user cannot reach: no scrollbar and no ellipsis. Width
+ * independent, so it also catches clipping inside cards and panels on
+ * tablets and desktops.
+ */
+async function silentlyClipped(page: Page) {
+  return page.evaluate(() => {
+    const out: string[] = []
+    for (const el of Array.from(document.querySelectorAll('main *'))) {
+      const s = getComputedStyle(el)
+      if (!(s.overflowX === 'hidden' || s.overflowX === 'clip') || s.textOverflow === 'ellipsis') continue
+      const r = el.getBoundingClientRect()
+      if (r.width < 40 || r.height < 10 || el.scrollWidth <= el.clientWidth + 2) continue
+      if (el.closest('.sr-only, [role=progressbar], [aria-hidden=true]')) continue
+      const hides = Array.from(el.querySelectorAll('*')).some(c => {
+        const cr = c.getBoundingClientRect()
+        const cs = getComputedStyle(c)
+        return (
+          cr.width > 0 && cr.left < r.right && cr.right > r.right + 2 &&
+          ((c as HTMLElement).innerText || '').trim() !== '' &&
+          cs.visibility !== 'hidden' && cs.opacity !== '0'
+        )
+      })
+      if (hides) {
+        const text = ((el as HTMLElement).innerText || '').trim().replace(/\s+/g, ' ').slice(0, 40)
+        out.push(`<${el.tagName.toLowerCase()} class="${(el.getAttribute('class') || '').slice(0, 80)}"> "${text}" box=${Math.round(r.width)} content=${el.scrollWidth}`)
+      }
+    }
+    return out
+  })
+}
+
 async function open(page: Page, path: string) {
   await page.goto(path)
   await page.waitForLoadState('networkidle')
@@ -116,6 +149,32 @@ test.describe('Authenticated pages fit a phone screen', () => {
         expect(overflow).toBeLessThanOrEqual(1)
         expect(clipped, 'My Work rows are cut off on the right').toEqual([])
       })
+    })
+  }
+})
+
+test.describe('No content is cut off without a way to reach it', () => {
+  test.skip(!SUPABASE_URL, 'VITE_SUPABASE_URL is required to route the mock')
+
+  test.beforeEach(async ({ context }) => {
+    await installSupabaseMock(context, SUPABASE_URL)
+  })
+
+  for (const width of [390, 768, 1024, 1280]) {
+    test.describe(`${width}px`, () => {
+      test.use({ viewport: { width, height: 900 } })
+
+      for (const path of [...LIST_PAGES, ...DETAIL_PAGES]) {
+        test(`${path} has no silently clipped content`, async ({ page }) => {
+          await open(page, path)
+          if (path === '/dashboard') {
+            for (const node of await page.locator('main [aria-expanded="false"]:visible').all()) {
+              await node.click({ timeout: 1000 }).catch(() => {})
+            }
+          }
+          expect(await silentlyClipped(page), `${path} hides content with no scrollbar`).toEqual([])
+        })
+      }
     })
   }
 })

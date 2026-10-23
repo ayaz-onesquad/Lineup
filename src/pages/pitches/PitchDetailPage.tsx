@@ -49,7 +49,7 @@ import { computeDisplayStatus, computeKeyStartDate, computeKeyEndDate, getStatus
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, DeleteRecordButton } from '@/components/shared'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -94,7 +94,7 @@ export function PitchDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: pitch, isLoading } = usePitch(pitchId!)
   const { data: users } = useTenantUsers()
-  const { updatePitch } = usePitchMutations()
+  const { updatePitch, deletePitch } = usePitchMutations()
   const { createRequirement } = useRequirementMutations()
 
   // Get requirements for this pitch's set (filtering by pitch_id would need API update)
@@ -487,6 +487,13 @@ export function PitchDetailPage() {
           <div className="flex flex-wrap justify-end gap-2 mb-4">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="pitch"
+                  recordName={pitch.name}
+                  onDelete={() => deletePitch.mutateAsync(pitch.id)}
+                  redirectTo="/pitches"
+                  disabled={isSaving}
+                />
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
                   <X className="mr-2 h-4 w-4" />
                   Cancel

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePasswords, usePasswordMutations } from '@/hooks/usePasswords'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { passwordsApi } from '@/services/api'
 import { useUIStore } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
@@ -55,6 +56,11 @@ export function PasswordsPage() {
   const navigate = useNavigate()
   const { data: passwords, isLoading, error, refetch } = usePasswords()
   const { deletePassword } = usePasswordMutations()
+  const onBulkDelete = useBulkDelete(deletePassword.mutateAsync, {
+    singular: 'password',
+    plural: 'passwords',
+    queryKey: ['passwords'],
+  })
   const { openCreateModal } = useUIStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -139,6 +145,7 @@ export function PasswordsPage() {
         hideable: false,
         width: '110px',
         accessor: row => row.display_id ?? 0,
+        exportValue: row => `PWD-${String(row.display_id ?? 0).padStart(4, '0')}`,
         cell: row => (
           <Badge variant="outline" className="font-mono text-xs">
             PWD-{String(row.display_id ?? 0).padStart(4, '0')}
@@ -206,6 +213,7 @@ export function PasswordsPage() {
         header: 'URL',
         width: '180px',
         accessor: row => (row.url ? urlHostname(row.url) : ''),
+        exportValue: row => row.url ?? '',
         cell: row =>
           row.url ? (
             // safeHttpUrl rejects anything that is not http(s), so a stored
@@ -228,8 +236,9 @@ export function PasswordsPage() {
         id: 'password',
         header: 'Password',
         // Never sortable and never accessible as data: there is no secret in
-        // the row to sort by, and there must never be one.
+        // the row to sort by, and there must never be one. Never exported.
         sortable: false,
+        exportable: false,
         hideOnMobile: true,
         width: '130px',
         cell: row => (
@@ -293,6 +302,8 @@ export function PasswordsPage() {
         // Double click, Enter or a mobile tap opens the record. There is no
         // quick-view panel for credentials, so single click does nothing.
         onRowOpen={row => navigate(`/passwords/${row.id}`)}
+        bulkDelete={{ entityName: 'password', onDelete: onBulkDelete, entityPath: 'passwords', onNavigate: navigate }}
+        exportOptions={{ fileName: 'Passwords' }}
         // Copying a credential IS the point of this list, so it is the one
         // row action that stays on the mobile card rather than moving to the
         // detail page. See docs/DESIGN-SYSTEM.md section 4.5.

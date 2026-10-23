@@ -38,7 +38,7 @@ import { computeRequirementStatus, computeKeyDueDate, getStatusLabel, getStatusC
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DiscussionsPanel, DocumentsTab, NotesPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition } from '@/components/shared'
+import { DiscussionsPanel, DocumentsTab, NotesPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, DeleteRecordButton } from '@/components/shared'
 import type {
   RequirementType,
   ReviewStatus,
@@ -104,7 +104,7 @@ export function RequirementDetailPage() {
   const { data: allProjects } = useProjects()
   const { data: allSets } = useSets()
   const { data: tenantUsers } = useTenantUsers()
-  const { updateRequirement } = useRequirementMutations()
+  const { updateRequirement, deleteRequirement } = useRequirementMutations()
 
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
@@ -584,6 +584,13 @@ export function RequirementDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="requirement"
+                  recordName={requirement.title}
+                  onDelete={() => deleteRequirement.mutateAsync(requirement.id)}
+                  redirectTo="/requirements"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"

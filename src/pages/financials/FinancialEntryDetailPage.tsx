@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import {
   Table,
   TableBody,
@@ -116,7 +117,7 @@ export function FinancialEntryDetailPage() {
   const { data: entry, isLoading } = useFinancialEntry(entryId!)
   const { data: groups = [] } = useFinancialGroups()
   const { data: clients = [] } = useClients()
-  const { updateEntry } = useFinancialEntryMutations()
+  const { updateEntry, deleteEntry } = useFinancialEntryMutations()
   const {
     updateOccurrenceStatus,
     deleteOccurrence,
@@ -343,6 +344,13 @@ export function FinancialEntryDetailPage() {
               <div className="flex flex-wrap justify-end gap-2 mb-6">
                 {isEditing ? (
                   <>
+                    <DeleteRecordButton
+                      entityName="financial entry"
+                      recordName={entry.name}
+                      onDelete={() => deleteEntry.mutateAsync(entry.id)}
+                      redirectTo="/financials"
+                      disabled={isSaving}
+                    />
                     <Button
                       variant="outline"
                       size="sm"

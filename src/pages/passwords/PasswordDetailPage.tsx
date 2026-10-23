@@ -15,6 +15,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import type { UserProfile } from '@/types/database'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import {
   ArrowLeft,
   Lock,
@@ -64,7 +65,7 @@ export function PasswordDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: password, isLoading } = usePassword(passwordId!)
-  const { updatePassword } = usePasswordMutations()
+  const { updatePassword, deletePassword } = usePasswordMutations()
 
   // Access history. Readable by the tenant's admins only (RLS), and refetched
   // after a reveal so the entry the user just generated shows up.
@@ -277,6 +278,13 @@ export function PasswordDetailPage() {
           <div className="flex flex-wrap justify-end gap-2 mb-6">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="password"
+                  recordName={password.application_name}
+                  onDelete={() => deletePassword.mutateAsync(password.id)}
+                  redirectTo="/passwords"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"

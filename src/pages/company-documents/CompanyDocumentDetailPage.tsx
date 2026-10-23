@@ -30,6 +30,7 @@ import {
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
 import { SecureDocumentViewer } from '@/components/shared/SecureDocumentViewer'
 import {
@@ -102,7 +103,7 @@ export function CompanyDocumentDetailPage() {
   const { policy } = useSessionPolicy()
 
   const { data: doc, isLoading } = useCompanyDocument(documentId)
-  const { updateDocument, uploadFile, downloadDocument, acknowledgeDocument } =
+  const { updateDocument, deleteDocument, uploadFile, downloadDocument, acknowledgeDocument } =
     useCompanyDocumentMutations()
   const { data: tenantUsers } = useTenantUsers()
   const { data: versions } = useCompanyDocumentVersions(documentId)
@@ -380,6 +381,13 @@ export function CompanyDocumentDetailPage() {
             </>
           ) : (
             <>
+              <DeleteRecordButton
+                entityName="company document"
+                recordName={doc.title}
+                onDelete={() => deleteDocument.mutateAsync(doc.id)}
+                redirectTo="/company-documents"
+                disabled={isSaving}
+              />
               <Button variant="outline" onClick={cancelEditing} disabled={isSaving}>
                 <X className="mr-2 h-4 w-4" />
                 Cancel

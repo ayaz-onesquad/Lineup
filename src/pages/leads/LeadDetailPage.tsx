@@ -67,7 +67,7 @@ import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, 
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, DeleteRecordButton } from '@/components/shared'
 import type { LeadStatus, CompanySize, ContactRole, ReferralSource } from '@/types/database'
 import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
@@ -118,7 +118,7 @@ export function LeadDetailPage() {
   const { data: contacts, isLoading: contactsLoading } = useLeadContacts(leadId!)
   const { data: allContacts } = useAllContacts()
   const { data: users } = useTenantUsers()
-  const { updateLead, linkContact, unlinkContact, setPrimaryContact, convertToClient } =
+  const { updateLead, deleteLead, linkContact, unlinkContact, setPrimaryContact, convertToClient } =
     useLeadMutations()
   const createContact = useCreateContact()
 
@@ -446,6 +446,13 @@ export function LeadDetailPage() {
           <div className="flex flex-wrap justify-end gap-2 mb-4">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="lead"
+                  recordName={lead.lead_name}
+                  onDelete={() => deleteLead.mutateAsync(lead.id)}
+                  redirectTo="/leads"
+                  disabled={isSaving}
+                />
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
                   <X className="mr-2 h-4 w-4" />
                   Cancel

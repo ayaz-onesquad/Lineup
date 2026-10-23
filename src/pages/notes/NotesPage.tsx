@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { notesApi } from '@/services/api'
+import { useNoteMutations } from '@/hooks/useNotes'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useTenantStore } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
@@ -117,6 +119,28 @@ export function NotesPage() {
     queryKey: ['notes', 'all', currentTenant?.id],
     queryFn: () => notesApi.getAll(currentTenant!.id),
     enabled: !!currentTenant?.id,
+  })
+
+  // deleteNote needs the parent entity to invalidate that entity's notes, so
+  // resolve it from the loaded list.
+  const { deleteNote } = useNoteMutations()
+  const deleteNoteAsync = deleteNote.mutateAsync
+  const deleteNoteById = useCallback(
+    (id: string) => {
+      const note = notes?.find(n => n.id === id)
+      if (!note) return Promise.reject(new Error('Note not found'))
+      return deleteNoteAsync({
+        id,
+        entityType: note.parent_entity_type,
+        entityId: note.parent_entity_id,
+      })
+    },
+    [notes, deleteNoteAsync]
+  )
+  const onBulkDelete = useBulkDelete(deleteNoteById, {
+    singular: 'note',
+    plural: 'notes',
+    queryKey: ['notes'],
   })
 
   const hasActiveFilters = !!search || !!typeFilter || !!entityTypeFilter
@@ -261,6 +285,7 @@ export function NotesPage() {
         hideOnMobile: true,
         width: '110px',
         accessor: row => row.display_id ?? 0,
+        exportValue: row => `NOTE-${String(row.display_id ?? 0).padStart(4, '0')}`,
         cell: row => (
           <Badge variant="outline" className="font-mono text-xs">
             NOTE-{String(row.display_id ?? 0).padStart(4, '0')}
@@ -331,6 +356,8 @@ export function NotesPage() {
         // the note, so both the click and the open handler navigate.
         onRowClick={row => navigate(`/notes/${row.id}`)}
         onRowOpen={row => navigate(`/notes/${row.id}`)}
+        bulkDelete={{ entityName: 'note', onDelete: onBulkDelete, entityPath: 'notes', onNavigate: navigate }}
+        exportOptions={{ fileName: 'Notes' }}
         hasActiveFilters={hasActiveFilters}
         onClearFilters={clearFilters}
         emptyState={{

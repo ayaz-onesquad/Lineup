@@ -15,10 +15,11 @@ import { useState } from 'react'
 interface BulkActionBarProps<T extends { id: string }> {
   selectedRows: T[]
   entityName: string
-  entityPath: string
+  /** URL segment for the single-row View / Edit shortcuts. Omit to hide them. */
+  entityPath?: string
   onClearSelection: () => void
   onDelete: (ids: string[]) => Promise<void>
-  onNavigate: (path: string) => void
+  onNavigate?: (path: string) => void
 }
 
 export function BulkActionBar<T extends { id: string }>({
@@ -62,7 +63,7 @@ export function BulkActionBar<T extends { id: string }>({
             <X className="h-4 w-4 mr-2" />
             Clear selection
           </Button>
-          {selectedRows.length === 1 && (
+          {selectedRows.length === 1 && entityPath && onNavigate && (
             <>
               <Button
                 variant="outline"
@@ -82,7 +83,7 @@ export function BulkActionBar<T extends { id: string }>({
               </Button>
             </>
           )}
-          {selectedRows.length > 1 && (
+          {selectedRows.length > 1 && entityPath && onNavigate && (
             <Button variant="ghost" size="sm" disabled title="Select only one row to view or edit">
               <Eye className="h-4 w-4 mr-2" />
               View / Edit (select one)

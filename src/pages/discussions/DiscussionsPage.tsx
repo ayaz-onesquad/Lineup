@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
-import { useAllDiscussions } from '@/hooks'
+import { useAllDiscussions, useAuth, useBulkDelete, useDiscussionMutations } from '@/hooks'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
 import {
@@ -89,6 +89,27 @@ export function DiscussionsPage() {
 
   // Fetch all discussions using the fixed hook (no arguments needed)
   const { data: allDiscussions, isLoading, error, refetch } = useAllDiscussions()
+
+  // Only a discussion's author may delete it (same rule as DiscussionThread),
+  // so bulk delete refuses anything the current user did not start.
+  const { user } = useAuth()
+  const { deleteDiscussion } = useDiscussionMutations()
+  const deleteDiscussionAsync = deleteDiscussion.mutateAsync
+  const deleteOwnDiscussion = useCallback(
+    (id: string) => {
+      const discussion = allDiscussions?.find(d => d.id === id)
+      if (!discussion || !user || discussion.author_id !== user.id) {
+        return Promise.reject(new Error('You can only delete discussions you started.'))
+      }
+      return deleteDiscussionAsync(id)
+    },
+    [allDiscussions, user, deleteDiscussionAsync]
+  )
+  const onBulkDelete = useBulkDelete(deleteOwnDiscussion, {
+    singular: 'discussion',
+    plural: 'discussions',
+    queryKey: ['discussions'],
+  })
 
   // Filter discussions by status
   const discussions = useMemo(() => {
@@ -444,6 +465,8 @@ export function DiscussionsPage() {
         // opens the owning record. Section 4.5.
         onRowClick={row => setSelectedDiscussionId(row.id)}
         onRowOpen={openDiscussionEntity}
+        bulkDelete={{ entityName: 'discussion', onDelete: onBulkDelete, entityPath: 'discussions', onNavigate: navigate }}
+        exportOptions={{ fileName: 'Discussions' }}
         hasActiveFilters={hasActiveFilters}
         onClearFilters={clearFilters}
         emptyState={{

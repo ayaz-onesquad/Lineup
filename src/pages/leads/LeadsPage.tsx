@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
 import { useLeads, useLeadMutations, useLeadPipelineStats } from '@/hooks/useLeads'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useUIStore } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
@@ -106,6 +107,11 @@ export function LeadsPage() {
   const { data: leads, isLoading, error, refetch } = useLeads()
   const { data: stats } = useLeadPipelineStats()
   const { updateLeadStatus, deleteLead } = useLeadMutations()
+  const onBulkDelete = useBulkDelete(deleteLead.mutateAsync, {
+    singular: 'lead',
+    plural: 'leads',
+    queryKey: ['leads'],
+  })
   const { openCreateModal, leadsViewMode, setLeadsViewMode } = useUIStore()
 
   // Fetch automation name for the filter banner
@@ -372,6 +378,8 @@ export function LeadsPage() {
           onCreate={() => openCreateModal('lead')}
           onNavigate={(id) => navigate(`/leads/${id}`)}
           onDelete={(id) => deleteLead.mutate(id)}
+          onBulkDelete={onBulkDelete}
+          onRouterNavigate={navigate}
         />
       ) : isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -818,6 +826,8 @@ function LeadsTableView({
   onCreate,
   onNavigate,
   onDelete,
+  onBulkDelete,
+  onRouterNavigate,
 }: {
   leads: LeadWithRelations[]
   isLoading?: boolean
@@ -831,6 +841,8 @@ function LeadsTableView({
   onCreate: () => void
   onNavigate: (id: string) => void
   onDelete: (id: string) => void
+  onBulkDelete: (ids: string[]) => Promise<void>
+  onRouterNavigate: (path: string) => void
 }) {
   const columns = useMemo<DataGridColumn<LeadWithRelations>[]>(
     () => [
@@ -868,6 +880,8 @@ function LeadsTableView({
         mobileLabel: 'Stage',
         width: '150px',
         accessor: (row) => row.status,
+        exportValue: (row) =>
+          PIPELINE_STAGES.find((s) => s.status === row.status)?.label ?? row.status,
         cell: (row) => {
           const stage = PIPELINE_STAGES.find((s) => s.status === row.status)
           return (
@@ -962,6 +976,8 @@ function LeadsTableView({
       // A list you cannot open is the defect this fixes: double click, Enter or
       // a tap on the mobile card opens the lead.
       onRowOpen={(row) => onNavigate(row.id)}
+      bulkDelete={{ entityName: 'lead', onDelete: onBulkDelete, entityPath: 'leads', onNavigate: onRouterNavigate }}
+      exportOptions={{ fileName: 'Leads' }}
       hasActiveFilters={!!search || !!statusFilter}
       onClearFilters={onClearFilters}
       emptyState={{

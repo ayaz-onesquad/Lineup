@@ -27,7 +27,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -53,7 +52,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar, DeleteRecordButton } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
@@ -98,7 +97,7 @@ export function PhaseDetailPage() {
   const { data: users } = useTenantUsers()
   const { data: allClients } = useClients()
   const { data: allProjects } = useProjects()
-  const { updatePhase } = usePhaseMutations()
+  const { updatePhase, deletePhase } = usePhaseMutations()
   const { openDetailPanel, openCreateModal } = useUIStore()
 
   // Check for ?edit=true query param to auto-enter edit mode
@@ -450,6 +449,13 @@ export function PhaseDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="phase"
+                  recordName={phase.name}
+                  onDelete={() => deletePhase.mutateAsync({ id: phase.id, projectId: phase.project_id })}
+                  redirectTo="/phases"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -486,10 +492,6 @@ export function PhaseDetailPage() {
                     })}>
                       <Plus className="mr-2 h-4 w-4" />
                       Add Set
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
-                      Delete Phase
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

@@ -216,3 +216,37 @@
   --carbon-blue-60: #4589ff;
   --carbon-white: #262626;
 }
+
+/*
+ * Always-visible scrollbars for horizontally scrolling tables.
+ *
+ * macOS hides scrollbars until the user scrolls, so a table wider than its
+ * container looked like it simply cut off at the right edge, with no hint
+ * that more columns exist. Styling the scrollbar makes WebKit/Blink draw it
+ * permanently. Used by the DataGrid / GridEditTable scroll frame.
+ */
+/* Standard properties only where ::-webkit-scrollbar is unsupported
+   (Firefox): in Chrome 121+ setting them disables the WebKit styling below
+   and brings back macOS's hide-until-scroll overlay. */
+@supports not selector(::-webkit-scrollbar) {
+  .scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
+  }
+}
+.scrollbar-visible::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.scrollbar-visible::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.45);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.7);
+}

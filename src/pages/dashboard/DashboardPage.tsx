@@ -391,28 +391,31 @@ function TaskItem({
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
-          <p className="text-sm font-medium leading-tight truncate">{task.title}</p>
+          <p className="min-w-0 text-sm font-medium leading-tight break-words [overflow-wrap:anywhere]">{task.title}</p>
           {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
         </div>
-        <p className="text-xs text-muted-foreground mt-1 truncate">
+        <p className="text-xs text-muted-foreground mt-1 break-words">
           {task.clients?.name || task.sets?.clients?.name || 'No client'}
         </p>
-        {task.expected_due_date && (
-          <p
-            className={cn(
-              'text-xs flex items-center gap-1 mt-1',
-              isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
-            )}
-          >
-            <Calendar className="h-3 w-3" />
-            {formatDate(task.expected_due_date)}
-            {isPastDueStatus(status) && ' (Past Due)'}
-          </p>
-        )}
+        {/* Status sits with the date, under the title, so the title gets the
+            panel's full width (it is ~280px wide beside My Work on desktop). */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
+            {getStatusLabel(status)}
+          </Badge>
+          {task.expected_due_date && (
+            <span
+              className={cn(
+                'text-xs inline-flex items-center gap-1 whitespace-nowrap',
+                isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
+              )}
+            >
+              <Calendar className="h-3 w-3" />
+              {formatDate(task.expected_due_date)}
+            </span>
+          )}
+        </div>
       </div>
-      <Badge variant="outline" className={cn('text-xs shrink-0', getStatusColor(status))}>
-        {getStatusLabel(status)}
-      </Badge>
     </Link>
   )
 }
@@ -476,10 +479,10 @@ function ExpandableSet({
         <div className={TREE_ROW_BODY}>
           <Link to={`/sets/${set.id}`} className="min-w-0 md:flex-1 hover:underline">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm font-medium truncate">{set.name}</span>
+              <span className="min-w-0 text-sm font-medium break-words [overflow-wrap:anywhere]">{set.name}</span>
               {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
             </div>
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground break-words">
               {set.client_name}
               {set.project_name && ` • ${set.project_name}`}
             </p>
@@ -578,7 +581,7 @@ function ExpandablePitch({
         <div className={TREE_ROW_BODY}>
           <Link to={`/pitches/${pitch.id}`} className="min-w-0 md:flex-1 hover:underline">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm truncate">{pitch.name}</span>
+              <span className="min-w-0 text-sm break-words [overflow-wrap:anywhere]">{pitch.name}</span>
               {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
             </div>
           </Link>
@@ -647,7 +650,7 @@ function RequirementRow({
 
       <div className={TREE_ROW_BODY}>
         <div className="flex items-center gap-2 min-w-0 md:flex-1">
-          <span className="text-sm truncate">{requirement.name}</span>
+          <span className="min-w-0 text-sm break-words [overflow-wrap:anywhere]">{requirement.name}</span>
           {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
         </div>
 
@@ -806,8 +809,8 @@ function MyOpenDiscussionsWidget() {
                         <Icon className="h-3 w-3" />
                       </Badge>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{entityName}</p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="text-sm font-medium break-words">{entityName}</p>
+                        <p className="text-xs text-muted-foreground break-words">
                           {discussion.content.slice(0, 60)}
                           {discussion.content.length > 60 && '...'}
                         </p>

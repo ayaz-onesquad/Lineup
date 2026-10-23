@@ -82,7 +82,7 @@ export async function installSupabaseMock(context: BrowserContext, supabaseUrl: 
     application_name: 'Google Workspace Admin Console', username: 'admin.account@northwind.example.com', category: 'Infrastructure',
     amount: 125000.5, content: 'A discussion message long enough to wrap across several lines on a phone screen.',
     entity_type: 'set', entity_id: SETS[0], file_name: 'Northwind-brand-guidelines-final-v12-approved.pdf',
-    file_size: 2048000, mime_type: 'application/pdf',
+    file_size: 2048000, mime_type: 'application/pdf', file_type: 'application/pdf',
     role: 'org_admin', user_id: USER, tenants: tenant, tenant, user_profiles: profile, user_profile: profile,
     health: 'on_track', requirement_type: 'deliverable', note_type: 'meeting',
     lead_name: 'Northwind Regional Healthcare Partners Group', industry: 'Healthcare and Life Sciences', threat_level: 'high',

@@ -257,6 +257,17 @@ export function NoteDetailPage() {
             )}
             {note.is_pinned ? 'Unpin' : 'Pin'}
           </Button>
+          {/* Reachable in view and edit mode; uses the existing confirm dialog. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setShowDeleteDialog(true)}
+            disabled={deleteNote.isPending || updateNote.isPending}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
           {isEditing ? (
             <>
               <Button variant="outline" size="sm" onClick={handleCancelEdit}>
@@ -277,15 +288,6 @@ export function NoteDetailPage() {
               <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
               </Button>
             </>
           )}

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { useRequirements, useRequirementMutations, useClients, useProjects, usePhases, useSets, usePitches, useDataGridFilters, type FilterConfig } from '@/hooks'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -31,8 +31,7 @@ import {
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
 import { BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
-import { toast } from '@/hooks/use-toast'
-import { formatDate, getInitials, getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
+import { formatDate, getInitials, getPriorityColor, getPriorityLabel, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeRequirementStatus, getStatusLabel, getStatusColor, isPastDueStatus } from '@/utils/statusUtils'
 import type { RequirementWithRelations, UpdateRequirementInput, ComputedStatus } from '@/types/database'
 
@@ -42,6 +41,9 @@ const URGENCY_OPTIONS: SearchableSelectOption[] = [
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
 ]
+
+const capitalize = (value?: string | null) =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1) : undefined
 
 const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
   { value: 'low', label: 'Low' },
@@ -59,8 +61,7 @@ const statusColumns: { status: ComputedStatus | 'past_due'; label: string; color
 
 export function RequirementsPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('list')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [deleteRequirementId, setDeleteRequirementId] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
@@ -157,25 +158,11 @@ export function RequirementsPage() {
   }, [filteredRequirements, rowSelection])
 
   // Handle bulk delete
-  const handleBulkDelete = useCallback(async (ids: string[]) => {
-    const results = await Promise.allSettled(
-      ids.map((id) => deleteRequirement.mutateAsync(id))
-    )
-    const failures = results.filter((r) => r.status === 'rejected')
-    await queryClient.invalidateQueries({ queryKey: ['requirements'] })
-    if (failures.length > 0) {
-      toast({
-        title: 'Some deletions failed',
-        description: `${ids.length - failures.length} of ${ids.length} requirements deleted.`,
-        variant: 'destructive',
-      })
-    } else {
-      toast({
-        title: 'Requirements deleted',
-        description: `${ids.length} requirement${ids.length !== 1 ? 's' : ''} deleted successfully.`,
-      })
-    }
-  }, [deleteRequirement, queryClient])
+  const handleBulkDelete = useBulkDelete(deleteRequirement.mutateAsync, {
+    singular: 'requirement',
+    plural: 'requirements',
+    queryKey: ['requirements'],
+  })
 
   // Get requirements by computed status (status is now READ-ONLY calculated from dates)
   const getRequirementsByStatus = (status: ComputedStatus | 'past_due') => {
@@ -199,6 +186,7 @@ export function RequirementsPage() {
       editable: false,
       enableHiding: false, // ID column cannot be hidden
       width: '90px',
+      exportValue: (row) => (row.display_id ? `REQ-${row.display_id}` : undefined),
       render: (row) => (
         <span className="font-mono text-xs text-muted-foreground">
           {row.display_id ? `REQ-${row.display_id}` : '—'}
@@ -209,6 +197,7 @@ export function RequirementsPage() {
       key: 'clients.name',
       header: 'Client',
       editable: false,
+      exportValue: (row) => row.clients?.name || row.sets?.projects?.clients?.name,
       render: (row) => row.clients?.name || row.sets?.projects?.clients?.name || '—',
     },
     {
@@ -241,6 +230,7 @@ export function RequirementsPage() {
       editable: true,
       type: 'select',
       options: URGENCY_OPTIONS,
+      exportValue: (row) => capitalize(row.urgency),
       render: (row) => (
         <Badge variant="outline" className="capitalize">
           {row.urgency || '—'}
@@ -254,6 +244,7 @@ export function RequirementsPage() {
       editable: true,
       type: 'select',
       options: IMPORTANCE_OPTIONS,
+      exportValue: (row) => capitalize(row.importance),
       render: (row) => (
         <Badge variant="outline" className="capitalize">
           {row.importance || '—'}
@@ -265,6 +256,10 @@ export function RequirementsPage() {
       header: 'Priority',
       priority: 'secondary',
       editable: false, // Calculated field
+      exportValue: (row) =>
+        getPriorityLabel(
+          (row.priority || calculateEisenhowerPriority(row.importance, row.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
+        ),
       render: (row) => {
         const priority = (row.priority || calculateEisenhowerPriority(row.importance, row.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
         return (
@@ -281,6 +276,7 @@ export function RequirementsPage() {
       editable: true,
       type: 'select',
       options: userOptions,
+      exportValue: (row) => row.assigned_to?.full_name,
       render: (row) => row.assigned_to ? (
         <div className="flex items-center gap-2">
           <Avatar className="h-6 w-6">
@@ -305,6 +301,7 @@ export function RequirementsPage() {
       header: 'Status',
       priority: 'secondary',
       editable: false, // Computed from dates
+      exportValue: (row) => getStatusLabel(computeRequirementStatus(row)),
       render: (row) => (
         <Badge className={getStatusColor(computeRequirementStatus(row))}>
           {getStatusLabel(computeRequirementStatus(row))}
@@ -666,6 +663,7 @@ export function RequirementsPage() {
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
               storageKey="requirements_overview"
+              exportFileName="Requirements"
             />
           </CardContent>
         </Card>

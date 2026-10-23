@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { useSets, useSetMutations, useClients, useProjects, usePhases, useDataGridFilters, type FilterConfig } from '@/hooks'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -14,8 +14,7 @@ import { Plus, Layers, Grid, LayoutGrid, Upload, Filter } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
 import { BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
-import { toast } from '@/hooks/use-toast'
-import { getPriorityColor, calculateEisenhowerPriority } from '@/lib/utils'
+import { getPriorityColor, getPriorityLabel, calculateEisenhowerPriority } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import type { SetWithRelations, UpdateSetInput } from '@/types/database'
 
@@ -26,6 +25,9 @@ const URGENCY_OPTIONS: SearchableSelectOption[] = [
   { value: 'high', label: 'High' },
 ]
 
+const capitalize = (value?: string | null) =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1) : undefined
+
 const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
@@ -34,7 +36,6 @@ const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
 
 export function SetsPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<'matrix' | 'list'>('list')
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
@@ -120,25 +121,11 @@ export function SetsPage() {
   }, [filteredSets, rowSelection])
 
   // Handle bulk delete
-  const handleBulkDelete = useCallback(async (ids: string[]) => {
-    const results = await Promise.allSettled(
-      ids.map((id) => deleteSet.mutateAsync(id))
-    )
-    const failures = results.filter((r) => r.status === 'rejected')
-    await queryClient.invalidateQueries({ queryKey: ['sets'] })
-    if (failures.length > 0) {
-      toast({
-        title: 'Some deletions failed',
-        description: `${ids.length - failures.length} of ${ids.length} sets deleted.`,
-        variant: 'destructive',
-      })
-    } else {
-      toast({
-        title: 'Sets deleted',
-        description: `${ids.length} set${ids.length !== 1 ? 's' : ''} deleted successfully.`,
-      })
-    }
-  }, [deleteSet, queryClient])
+  const handleBulkDelete = useBulkDelete(deleteSet.mutateAsync, {
+    singular: 'set',
+    plural: 'sets',
+    queryKey: ['sets'],
+  })
 
   // Grid columns definition
   const columns: GridColumn<SetWithRelations>[] = useMemo(() => [
@@ -149,6 +136,7 @@ export function SetsPage() {
       editable: false,
       enableHiding: false, // ID column cannot be hidden
       width: '90px',
+      exportValue: (row) => (row.display_id ? `SET-${row.display_id}` : undefined),
       render: (row) => (
         <span className="font-mono text-xs text-muted-foreground">
           {row.display_id ? `SET-${row.display_id}` : '—'}
@@ -160,6 +148,7 @@ export function SetsPage() {
       header: 'Client',
       mobileLabel: 'Client',
       editable: false,
+      exportValue: (row) => row.clients?.name || row.projects?.clients?.name,
       render: (row) => row.clients?.name || row.projects?.clients?.name || '—',
     },
     {
@@ -185,6 +174,7 @@ export function SetsPage() {
       editable: true,
       type: 'select',
       options: URGENCY_OPTIONS,
+      exportValue: (row) => capitalize(row.urgency),
       render: (row) => (
         <Badge variant="outline" className="capitalize">
           {row.urgency}
@@ -198,6 +188,7 @@ export function SetsPage() {
       editable: true,
       type: 'select',
       options: IMPORTANCE_OPTIONS,
+      exportValue: (row) => capitalize(row.importance),
       render: (row) => (
         <Badge variant="outline" className="capitalize">
           {row.importance}
@@ -209,6 +200,10 @@ export function SetsPage() {
       header: 'Priority',
       priority: 'secondary',
       editable: false, // Calculated field
+      exportValue: (row) =>
+        getPriorityLabel(
+          (row.priority || calculateEisenhowerPriority(row.importance, row.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
+        ),
       render: (row) => {
         const priority = (row.priority || calculateEisenhowerPriority(row.importance, row.urgency)) as 1 | 2 | 3 | 4 | 5 | 6
         return (
@@ -223,6 +218,7 @@ export function SetsPage() {
       header: 'Status',
       priority: 'secondary',
       editable: false, // Derived field
+      exportValue: (row) => getStatusLabel(computeDisplayStatus(row)),
       render: (row) => (
         <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
           {getStatusLabel(computeDisplayStatus(row))}
@@ -236,6 +232,7 @@ export function SetsPage() {
       editable: true,
       type: 'select',
       options: userOptions,
+      exportValue: (row) => row.lead?.full_name || row.owner?.full_name,
       render: (row) => row.lead?.full_name || row.owner?.full_name || '—',
     },
   ], [userOptions])
@@ -570,6 +567,7 @@ export function SetsPage() {
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
               storageKey="sets_overview"
+              exportFileName="Sets"
             />
           </CardContent>
         </Card>

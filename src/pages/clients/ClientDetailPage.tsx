@@ -103,7 +103,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, DeleteRecordButton } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -189,7 +189,7 @@ export function ClientDetailPage() {
   const { data: competitorsByClient, isLoading: competitorsLoading } = useCompetitorsByClient(safeClientId)
   const { data: tenantUsers } = useTenantUsers()
   const { data: unlinkedContacts, isLoading: unlinkedLoading } = useUnlinkedContacts(safeClientId)
-  const { updateClient } = useClientMutations()
+  const { updateClient, deleteClient } = useClientMutations()
   const { createContact, updateContact, deleteContact, setPrimaryContact, linkToClient, unlinkFromClient, updateRelationship } = useContactMutations(safeClientId)
   const { openCreateModal } = useUIStore()
 
@@ -554,6 +554,13 @@ export function ClientDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="client"
+                  recordName={client.name}
+                  onDelete={() => deleteClient.mutateAsync(client.id)}
+                  redirectTo="/clients"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"

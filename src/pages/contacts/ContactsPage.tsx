@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAllContacts } from '@/hooks/useContacts'
+import { useAllContacts, useContactMutations } from '@/hooks/useContacts'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useUIStore } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
@@ -32,6 +33,12 @@ export function ContactsPage() {
   const [search, setSearch] = useState('')
   const { data: contacts, isLoading, error, refetch } = useAllContacts()
   const { openCreateModal } = useUIStore()
+  const { deleteContact } = useContactMutations()
+  const onBulkDelete = useBulkDelete(deleteContact.mutateAsync, {
+    singular: 'contact',
+    plural: 'contacts',
+    queryKey: ['contacts'],
+  })
 
   const filteredContacts = useMemo(() => {
     const searchLower = search.toLowerCase()
@@ -61,6 +68,7 @@ export function ContactsPage() {
         hideable: false,
         width: '110px',
         accessor: (row) => row.display_id ?? 0,
+        exportValue: (row) => `CON-${String(row.display_id ?? 0).padStart(4, '0')}`,
         cell: (row) => (
           <Badge variant="outline" className="font-mono text-xs">
             CON-{String(row.display_id ?? 0).padStart(4, '0')}
@@ -135,6 +143,7 @@ export function ContactsPage() {
         width: '100px',
         align: 'center',
         accessor: (row) => !!row.is_primary,
+        exportValue: (row) => (row.is_primary ? 'Yes' : 'No'),
         cell: (row) =>
           row.is_primary ? (
             <>
@@ -177,6 +186,8 @@ export function ContactsPage() {
         // The page has no quick-view panel, so opening the record is the only
         // row action: double click, Enter, or a tap on mobile.
         onRowOpen={(row) => navigate(`/contacts/${row.id}`)}
+        bulkDelete={{ entityName: 'contact', onDelete: onBulkDelete, entityPath: 'contacts', onNavigate: navigate }}
+        exportOptions={{ fileName: 'Contacts' }}
         hasActiveFilters={!!search}
         onClearFilters={() => setSearch('')}
         emptyState={{

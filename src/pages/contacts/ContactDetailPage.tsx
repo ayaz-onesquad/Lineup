@@ -61,6 +61,7 @@ import { formatDate, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import { DeleteRecordButton } from '@/components/shared'
 import { toast } from '@/hooks/use-toast'
 import type { ContactRole } from '@/types/database'
 
@@ -108,7 +109,7 @@ export function ContactDetailPage() {
 
   const { data: contact, isLoading: contactLoading } = useContact(safeContactId)
   const { data: linkedClients, isLoading: linkedClientsLoading } = useContactClients(safeContactId)
-  const { updateContact } = useContactMutations(contact?.client_id ?? '')
+  const { updateContact, deleteContact } = useContactMutations(contact?.client_id ?? '')
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -387,6 +388,13 @@ export function ContactDetailPage() {
           <div className="flex flex-wrap justify-end gap-2 mb-4">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="contact"
+                  recordName={`${contact.first_name} ${contact.last_name}`}
+                  onDelete={() => deleteContact.mutateAsync(contact.id)}
+                  redirectTo="/contacts"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"

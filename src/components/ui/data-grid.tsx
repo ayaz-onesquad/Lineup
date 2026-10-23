@@ -9,6 +9,8 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   Check,
+  Download,
+  Loader2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -35,6 +37,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { BulkActionBar } from '@/components/shared/BulkActionBar'
+import type { ExportColumn } from '@/lib/exportToExcel'
 
 // ---------------------------------------------------------------------------
 // Column model
@@ -101,6 +105,26 @@ export interface DataGridColumn<T> {
 
   /** Extra classes for the cell. */
   className?: string
+
+  /**
+   * Value written to the Excel export. Defaults to the accessor, which is
+   * usually right; override when the accessor is a sort key rather than what
+   * the user reads (a priority number whose label is "High").
+   */
+  exportValue?: (row: T) => unknown
+  /** Set false to leave the column out of exports. Columns with neither
+   *  `exportValue` nor `accessor` are always left out. */
+  exportable?: boolean
+}
+
+export interface DataGridBulkDelete {
+  /** Singular, lower case: "client", "requirement". */
+  entityName: string
+  /** Deletes the records. Throw to keep the selection and leave the dialog open. */
+  onDelete: (ids: string[]) => Promise<void>
+  /** URL segment for the single-selection View / Edit shortcuts, e.g. "clients". */
+  entityPath?: string
+  onNavigate?: (path: string) => void
 }
 
 export interface DataGridEmptyState {
@@ -174,6 +198,15 @@ export interface DataGridProps<T> {
   /** Multi-select. When provided, a checkbox column is prepended. */
   selectedIds?: Set<string>
   onSelectionChange?: (ids: Set<string>) => void
+
+  /**
+   * Multi-select with a docked "Delete N" bar. The grid owns the selection
+   * unless `selectedIds`/`onSelectionChange` are also passed.
+   */
+  bulkDelete?: DataGridBulkDelete
+
+  /** Adds an "Export" button that downloads the visible rows as .xlsx. */
+  exportOptions?: { fileName: string; sheetName?: string }
 
   className?: string
   /** Caption for screen readers describing what the grid contains. */
@@ -328,14 +361,35 @@ export function DataGrid<T>({
   hasActiveFilters = false,
   onClearFilters,
   rowActions,
-  selectedIds,
-  onSelectionChange,
+  selectedIds: controlledSelectedIds,
+  onSelectionChange: controlledOnSelectionChange,
+  bulkDelete,
+  exportOptions,
   mobileCardActions,
   rowClassName,
   className,
   ariaLabel,
 }: DataGridProps<T>) {
   const isMobile = useMediaQuery('(max-width: 767px)')
+
+  // Selection is controlled when the page passes it, otherwise the grid owns
+  // it whenever bulk delete is enabled.
+  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(() => new Set())
+  const ownsSelection = !controlledSelectedIds && !!bulkDelete
+  const selectedIds = controlledSelectedIds ?? (bulkDelete ? internalSelectedIds : undefined)
+  const onSelectionChange =
+    controlledOnSelectionChange ?? (bulkDelete ? setInternalSelectedIds : undefined)
+
+  // Drop ids that left the list (deleted, filtered out by the server) so the
+  // bar never offers to delete rows the user cannot see.
+  useEffect(() => {
+    if (!ownsSelection || internalSelectedIds.size === 0) return
+    const present = new Set((data ?? []).map(getRowId))
+    const kept = new Set(Array.from(internalSelectedIds).filter(id => present.has(id)))
+    if (kept.size !== internalSelectedIds.size) setInternalSelectedIds(kept)
+  }, [ownsSelection, data, getRowId, internalSelectedIds])
+
+  const [isExporting, setIsExporting] = useState(false)
 
   const persisted = useMemo(() => readPersisted(storageKey), [storageKey])
 
@@ -481,13 +535,107 @@ export function DataGrid<T>({
     [allColumns]
   )
 
+  // Export what the user is looking at: filtered and sorted rows, the columns
+  // they have not hidden, in on-screen order.
+  const exportColumns = useMemo(
+    () =>
+      visibleColumns.filter(
+        c => c.id !== '__select' && c.exportable !== false && (c.exportValue || c.accessor)
+      ),
+    [visibleColumns]
+  )
+
+  const handleExport = useCallback(async () => {
+    if (!exportOptions) return
+    setIsExporting(true)
+    try {
+      const { exportToExcel } = await import('@/lib/exportToExcel')
+      await exportToExcel({
+        fileName: exportOptions.fileName,
+        sheetName: exportOptions.sheetName ?? exportOptions.fileName,
+        rows: selectedIds && selectedIds.size > 0
+          ? sortedData.filter(row => selectedIds.has(getRowId(row)))
+          : sortedData,
+        columns: exportColumns.map((c): ExportColumn<T> => ({
+          header: c.header,
+          value: (row: T) => (c.exportValue ? c.exportValue(row) : c.accessor?.(row)),
+        })),
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }, [exportOptions, exportColumns, sortedData, selectedIds, getRowId])
+
+  const selectedRows = useMemo(
+    () => (selectedIds ? sortedData.filter(row => selectedIds.has(getRowId(row))) : []),
+    [selectedIds, sortedData, getRowId]
+  )
+
+  // Docked bar for the grid-owned bulk delete. Pages that control selection
+  // themselves render their own bar.
+  const bulkBar =
+    bulkDelete && selectedRows.length > 0 ? (
+      <BulkActionBar
+        selectedRows={selectedRows.map(row => ({ id: getRowId(row) }))}
+        entityName={bulkDelete.entityName}
+        entityPath={bulkDelete.entityPath}
+        onNavigate={bulkDelete.onNavigate}
+        onClearSelection={() => onSelectionChange?.(new Set())}
+        onDelete={bulkDelete.onDelete}
+      />
+    ) : null
+
   // -------------------------------------------------------------------------
   // Shared chrome: toolbar, sort sheet, column manager
   // -------------------------------------------------------------------------
 
   const chrome = (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="min-w-0 flex-1">{toolbar}</div>
+      <div className="min-w-0 basis-full md:basis-auto md:flex-1">{toolbar}</div>
+
+      {/* Phones have no header checkbox, so select-all lives here. */}
+      {isMobile && selectedIds && onSelectionChange && sortedData.length > 0 && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-touch shrink-0"
+          onClick={() =>
+            onSelectionChange(
+              allRowsSelected ? new Set() : new Set(sortedData.map(row => getRowId(row)))
+            )
+          }
+        >
+          <Checkbox
+            checked={allRowsSelected ? true : someRowsSelected ? 'indeterminate' : false}
+            className="mr-2 pointer-events-none"
+            tabIndex={-1}
+            aria-hidden
+          />
+          {allRowsSelected ? 'Clear all' : 'Select all'}
+        </Button>
+      )}
+
+      {exportOptions && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-touch shrink-0"
+          onClick={handleExport}
+          disabled={isExporting || sortedData.length === 0}
+          title={
+            selectedRows.length > 0
+              ? `Export the ${selectedRows.length} selected rows to Excel`
+              : 'Export these rows to Excel'
+          }
+        >
+          {isExporting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          {selectedRows.length > 0 ? `Export ${selectedRows.length}` : 'Export'}
+        </Button>
+      )}
 
       {/* Sorting has no header to click in card view, so it moves to a sheet. */}
       {isMobile && sortableColumns.length > 0 && (
@@ -694,21 +842,35 @@ export function DataGrid<T>({
 
   if (isMobile) {
     return (
-      <div className={cn('space-y-3', className)}>
+      <div className={cn('space-y-3', className, bulkBar && 'pb-24')}>
         {chrome}
         <div className="space-y-3" role="list" aria-label={ariaLabel}>
-          {sortedData.map(row => (
-            <MobileCard
-              key={getRowId(row)}
-              row={row}
-              columns={columns}
-              onOpen={onRowOpen ?? onRowClick}
-              isSelected={selectedIds?.has(getRowId(row)) ?? false}
-              className={rowClassName?.(row)}
-              actions={mobileCardActions?.(row)}
-            />
-          ))}
+          {sortedData.map(row => {
+            const id = getRowId(row)
+            return (
+              <MobileCard
+                key={id}
+                row={row}
+                columns={columns}
+                onOpen={onRowOpen ?? onRowClick}
+                isSelected={selectedIds?.has(id) ?? false}
+                onToggleSelect={
+                  selectedIds && onSelectionChange
+                    ? () => {
+                        const next = new Set(selectedIds)
+                        if (next.has(id)) next.delete(id)
+                        else next.add(id)
+                        onSelectionChange(next)
+                      }
+                    : undefined
+                }
+                className={rowClassName?.(row)}
+                actions={mobileCardActions?.(row)}
+              />
+            )
+          })}
         </div>
+        {bulkBar}
       </div>
     )
   }
@@ -718,7 +880,7 @@ export function DataGrid<T>({
   // -------------------------------------------------------------------------
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('space-y-3', className, bulkBar && 'pb-20')}>
       {chrome}
       <GridFrame maxBodyHeight={maxBodyHeight}>
         <Table aria-label={ariaLabel}>
@@ -855,6 +1017,7 @@ export function DataGrid<T>({
           </TableBody>
         </Table>
       </GridFrame>
+      {bulkBar}
     </div>
   )
 }
@@ -903,11 +1066,13 @@ function GridFrame({
     }
   }, [update])
 
+  // Visible cues that more columns exist: a permanent scrollbar (macOS hides
+  // it otherwise) and a fade on whichever side has hidden content.
   return (
     <div className="relative rounded-lg border bg-card">
       <div
         ref={ref}
-        className={cn('w-full overflow-x-auto', maxBodyHeight && 'overflow-y-auto')}
+        className={cn('scrollbar-visible w-full overflow-x-auto', maxBodyHeight && 'overflow-y-auto')}
         style={maxBodyHeight ? { maxHeight: maxBodyHeight } : undefined}
       >
         {children}
@@ -915,18 +1080,21 @@ function GridFrame({
       {edges.left && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-3 rounded-l-lg shadow-scroll-left"
+          className="pointer-events-none absolute inset-y-0 left-0 z-20 w-8 rounded-l-lg bg-gradient-to-r from-card to-transparent shadow-scroll-left"
         />
       )}
       {edges.right && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-3 rounded-r-lg shadow-scroll-right"
+          className="pointer-events-none absolute inset-y-0 right-0 z-20 w-8 rounded-r-lg bg-gradient-to-l from-card to-transparent shadow-scroll-right"
         />
       )}
     </div>
   )
 }
+
+/** The scroll frame, for grids built outside DataGrid (GridEditTable). */
+export { GridFrame as ScrollFrame }
 
 // ---------------------------------------------------------------------------
 // Mobile card
@@ -937,6 +1105,7 @@ function MobileCard<T>({
   columns,
   onOpen,
   isSelected,
+  onToggleSelect,
   className,
   actions,
 }: {
@@ -944,6 +1113,7 @@ function MobileCard<T>({
   columns: DataGridColumn<T>[]
   onOpen?: (row: T) => void
   isSelected: boolean
+  onToggleSelect?: () => void
   className?: string
   actions?: ReactNode
 }) {
@@ -975,10 +1145,28 @@ function MobileCard<T>({
         className
       )}
     >
-      {primary && (
-        <h3 className="text-base font-semibold leading-snug break-words [overflow-wrap:anywhere]">
-          {renderCellContent(primary, row)}
-        </h3>
+      {(primary || onToggleSelect) && (
+        <div className="flex items-start gap-3">
+          {onToggleSelect && (
+            // 44px tap target around a 16px box; stops the tap opening the record.
+            <label
+              className="-m-3 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center"
+              onClick={e => e.stopPropagation()}
+              onKeyDown={e => e.stopPropagation()}
+            >
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onToggleSelect()}
+                aria-label="Select record"
+              />
+            </label>
+          )}
+          {primary && (
+            <h3 className="min-w-0 flex-1 text-base font-semibold leading-snug break-words [overflow-wrap:anywhere]">
+              {renderCellContent(primary, row)}
+            </h3>
+          )}
+        </div>
       )}
 
       {secondary.length > 0 && (

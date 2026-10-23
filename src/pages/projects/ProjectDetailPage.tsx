@@ -31,7 +31,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -69,7 +68,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar, DeleteRecordButton } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
@@ -117,7 +116,7 @@ export function ProjectDetailPage() {
   const { filter: setsFilter, setFilter: setSetsFilter, filtered: filteredSets, counts: setsCounts } = useStatusFilter(projectSets)
   const { filter: requirementsFilter, setFilter: setRequirementsFilter, filtered: filteredRequirements, counts: requirementsCounts } = useStatusFilter(projectRequirements)
   const { filter: pitchesFilter, setFilter: setPitchesFilter, filtered: filteredPitches, counts: pitchesCounts } = useStatusFilter(projectPitches)
-  const { updateProject, duplicateProject } = useProjectMutations()
+  const { updateProject, duplicateProject, deleteProject } = useProjectMutations()
   const { data: users } = useTenantUsers()
   const { data: clients } = useClients()
   const { openDetailPanel, openCreateModal } = useUIStore()
@@ -537,6 +536,13 @@ export function ProjectDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="project"
+                  recordName={project.name}
+                  onDelete={() => deleteProject.mutateAsync(project.id)}
+                  redirectTo="/projects"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -577,10 +583,6 @@ export function ProjectDetailPage() {
                       }}
                     >
                       Duplicate Project
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
-                      Delete Project
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
