@@ -318,6 +318,9 @@ serve(async (req) => {
           expected_start_date: today,
           // requirements use expected_due_date (renamed from expected_end_date in migration 014)
           expected_due_date: taskDue || null,
+          // Production still has the old column too, and the task.assigned email (notify_task_assigned)
+          // reads it, so it gets the same date
+          expected_end_date: taskDue || null,
           created_by: userId,
           updated_by: userId,
         })
