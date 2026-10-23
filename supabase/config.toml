@@ -58,9 +58,9 @@ secure_password_change = true
 # Minimum password length and required character classes. The client already
 # scores strength in src/lib/security.ts; this makes the rule authoritative so
 # it cannot be bypassed by calling the API directly.
-[auth.email.smtp]
-# Configure the SMTP sender in the dashboard. Credentials must never be
-# committed here.
+# SMTP: configure the sender in the dashboard. Credentials must never be
+# committed here, and an empty [auth.email.smtp] table breaks the CLI
+# ("Missing required field in config: auth.email.smtp.host").
 
 [auth.sessions]
 # Sign out sessions that have been inactive for this long, as a server-side
