@@ -62,9 +62,9 @@ export function MyTicketsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Support Tickets</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">My Support Tickets</h1>
           <p className="text-muted-foreground">
             View and track your support requests
           </p>
@@ -212,7 +212,7 @@ export function MyTicketsPage() {
                 {selectedTicket.description && (
                   <div>
                     <h4 className="text-sm font-medium mb-2">Description</h4>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
                       {selectedTicket.description}
                     </p>
                   </div>
@@ -226,7 +226,7 @@ export function MyTicketsPage() {
                       href={safeHttpUrl(selectedTicket.page_url) ?? undefined}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-primary hover:underline flex items-center gap-1"
+                      className="text-sm text-primary hover:underline flex items-center gap-1 min-w-0 break-all"
                     >
                       {selectedTicket.page_url}
                       <ExternalLink className="h-3 w-3" />
@@ -238,7 +238,7 @@ export function MyTicketsPage() {
                 {selectedTicket.resolution && (
                   <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                     <h4 className="text-sm font-medium text-green-800 mb-2">Resolution</h4>
-                    <p className="text-sm text-green-700 whitespace-pre-wrap">
+                    <p className="text-sm text-green-700 whitespace-pre-wrap break-words">
                       {selectedTicket.resolution}
                     </p>
                     {selectedTicket.resolved_at && (

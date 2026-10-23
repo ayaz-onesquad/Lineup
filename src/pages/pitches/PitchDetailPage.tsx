@@ -414,14 +414,14 @@ export function PitchDetailPage() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <Presentation className="h-6 w-6 text-muted-foreground" />
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Presentation className="h-6 w-6 shrink-0 text-muted-foreground" />
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : pitch.name}
               {pitch.pitch_id_display && (
                 <span className="text-muted-foreground"> | {pitch.pitch_id_display}</span>
@@ -433,8 +433,8 @@ export function PitchDetailPage() {
           </div>
           {/* Parent selection dropdowns - only shown in edit mode */}
           {isEditing && (
-            <div className="flex gap-4 mt-2">
-              <div className="w-48">
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:flex gap-4 mt-2">
+              <div className="w-full sm:w-48">
                 <Label className="text-xs text-muted-foreground">Client</Label>
                 <SearchableSelect
                   options={clientOptions}
@@ -449,7 +449,7 @@ export function PitchDetailPage() {
                   emptyMessage="No clients found."
                 />
               </div>
-              <div className="w-48">
+              <div className="w-full sm:w-48">
                 <Label className="text-xs text-muted-foreground">Project (optional)</Label>
                 <SearchableSelect
                   options={projectOptions}
@@ -464,7 +464,7 @@ export function PitchDetailPage() {
                   clearable
                 />
               </div>
-              <div className="w-48">
+              <div className="w-full sm:w-48">
                 <Label className="text-xs text-muted-foreground">Set *</Label>
                 <SearchableSelect
                   options={setOptions}
@@ -484,7 +484,7 @@ export function PitchDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-4">
+          <div className="flex flex-wrap justify-end gap-2 mb-4">
             {isEditing ? (
               <>
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
@@ -510,7 +510,7 @@ export function PitchDetailPage() {
 
           {/* Progress section with Key Dates */}
           <div className="space-y-3 mb-6 p-4 rounded-lg bg-muted/50">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Completion</p>
                 <p className="text-2xl font-bold">{pitch.completion_percentage}%</p>
@@ -531,7 +531,7 @@ export function PitchDetailPage() {
           </div>
 
           {/* Header fields */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <ViewEditField
               type="text"
               label="Name"
@@ -651,7 +651,7 @@ export function PitchDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
                 <ViewEditField
                   type="date"
                   label="Expected Start Date"

@@ -250,14 +250,14 @@ export function PasswordDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:items-center md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <Lock className="h-6 w-6 text-muted-foreground" />
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <Lock className="h-6 w-6 shrink-0 text-muted-foreground" />
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('application_name') : password.application_name}
             </h1>
             <Badge variant="outline" className="font-mono">
@@ -274,7 +274,7 @@ export function PasswordDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-6">
+          <div className="flex flex-wrap justify-end gap-2 mb-6">
             {isEditing ? (
               <>
                 <Button
@@ -314,7 +314,7 @@ export function PasswordDetailPage() {
                 <Shield className="h-5 w-5 text-muted-foreground" />
                 Credentials
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                 <ViewEditField
                   type="text"
                   label="Application Name"

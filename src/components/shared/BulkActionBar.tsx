@@ -57,7 +57,7 @@ export function BulkActionBar<T extends { id: string }>({
         <span className="text-sm font-medium">
           {selectedRows.length} {entityName}{pluralSuffix} selected
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onClearSelection}>
             <X className="h-4 w-4 mr-2" />
             Clear selection

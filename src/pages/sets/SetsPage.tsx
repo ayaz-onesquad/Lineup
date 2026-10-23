@@ -297,9 +297,9 @@ export function SetsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">All Sets</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">All Sets</h1>
           <p className="text-muted-foreground">Organize work with the Eisenhower Matrix</p>
         </div>
         <Button onClick={() => openCreateModal('set')}>

@@ -63,22 +63,22 @@ export function PortalProjectPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:items-center md:gap-4">
         <Link to="/portal">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">{project.name}</h1>
             <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>{project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}</Badge>
             <Badge variant="outline" className={getHealthColor(project.health)}>
               {project.health.replace('_', ' ')}
             </Badge>
           </div>
           {project.description && (
-            <p className="text-muted-foreground mt-1">{project.description}</p>
+            <p className="text-muted-foreground mt-1 break-words">{project.description}</p>
           )}
         </div>
       </div>
@@ -86,7 +86,7 @@ export function PortalProjectPage() {
       {/* Progress Card */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Overall Progress</p>
               <div className="flex items-center gap-4">

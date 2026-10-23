@@ -354,7 +354,7 @@ export function ClientForm({ onSuccess }: ClientFormProps) {
           <h3 className="text-sm font-medium">Primary Contact</h3>
 
           {/* Contact Mode Toggle */}
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 md:flex-row">
             <Button
               type="button"
               variant={watchContactMode === 'none' ? 'default' : 'outline'}

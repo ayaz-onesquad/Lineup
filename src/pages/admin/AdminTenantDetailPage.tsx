@@ -483,15 +483,15 @@ export function AdminTenantDetailPage() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-start gap-2 md:flex-nowrap md:items-center md:gap-4">
         <Link to="/admin">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">{tenant.name}</h1>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">{tenant.name}</h1>
             {tenant.status === 'inactive' ? (
               <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
                 Inactive
@@ -504,11 +504,11 @@ export function AdminTenantDetailPage() {
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground">{tenant.slug}</p>
+          <p className="text-muted-foreground break-all">{tenant.slug}</p>
         </div>
 
         {/* Action buttons based on tenant status */}
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
           {tenant.status === 'inactive' ? (
             <>
               {/* Inactive tenant: Show Restore and Permanent Delete buttons */}
@@ -624,7 +624,7 @@ export function AdminTenantDetailPage() {
       </div>
 
       {/* Overview Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Clients</CardTitle>

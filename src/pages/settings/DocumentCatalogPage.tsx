@@ -210,14 +210,14 @@ export function DocumentCatalogPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Document Catalog</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Document Catalog</h1>
           <p className="text-muted-foreground">
             Manage document types and standards for your organization
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleSeedDefaults} disabled={seedDefaults.isPending}>
             {seedDefaults.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -234,7 +234,7 @@ export function DocumentCatalogPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

@@ -674,8 +674,8 @@ function LeadCardOverlay({ lead }: { lead: LeadWithRelations }) {
     <Card className="w-72 bg-white shadow-2xl rounded-xl border-2 border-primary cursor-grabbing">
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start gap-2">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-          <div className="flex-1">
+          <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm truncate">{lead.lead_name}</p>
             {lead.lead_id_display && (
               <p className="text-xs text-muted-foreground">{lead.lead_id_display}</p>

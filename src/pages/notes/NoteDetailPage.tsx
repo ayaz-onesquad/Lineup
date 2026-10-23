@@ -210,16 +210,16 @@ export function NoteDetailPage() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-start gap-2 md:flex-nowrap md:items-center md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <div className={cn('p-2 rounded-lg', colorClass)}>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <div className={cn('p-2 rounded-lg shrink-0', colorClass)}>
               <Icon className="h-5 w-5" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? editValues.title : note.title}
             </h1>
             {note.is_pinned && (
@@ -229,7 +229,7 @@ export function NoteDetailPage() {
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
             <span>
               {getEntityTypeLabel(note.parent_entity_type)} note
             </span>
@@ -243,7 +243,7 @@ export function NoteDetailPage() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
           <Button
             variant="outline"
             size="sm"
@@ -293,7 +293,7 @@ export function NoteDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main Content */}
         <Card className="lg:col-span-2">
           <CardHeader>

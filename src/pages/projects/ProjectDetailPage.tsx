@@ -483,13 +483,13 @@ export function ProjectDetailPage() {
       />
 
       {/* Header - Client Name first, then Project Name, Status, Health */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : project.name}
               {project.display_id && <span className="text-muted-foreground"> | ID: {project.display_id}</span>}
             </h1>
@@ -508,7 +508,7 @@ export function ProjectDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons and Actions menu with list position indicator */}
-          <div className="flex justify-end items-center gap-2 mb-4">
+          <div className="flex flex-wrap justify-end items-center gap-2 mb-4">
             {/* List position indicator and prev/next navigation */}
             {listPosition.total > 0 && listPosition.index >= 0 && (
               <div className="flex items-center gap-1 mr-2">
@@ -589,7 +589,7 @@ export function ProjectDetailPage() {
           </div>
 
           {/* Header fields: Client (1st), Project Name, Status, Health */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-1">
                 Client {isEditing && <span className="text-red-500">*</span>}
@@ -748,7 +748,7 @@ export function ProjectDetailPage() {
 
         {/* Sets Tab - Flat view of all sets using dedicated query */}
         <TabsContent value="sets" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <StatusFilterBar
               value={setsFilter}
               onChange={setSetsFilter}
@@ -903,7 +903,7 @@ export function ProjectDetailPage() {
                 Progress
               </h3>
               <div className="space-y-3 p-4 rounded-lg bg-muted/50">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Overall Completion</p>
                     <p className="text-2xl font-bold">{project.completion_percentage}%</p>
@@ -951,7 +951,7 @@ export function ProjectDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
                 <ViewEditField
                   type="date"
                   label="Expected Start Date"
@@ -1096,7 +1096,7 @@ export function ProjectDetailPage() {
 
         {/* Requirements Tab */}
         <TabsContent value="requirements" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <StatusFilterBar
               value={requirementsFilter}
               onChange={setRequirementsFilter}
@@ -1251,7 +1251,7 @@ export function ProjectDetailPage() {
 
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <StatusFilterBar
               value={pitchesFilter}
               onChange={setPitchesFilter}

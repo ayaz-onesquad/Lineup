@@ -61,7 +61,7 @@ export function TopNav() {
           {/* Mobile Hamburger Menu */}
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden">
+              <Button variant="ghost" size="icon" className="md:hidden shrink-0 coarse:h-11 coarse:w-11">
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Open navigation menu</span>
               </Button>
@@ -90,7 +90,7 @@ export function TopNav() {
             variant="ghost"
             size="icon"
             onClick={() => setTicketDialogOpen(true)}
-            className="sm:hidden"
+            className="sm:hidden shrink-0 coarse:h-11 coarse:w-11"
           >
             <HelpCircle className="h-5 w-5" />
             <span className="sr-only">Support</span>
@@ -112,9 +112,14 @@ export function TopNav() {
               value={currentTenant?.id}
               onValueChange={handleTenantChange}
             >
-              <SelectTrigger className="w-[200px]">
-                <Building2 className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Select organization" />
+              <SelectTrigger
+                  className="h-11 w-11 justify-center px-0 md:h-10 md:w-[200px] md:justify-between md:px-3 [&>svg:last-child]:hidden md:[&>svg:last-child]:block"
+                  aria-label="Switch organization"
+                >
+                <Building2 className="h-4 w-4 shrink-0 md:mr-2" />
+                <span className="hidden md:inline min-w-0 flex-1 truncate text-left">
+                  <SelectValue placeholder="Select organization" />
+                </span>
               </SelectTrigger>
               <SelectContent>
                 {tenants.map((tenant) => (
@@ -128,9 +133,9 @@ export function TopNav() {
 
           {/* Single tenant display */}
           {tenants.length === 1 && currentTenant && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Building2 className="h-4 w-4" />
-              {currentTenant.name}
+            <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground min-w-0 max-w-[220px]">
+              <Building2 className="h-4 w-4 shrink-0" />
+              <span className="truncate">{currentTenant.name}</span>
             </div>
           )}
 

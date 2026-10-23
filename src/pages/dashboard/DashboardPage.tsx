@@ -23,14 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
 import {
   Layers,
   CheckSquare,
@@ -102,6 +95,53 @@ interface DrillDownItem {
   itemType: 'set' | 'pitch' | 'task' | 'requirement'
 }
 
+const drillDownColumns: DataGridColumn<DrillDownItem>[] = [
+  {
+    id: 'name',
+    header: 'Name',
+    priority: 'primary',
+    minWidth: '200px',
+    accessor: (item) => item.name || 'Untitled',
+    cell: (item) => <span className="font-medium">{item.name || 'Untitled'}</span>,
+  },
+  {
+    id: 'client',
+    header: 'Client',
+    priority: 'secondary',
+    minWidth: '140px',
+    accessor: (item) => item.client_name || '',
+    cell: (item) => item.client_name || '—',
+  },
+  {
+    id: 'status',
+    header: 'Status',
+    priority: 'secondary',
+    width: '120px',
+    accessor: (item) => getStatusLabel(item.status),
+    cell: (item) => (
+      <Badge variant="outline" className={getStatusColor(item.status)}>
+        {getStatusLabel(item.status)}
+      </Badge>
+    ),
+  },
+  {
+    id: 'dueDate',
+    header: 'Due Date',
+    priority: 'secondary',
+    width: '150px',
+    accessor: (item) => (item.dueDate ? new Date(item.dueDate) : null),
+    cell: (item) =>
+      item.dueDate ? (
+        <span className={cn(isPastDueStatus(item.status) && 'text-red-600 font-medium')}>
+          {formatDate(item.dueDate)}
+          {isPastDueStatus(item.status) && ' (Past Due)'}
+        </span>
+      ) : (
+        '—'
+      ),
+  },
+]
+
 // KPI Drill-down Modal - uses pre-filtered data passed as props
 function KpiDrillDownModal({
   open,
@@ -135,9 +175,14 @@ function KpiDrillDownModal({
     }
   }
 
+  const openItem = (item: DrillDownItem) => {
+    navigate(getItemPath(item))
+    onOpenChange(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
+      <DialogContent className="max-w-3xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -158,61 +203,22 @@ function KpiDrillDownModal({
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-4">
-            <ScrollArea className="h-[400px]">
-              {isLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : !items.length ? (
-                <div className="text-center text-muted-foreground py-12">
-                  <CheckSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p>No {activeTab === 'past_due' ? 'past due' : 'active'} {type} found</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Client</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Due Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item) => (
-                      <TableRow
-                        key={item.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => {
-                          navigate(getItemPath(item))
-                          onOpenChange(false)
-                        }}
-                      >
-                        <TableCell className="font-medium">{item.name || 'Untitled'}</TableCell>
-                        <TableCell>{item.client_name || '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={getStatusColor(item.status)}>
-                            {getStatusLabel(item.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {item.dueDate ? (
-                            <span className={cn(isPastDueStatus(item.status) && 'text-red-600 font-medium')}>
-                              {formatDate(item.dueDate)}
-                              {isPastDueStatus(item.status) && ' (Past Due)'}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </ScrollArea>
+            <DataGrid
+              columns={drillDownColumns}
+              data={items}
+              getRowId={(item) => item.id}
+              isLoading={isLoading}
+              onRowClick={openItem}
+              onRowOpen={openItem}
+              maxBodyHeight="400px"
+              density="compact"
+              defaultSort={{ columnId: 'dueDate', direction: 'asc' }}
+              emptyState={{
+                icon: CheckSquare,
+                title: `No ${activeTab === 'past_due' ? 'past due' : 'active'} ${type} found`,
+              }}
+              ariaLabel={`${title}: ${activeTab === 'past_due' ? 'past due' : 'active'}`}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -328,25 +334,25 @@ function CollapsiblePrioritySection({
           config.borderColor,
           'border'
         )}>
-          <div className="p-1.5 rounded bg-white/50">
+          <div className="p-1.5 rounded bg-white/50 shrink-0">
             <Icon className={cn('h-3.5 w-3.5', config.color)} />
           </div>
-          <div className="flex-1 text-left">
+          <div className="flex-1 min-w-0 text-left">
             <span className={cn('text-sm font-semibold', config.color)}>{config.label}</span>
-            <span className="text-xs text-muted-foreground ml-2">{config.sublabel}</span>
+            <span className="text-xs text-muted-foreground block sm:inline sm:ml-2">{config.sublabel}</span>
           </div>
-          <Badge variant="secondary" className="text-xs">
+          <Badge variant="secondary" className="text-xs shrink-0">
             {count}
           </Badge>
           {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
           )}
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="border rounded-lg overflow-hidden ml-2">
+        <div className="border rounded-lg overflow-hidden md:ml-2">
           {children}
         </div>
       </CollapsibleContent>
@@ -411,6 +417,19 @@ function TaskItem({
   )
 }
 
+// Tree row layout shared by Set, Pitch and Requirement rows.
+// Phones: the title gets the full row width and the meta (date, status, count)
+// wraps onto a second line. From md up: one line with the meta on the right.
+const TREE_ROW_BODY = 'flex-1 min-w-0 flex flex-col gap-1 md:flex-row md:items-center md:gap-2'
+const TREE_ROW_META = 'flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap md:shrink-0'
+// Nested levels indent less on phones so deep rows keep usable width.
+// The connector offset is the child's left padding + 1px, to meet the border.
+const TREE_NEST = 'ml-3 pl-2 md:ml-6 md:pl-4 pb-2 border-l-2'
+const TREE_CONNECTOR = 'absolute -left-[9px] md:-left-[17px] w-2 md:w-3 h-px'
+// 24px chevron in the layout, 44px hit area on touch.
+const TREE_TOGGLE =
+  'p-1 rounded hover:bg-muted shrink-0 coarse:-m-2.5 coarse:p-3.5'
+
 // Expandable Set component with child Pitches and Requirements
 function ExpandableSet({
   set,
@@ -434,9 +453,12 @@ function ExpandableSet({
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border-b">
-      <div className="flex items-center gap-2 p-3 hover:bg-muted/30 transition-colors">
+      <div className="flex items-start md:items-center gap-2 p-3 hover:bg-muted/30 transition-colors">
         {hasChildren ? (
-          <CollapsibleTrigger className="p-1 hover:bg-muted rounded">
+          <CollapsibleTrigger
+            className={TREE_TOGGLE}
+            aria-label={isOpen ? `Collapse ${set.name}` : `Expand ${set.name}`}
+          >
             {isOpen ? (
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             ) : (
@@ -444,49 +466,51 @@ function ExpandableSet({
             )}
           </CollapsibleTrigger>
         ) : (
-          <div className="w-6" />
+          <div className="w-6 shrink-0" />
         )}
 
-        <div className={cn('p-1.5 rounded', 'bg-purple-100')}>
+        <div className={cn('p-1.5 rounded shrink-0', 'bg-purple-100')}>
           <Layers className="h-3.5 w-3.5 text-purple-600" />
         </div>
 
-        <Link to={`/sets/${set.id}`} className="flex-1 min-w-0 hover:underline">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">{set.name}</span>
-            {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500" />}
-          </div>
-          <p className="text-xs text-muted-foreground truncate">
-            {set.client_name}
-            {set.project_name && ` • ${set.project_name}`}
-          </p>
-        </Link>
+        <div className={TREE_ROW_BODY}>
+          <Link to={`/sets/${set.id}`} className="min-w-0 md:flex-1 hover:underline">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-medium truncate">{set.name}</span>
+              {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
+            </div>
+            <p className="text-xs text-muted-foreground truncate">
+              {set.client_name}
+              {set.project_name && ` • ${set.project_name}`}
+            </p>
+          </Link>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {set.expected_due_date && (
-            <span
-              className={cn(
-                'text-xs flex items-center gap-1',
-                isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
-              )}
-            >
-              <Calendar className="h-3 w-3" />
-              {formatDate(set.expected_due_date)}
-            </span>
-          )}
-          <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
-            {getStatusLabel(status)}
-          </Badge>
-          {hasChildren && (
-            <Badge variant="secondary" className="text-xs">
-              {set.childPitches.length + set.directRequirements.length}
+          <div className={TREE_ROW_META}>
+            {set.expected_due_date && (
+              <span
+                className={cn(
+                  'text-xs flex items-center gap-1 whitespace-nowrap',
+                  isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
+                )}
+              >
+                <Calendar className="h-3 w-3" />
+                {formatDate(set.expected_due_date)}
+              </span>
+            )}
+            <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
+              {getStatusLabel(status)}
             </Badge>
-          )}
+            {hasChildren && (
+              <Badge variant="secondary" className="text-xs">
+                {set.childPitches.length + set.directRequirements.length}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
       <CollapsibleContent>
-        <div className="ml-6 pl-4 pb-2 border-l-2 border-purple-200">
+        <div className={cn(TREE_NEST, 'border-purple-200')}>
           {/* Child Pitches */}
           {set.childPitches.map((pitch) => (
             <ExpandablePitch key={pitch.id} pitch={pitch} />
@@ -495,8 +519,8 @@ function ExpandableSet({
           {/* "No Assigned Pitches" placeholder when set has direct reqs but no pitches */}
           {hasDirectReqsButNoPitches && (
             <div className="flex items-center gap-2 p-2 bg-muted/30 border-b text-muted-foreground relative">
-              <div className="absolute -left-[17px] top-1/2 w-3 h-px bg-purple-200" />
-              <div className="w-5" />
+              <div className={cn(TREE_CONNECTOR, 'top-1/2 bg-purple-200')} />
+              <div className="w-5 shrink-0" />
               <div className="p-1 rounded bg-slate-100">
                 <Presentation className="h-3 w-3 text-slate-400" />
               </div>
@@ -530,10 +554,13 @@ function ExpandablePitch({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border-b last:border-b-0 relative">
       {/* Horizontal connector from parent Set's border */}
-      <div className="absolute -left-[17px] top-[18px] w-3 h-px bg-purple-200" />
-      <div className="flex items-center gap-2 p-2 hover:bg-muted/30 transition-colors">
+      <div className={cn(TREE_CONNECTOR, 'top-[18px] bg-purple-200')} />
+      <div className="flex items-start md:items-center gap-2 p-2 hover:bg-muted/30 transition-colors">
         {hasChildren ? (
-          <CollapsibleTrigger className="p-1 hover:bg-muted rounded">
+          <CollapsibleTrigger
+            className={TREE_TOGGLE}
+            aria-label={isOpen ? `Collapse ${pitch.name}` : `Expand ${pitch.name}`}
+          >
             {isOpen ? (
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
             ) : (
@@ -541,44 +568,46 @@ function ExpandablePitch({
             )}
           </CollapsibleTrigger>
         ) : (
-          <div className="w-5" />
+          <div className="w-5 shrink-0" />
         )}
 
-        <div className={cn('p-1 rounded', 'bg-blue-100')}>
+        <div className={cn('p-1 rounded shrink-0', 'bg-blue-100')}>
           <Presentation className="h-3 w-3 text-blue-600" />
         </div>
 
-        <Link to={`/pitches/${pitch.id}`} className="flex-1 min-w-0 hover:underline">
-          <div className="flex items-center gap-2">
-            <span className="text-sm truncate">{pitch.name}</span>
-            {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500" />}
-          </div>
-        </Link>
+        <div className={TREE_ROW_BODY}>
+          <Link to={`/pitches/${pitch.id}`} className="min-w-0 md:flex-1 hover:underline">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm truncate">{pitch.name}</span>
+              {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
+            </div>
+          </Link>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {pitch.expected_due_date && (
-            <span
-              className={cn(
-                'text-xs flex items-center gap-1',
-                isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
-              )}
-            >
-              {formatDate(pitch.expected_due_date)}
-            </span>
-          )}
-          <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
-            {getStatusLabel(status)}
-          </Badge>
-          {hasChildren && (
-            <Badge variant="secondary" className="text-xs">
-              {pitch.childRequirements.length}
+          <div className={TREE_ROW_META}>
+            {pitch.expected_due_date && (
+              <span
+                className={cn(
+                  'text-xs flex items-center gap-1 whitespace-nowrap',
+                  isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
+                )}
+              >
+                {formatDate(pitch.expected_due_date)}
+              </span>
+            )}
+            <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
+              {getStatusLabel(status)}
             </Badge>
-          )}
+            {hasChildren && (
+              <Badge variant="secondary" className="text-xs">
+                {pitch.childRequirements.length}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
       <CollapsibleContent>
-        <div className="ml-5 pl-4 pb-1 border-l-2 border-blue-200">
+        <div className={cn(TREE_NEST, 'pb-1 border-blue-200')}>
           {pitch.childRequirements.map((req) => (
             <RequirementRow key={req.id} requirement={req} indent={0} showConnector />
           ))}
@@ -606,37 +635,37 @@ function RequirementRow({
   return (
     <Link
       to={`/requirements/${requirement.id}`}
-      className="flex items-center gap-2 p-2 hover:bg-muted/30 transition-colors border-b last:border-b-0 relative"
+      className="flex items-start md:items-center gap-2 p-2 hover:bg-muted/30 transition-colors border-b last:border-b-0 relative"
       style={{ paddingLeft: `${8 + indent * 16}px` }}
     >
       {showConnector && (
-        <div className="absolute -left-[17px] top-1/2 w-3 h-px bg-current opacity-30" />
+        <div className={cn(TREE_CONNECTOR, 'top-1/2 bg-current opacity-30')} />
       )}
-      <div className={cn('p-1 rounded', 'bg-orange-100')}>
+      <div className={cn('p-1 rounded shrink-0', 'bg-orange-100')}>
         <Target className="h-3 w-3 text-orange-600" />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+      <div className={TREE_ROW_BODY}>
+        <div className="flex items-center gap-2 min-w-0 md:flex-1">
           <span className="text-sm truncate">{requirement.name}</span>
-          {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500" />}
+          {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
         </div>
-      </div>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {requirement.expected_due_date && (
-          <span
-            className={cn(
-              'text-xs',
-              isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
-            )}
-          >
-            {formatDate(requirement.expected_due_date)}
-          </span>
-        )}
-        <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
-          {getStatusLabel(status)}
-        </Badge>
+        <div className={TREE_ROW_META}>
+          {requirement.expected_due_date && (
+            <span
+              className={cn(
+                'text-xs whitespace-nowrap',
+                isPastDueStatus(status) ? 'text-red-600' : 'text-muted-foreground'
+              )}
+            >
+              {formatDate(requirement.expected_due_date)}
+            </span>
+          )}
+          <Badge variant="outline" className={cn('text-xs', getStatusColor(status))}>
+            {getStatusLabel(status)}
+          </Badge>
+        </div>
       </div>
     </Link>
   )
@@ -757,7 +786,7 @@ function MyOpenDiscussionsWidget() {
               <p className="text-xs mt-1">Start a discussion from any entity's detail page</p>
             </div>
           ) : (
-            <ScrollArea className="h-[280px]">
+            <ScrollArea className="md:h-[280px]">
               <div className="divide-y">
                 {discussions.map((discussion) => {
                   const config = discussion.entity_type ? ENTITY_TYPE_CONFIG[discussion.entity_type as EntityType] : undefined
@@ -1005,7 +1034,7 @@ export function DashboardPage() {
     <div className="space-y-6">
       {/* Welcome Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words">
           Welcome back, {profile?.first_name || profile?.full_name?.split(' ')[0] || 'there'}
         </h1>
         <p className="text-muted-foreground mt-1">
@@ -1014,7 +1043,7 @@ export function DashboardPage() {
       </div>
 
       {/* Premium KPI Cards - Past Due vs Active - NOW CLICKABLE */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="My Sets"
           icon={Layers}
@@ -1069,7 +1098,7 @@ export function DashboardPage() {
       />
 
       {/* Main Content: Tasks + My Work */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* All Tasks - Grouped by All 6 Priority Levels */}
         <Card className="lg:col-span-1">
           <CardHeader className="pb-3">
@@ -1080,7 +1109,10 @@ export function DashboardPage() {
             <CardDescription>Tasks grouped by 6 priority levels</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[550px]">
+            {/* Fixed height (and its own scroll) from md up only. On a phone a
+                nested scroll region inside the scrolling page traps the thumb,
+                so the list simply flows with the page. */}
+            <ScrollArea className="md:h-[550px]">
               {tasksLoading ? (
                 <div className="space-y-3 p-4">
                   {[1, 2, 3, 4, 5].map((i) => (
@@ -1130,7 +1162,7 @@ export function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[550px]">
+            <ScrollArea className="md:h-[550px]">
               {workLoading ? (
                 <div className="space-y-3 p-4">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -1148,7 +1180,7 @@ export function DashboardPage() {
                   </p>
                 </div>
               ) : (
-                <div className="p-3">
+                <div className="p-2 md:p-3">
                   {/* All 6 Priority Levels */}
                   {PRIORITY_LEVELS.map((config, index) => {
                     const priorityKey = `priority${config.level}` as keyof typeof byPriority
@@ -1170,7 +1202,7 @@ export function DashboardPage() {
 
                   {/* Independent Items (Orphans) */}
                   {totalOrphans > 0 && (
-                    <div className="mt-4 p-3 bg-amber-50/50 rounded-lg">
+                    <div className="mt-4 p-2 md:p-3 bg-amber-50/50 rounded-lg">
                       <div className="flex items-center gap-2 py-2 px-3 bg-amber-100/50 rounded-lg mb-2">
                         <AlertTriangle className="h-4 w-4 text-amber-600" />
                         <span className="text-sm font-semibold">Independent Items</span>
@@ -1203,7 +1235,7 @@ export function DashboardPage() {
       </div>
 
       {/* Bottom Section: Assigned By Me + My Open Discussions */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <AssignedByMeWidget />
         <MyOpenDiscussionsWidget />
       </div>

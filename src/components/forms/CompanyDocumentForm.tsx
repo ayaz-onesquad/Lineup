@@ -338,7 +338,7 @@ export function CompanyDocumentForm({ onSuccess }: CompanyDocumentFormProps) {
           )}
         />
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="document_type"
@@ -381,7 +381,7 @@ export function CompanyDocumentForm({ onSuccess }: CompanyDocumentFormProps) {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField
             control={form.control}
             name="reference_code"
@@ -430,7 +430,7 @@ export function CompanyDocumentForm({ onSuccess }: CompanyDocumentFormProps) {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="owner_user_id"
@@ -480,7 +480,7 @@ export function CompanyDocumentForm({ onSuccess }: CompanyDocumentFormProps) {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="effective_date"

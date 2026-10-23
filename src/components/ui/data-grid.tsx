@@ -976,7 +976,7 @@ function MobileCard<T>({
       )}
     >
       {primary && (
-        <h3 className="text-base font-semibold leading-snug">
+        <h3 className="text-base font-semibold leading-snug break-words [overflow-wrap:anywhere]">
           {renderCellContent(primary, row)}
         </h3>
       )}
@@ -988,7 +988,7 @@ function MobileCard<T>({
               <dt className="w-24 shrink-0 text-muted-foreground">
                 {mobileLabelOf(column)}
               </dt>
-              <dd className={cn('min-w-0 flex-1', column.numeric && 'tabular-nums')}>
+              <dd className={cn('min-w-0 flex-1 break-words [overflow-wrap:anywhere]', column.numeric && 'tabular-nums')}>
                 {renderCellContent(column, row)}
               </dd>
             </div>
@@ -1020,7 +1020,7 @@ function MobileCard<T>({
                   <dt className="w-24 shrink-0 text-muted-foreground">
                     {mobileLabelOf(column)}
                   </dt>
-                  <dd className={cn('min-w-0 flex-1', column.numeric && 'tabular-nums')}>
+                  <dd className={cn('min-w-0 flex-1 break-words [overflow-wrap:anywhere]', column.numeric && 'tabular-nums')}>
                     {renderCellContent(column, row)}
                   </dd>
                 </div>
