@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useLead, useLeadContacts, useLeadMutations } from '@/hooks/useLeads'
+import { useRequirementsBySalesLead } from '@/hooks/useRequirements'
 import { useAllContacts, useCreateContact } from '@/hooks/useContacts'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
@@ -62,12 +63,14 @@ import {
   Link as LinkIcon,
   UserPlus,
   Zap,
+  CheckSquare,
 } from 'lucide-react'
 import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, US_STATE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DocumentsTab, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { RequirementsTabbedPanel } from '@/components/shared/RequirementsTabbedPanel'
 import type { LeadStatus, CompanySize, ContactRole, ReferralSource } from '@/types/database'
 import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
@@ -116,6 +119,7 @@ export function LeadDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: lead, isLoading } = useLead(leadId!)
   const { data: contacts, isLoading: contactsLoading } = useLeadContacts(leadId!)
+  const { data: tasks, isLoading: tasksLoading } = useRequirementsBySalesLead(leadId ?? '')
   const { data: allContacts } = useAllContacts()
   const { data: users } = useTenantUsers()
   const { updateLead, linkContact, unlinkContact, setPrimaryContact, convertToClient } =
@@ -523,6 +527,15 @@ export function LeadDetailPage() {
             <Target className="h-4 w-4" />
             Details
           </TabsTrigger>
+          <TabsTrigger value="tasks" className="gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Tasks
+            {tasks && tasks.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {tasks.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="contacts" className="gap-2">
             <Users className="h-4 w-4" />
             Contacts
@@ -799,6 +812,16 @@ export function LeadDetailPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Tasks Tab - requirements that belong to this lead (requirements.sales_lead_id) */}
+        <TabsContent value="tasks" className="mt-6">
+          <RequirementsTabbedPanel
+            requirements={tasks}
+            isLoading={tasksLoading}
+            createContext={leadId ? { sales_lead_id: leadId } : undefined}
+            emptyMessage="No tasks yet. Website mock-up requests add one automatically."
+          />
         </TabsContent>
 
         {/* Contacts Tab */}

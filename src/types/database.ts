@@ -357,7 +357,8 @@ export type ReviewStatus = 'not_required' | 'pending' | 'in_review' | 'approved'
 export interface Requirement {
   id: string
   tenant_id: string
-  client_id: string
+  client_id: string | null // Null when the task belongs to a sales Lead (sales_lead_id) instead of a client
+  sales_lead_id?: string | null // The sales pipeline Lead this task belongs to (not lead_id, which is the user leading the work)
   set_id?: string
   pitch_id?: string // Links to parent pitch (optional - requirements can exist without pitches)
   display_id: number
@@ -399,7 +400,8 @@ export interface Requirement {
 }
 
 export interface RequirementWithRelations extends Requirement {
-  clients?: { id: string; name: string } // Direct client relation (from client_id)
+  clients?: { id: string; name: string } | null // Direct client relation (from client_id)
+  sales_lead?: { id: string; lead_name: string } | null // Sales pipeline Lead relation (from sales_lead_id)
   sets?: SetWithRelations
   pitches?: { id: string; name: string; status?: string } // Parent pitch relation
   assigned_to?: UserProfile
@@ -769,7 +771,8 @@ export interface UpdateSetInput extends Omit<Partial<CreateSetInput>, 'project_i
 }
 
 export interface CreateRequirementInput {
-  client_id: string
+  client_id?: string | null // Required unless sales_lead_id is set
+  sales_lead_id?: string | null // The sales pipeline Lead this task belongs to
   set_id?: string
   pitch_id?: string // Optional pitch grouping within a set
   title: string
@@ -794,9 +797,10 @@ export interface CreateRequirementInput {
   show_in_client_portal?: boolean
 }
 
-export interface UpdateRequirementInput extends Omit<Partial<CreateRequirementInput>, 'client_id' | 'set_id' | 'pitch_id' | 'assigned_to_id' | 'reviewer_id' | 'lead_id' | 'secondary_lead_id' | 'pm_id'> {
+export interface UpdateRequirementInput extends Omit<Partial<CreateRequirementInput>, 'client_id' | 'sales_lead_id' | 'set_id' | 'pitch_id' | 'assigned_to_id' | 'reviewer_id' | 'lead_id' | 'secondary_lead_id' | 'pm_id'> {
   // FK fields can be explicitly set to null to clear them
   client_id?: string | null
+  sales_lead_id?: string | null
   set_id?: string | null
   pitch_id?: string | null
   assigned_to_id?: string | null

@@ -12,10 +12,12 @@ const isValidUUID = (str: string): boolean => {
   return uuidRegex.test(str)
 }
 
-// Helper to clean input - convert empty strings to null for UUID fields
-function cleanUUIDFields<T>(input: T, fields: string[]): T {
+// Helper to clean input - convert empty strings to null for UUID fields.
+// With onlyPresent, fields missing from the input are left out (a partial update must not clear them).
+function cleanUUIDFields<T>(input: T, fields: string[], { onlyPresent = false }: { onlyPresent?: boolean } = {}): T {
   const cleaned = { ...input } as Record<string, unknown>
   for (const field of fields) {
+    if (onlyPresent && !(field in cleaned)) continue
     const value = cleaned[field]
     if (value === '' || value === undefined) {
       cleaned[field] = null
@@ -27,9 +29,10 @@ function cleanUUIDFields<T>(input: T, fields: string[]): T {
 }
 
 // Helper to clean date fields - convert empty strings to null
-function cleanDateFields<T>(input: T, fields: string[]): T {
+function cleanDateFields<T>(input: T, fields: string[], { onlyPresent = false }: { onlyPresent?: boolean } = {}): T {
   const cleaned = { ...input } as Record<string, unknown>
   for (const field of fields) {
+    if (onlyPresent && !(field in cleaned)) continue
     const value = cleaned[field]
     // Convert empty string to null for date columns
     if (value === '' || value === undefined) {
@@ -51,9 +54,32 @@ const REQUIREMENT_SELECT = `
   assigned_to:assigned_to_id (id, full_name, avatar_url)
 `
 
+// Helper to attach the sales pipeline Lead (sales_lead_id) to tasks that belong to one.
+// Fetched separately (like clients) so requirement queries keep working without a join hint.
+async function enrichRequirementsWithSalesLeads<T extends Record<string, unknown>>(requirements: T[]): Promise<T[]> {
+  const leadIds = new Set<string>()
+  for (const r of requirements) {
+    if (typeof r.sales_lead_id === 'string' && r.sales_lead_id) leadIds.add(r.sales_lead_id)
+  }
+  if (leadIds.size === 0) return requirements
+
+  const { data: leads } = await supabase
+    .from('leads')
+    .select('id, lead_name')
+    .in('id', Array.from(leadIds))
+
+  const leadMap = new Map((leads || []).map(l => [l.id as string, l as { id: string; lead_name: string }]))
+  return requirements.map(r =>
+    typeof r.sales_lead_id === 'string' && r.sales_lead_id
+      ? { ...r, sales_lead: leadMap.get(r.sales_lead_id) || null }
+      : r
+  )
+}
+
 // Helper to enrich requirements with client data using direct client_id
-async function enrichRequirementsWithClients(requirements: Record<string, unknown>[]): Promise<RequirementWithRelations[]> {
-  if (!requirements.length) return requirements as unknown as RequirementWithRelations[]
+async function enrichRequirementsWithClients(rawRequirements: Record<string, unknown>[]): Promise<RequirementWithRelations[]> {
+  if (!rawRequirements.length) return rawRequirements as unknown as RequirementWithRelations[]
+  const requirements = await enrichRequirementsWithSalesLeads(rawRequirements)
 
   // Collect all client IDs from:
   // 1. requirement.client_id (direct, primary source)
@@ -235,6 +261,23 @@ export const requirementsApi = {
     return enrichRequirementsWithClients(data || [])
   },
 
+  /**
+   * Get tasks that belong to a sales pipeline Lead (requirements.sales_lead_id).
+   * Same select shape as getByClientId so RequirementsTabbedPanel can render them.
+   */
+  getBySalesLeadId: async (salesLeadId: string): Promise<RequirementWithRelations[]> => {
+    const { data, error } = await supabase
+      .from('requirements')
+      .select(REQUIREMENT_SELECT)
+      .eq('sales_lead_id', salesLeadId)
+      .is('deleted_at', null)
+      .order('priority', { ascending: true })
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return enrichRequirementsWithClients(data || [])
+  },
+
   getByAssignedTo: async (
     tenantId: string,
     userId: string
@@ -297,8 +340,20 @@ export const requirementsApi = {
       }
     }
 
+    // Attach the sales pipeline Lead when the task belongs to one
+    let salesLead: { id: string; lead_name: string } | null = null
+    if (requirement.sales_lead_id) {
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('id, lead_name')
+        .eq('id', requirement.sales_lead_id)
+        .maybeSingle()
+      salesLead = lead || null
+    }
+
     return {
       ...requirement,
+      sales_lead: salesLead,
       creator: requirement.created_by ? profileMap.get(requirement.created_by) || null : null,
       updater: requirement.updated_by ? profileMap.get(requirement.updated_by) || null : null,
     }
@@ -311,7 +366,7 @@ export const requirementsApi = {
   ): Promise<Requirement> => {
     // Clean UUID fields (including pitch_id for parent-child linking)
     let cleanedInput = cleanUUIDFields(input, [
-      'client_id', 'set_id', 'pitch_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
+      'client_id', 'sales_lead_id', 'set_id', 'pitch_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
     ])
 
     // Clean date fields - convert empty strings to null
@@ -319,9 +374,13 @@ export const requirementsApi = {
       'expected_due_date', 'actual_due_date', 'completed_date', 'expected_start_date', 'actual_start_date'
     ])
 
-    // Validate client_id (required)
-    if (!cleanedInput.client_id || !isValidUUID(cleanedInput.client_id)) {
+    // Every task needs a parent: a client, a sales Lead, or both (requirements_parent_check)
+    if (!cleanedInput.client_id && !cleanedInput.sales_lead_id) {
       throw new Error('A valid client must be selected')
+    }
+    // Only send sales_lead_id when there is one, so client tasks insert exactly as before
+    if (!cleanedInput.sales_lead_id) {
+      delete cleanedInput.sales_lead_id
     }
 
     // Set_id is now optional - validate only if provided
@@ -380,15 +439,17 @@ export const requirementsApi = {
       .single()
     const previousSetId = currentReq?.set_id
 
-    // Clean UUID fields - include all parent fields for re-assignment
+    // Clean UUID fields - include all parent fields for re-assignment.
+    // Only fields present in the input are touched, so a partial update (status, a grid cell)
+    // never clears the parent links of a task.
     let cleanedInput = cleanUUIDFields(input, [
-      'client_id', 'set_id', 'pitch_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
-    ])
+      'client_id', 'sales_lead_id', 'set_id', 'pitch_id', 'assigned_to_id', 'lead_id', 'secondary_lead_id', 'pm_id', 'reviewer_id'
+    ], { onlyPresent: true })
 
     // Clean date fields - convert empty strings to null (fixes "revert" bug when clearing dates)
     cleanedInput = cleanDateFields(cleanedInput, [
       'expected_due_date', 'actual_due_date', 'completed_date', 'expected_start_date', 'actual_start_date'
-    ])
+    ], { onlyPresent: true })
 
     const updates: Record<string, unknown> = {
       ...cleanedInput,

@@ -209,7 +209,10 @@ export function RequirementsPage() {
       key: 'clients.name',
       header: 'Client',
       editable: false,
-      render: (row) => row.clients?.name || row.sets?.projects?.clients?.name || '—',
+      render: (row) =>
+        row.clients?.name ||
+        row.sets?.projects?.clients?.name ||
+        (row.sales_lead?.lead_name ? `Lead: ${row.sales_lead.lead_name}` : '—'),
     },
     {
       key: 'sets.projects.name',
