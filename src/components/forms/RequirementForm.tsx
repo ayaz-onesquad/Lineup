@@ -9,7 +9,8 @@ import { useSets, useSetsByProject, useSetsByPhase } from '@/hooks/useSets'
 import { usePhasesByProject } from '@/hooks/usePhases'
 import { usePitchesBySet } from '@/hooks/usePitches'
 import { useTenantUsers } from '@/hooks/useTenant'
-import { useLead } from '@/hooks/useLeads'
+import { useLead, useLeads } from '@/hooks/useLeads'
+import { ParentTypeToggle } from '@/components/shared/ParentTypeToggle'
 import { useScrollToError } from '@/hooks/useScrollToError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,7 +42,9 @@ const requirementSchema = z.object({
   client_id: z.string().optional(),
   project_id: z.string().optional(),
   phase_id: z.string().optional(),
-  // Sales pipeline Lead parent (from context only). When set, a client is not required.
+  // What the task belongs to: a Client (full hierarchy) or a sales pipeline Lead
+  parent_type: z.enum(['client', 'lead']),
+  // Sales pipeline Lead parent. When the task belongs to a lead, a client is not required.
   sales_lead_id: z.string().optional(),
   // Actual fields - Set is optional (can be assigned later), Client is required contextually
   set_id: z.string().optional(),
@@ -82,8 +85,19 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   // A task created from a Lead belongs to the lead: the lead is the locked parent and the
   // client / project / set cascade does not apply.
   const salesLeadId = defaultValues?.sales_lead_id || ''
-  const isLeadTask = !!salesLeadId
+  const isLeadLocked = !!salesLeadId
   const { data: salesLead } = useLead(salesLeadId)
+  // Opened from a client, project, phase, set or pitch: the task is a client task.
+  const hasClientContext = !!(
+    defaultValues?.client_id ||
+    defaultValues?.project_id ||
+    defaultValues?.phase_id ||
+    defaultValues?.set_id ||
+    defaultValues?.pitch_id
+  )
+  // Without any context (global Tasks, My Work) the user chooses Client or Lead.
+  const canChooseParent = !isLeadLocked && !hasClientContext
+  const { data: leads } = useLeads()
   const { createRequirement } = useRequirementMutations()
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
@@ -98,8 +112,9 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       phase_id: defaultValues?.phase_id || '',
       set_id: defaultValues?.set_id || '',
       pitch_id: defaultValues?.pitch_id || '',
+      parent_type: isLeadLocked ? 'lead' : 'client',
       sales_lead_id: salesLeadId,
-      is_task: defaultValues?.is_task ?? isLeadTask,
+      is_task: defaultValues?.is_task ?? isLeadLocked,
       title: '',
       description: '',
       requirement_type: 'task',
@@ -123,6 +138,8 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   const selectedPhaseId = useWatch({ control: form.control, name: 'phase_id' })
   const selectedSetId = useWatch({ control: form.control, name: 'set_id' })
   const requiresReview = useWatch({ control: form.control, name: 'requires_review' })
+  const parentType = useWatch({ control: form.control, name: 'parent_type' })
+  const isLeadTask = parentType === 'lead'
 
   // Fetch phases by project, sets by project/phase, pitches by set
   const { data: projectPhases } = usePhasesByProject(selectedProjectId || '')
@@ -297,16 +314,21 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
 
   const onSubmit = async (data: RequirementFormData) => {
     // Extract only the fields we need (exclude filter fields, but include client_id for context)
-    const { project_id, phase_id, client_id, sales_lead_id, ...rest } = data
+    const { project_id, phase_id, client_id, sales_lead_id, parent_type, ...rest } = data
     void project_id // filter fields, not persisted
     void phase_id
 
-    if (isLeadTask) {
-      // Task on a Lead: the lead is the parent, no client / set / pitch
+    if (parent_type === 'lead') {
+      // Task on a Lead: the lead is the parent (and the only required link), no client / set / pitch
+      const leadId = sales_lead_id || salesLeadId
+      if (!leadId) {
+        form.setError('sales_lead_id', { message: 'Lead is required' })
+        return
+      }
       await createRequirement.mutateAsync({
         ...rest,
         client_id: null,
-        sales_lead_id: sales_lead_id || salesLeadId,
+        sales_lead_id: leadId,
         set_id: undefined,
         pitch_id: undefined,
         is_task: rest.is_task,
@@ -357,6 +379,15 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
     [filteredSets]
   )
 
+  const leadOptions = useMemo(() =>
+    leads?.map((l) => ({
+      value: l.id,
+      label: l.lead_name,
+      description: l.lead_id_display || undefined,
+    })) || [],
+    [leads]
+  )
+
   // IMPORTANT: Use user_profiles.id (not user_id) because FK references user_profiles table
   const userOptions = useMemo(() =>
     users?.filter((u) => u.user_profiles?.id).map((u) => ({
@@ -369,8 +400,57 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, scrollToFirstError)} className="space-y-4">
+        {/* Belongs to: Client | Lead (only when the form was opened without a parent) */}
+        {canChooseParent && (
+          <FormField
+            control={form.control}
+            name="parent_type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Belongs to</FormLabel>
+                <FormControl>
+                  <ParentTypeToggle
+                    value={field.value}
+                    onChange={(value) => {
+                      field.onChange(value)
+                      form.clearErrors(['client_id', 'sales_lead_id'])
+                    }}
+                    className="flex"
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        )}
+
+        {/* Task on a Lead chosen here: pick the lead */}
+        {isLeadTask && !isLeadLocked && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="sales_lead_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Lead</FormLabel>
+                  <FormControl>
+                    <SearchableSelect
+                      options={leadOptions}
+                      value={field.value || ''}
+                      onValueChange={(value) => field.onChange(value || '')}
+                      placeholder="Select lead..."
+                      searchPlaceholder="Search leads..."
+                      emptyMessage="No leads found."
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
         {/* Task on a Lead: the lead is the locked parent (Contextual Creation) */}
-        {isLeadTask && (
+        {isLeadLocked && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Lead</Label>

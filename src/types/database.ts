@@ -1655,3 +1655,29 @@ export interface PasswordAccessLogEntry {
   accessed_at: string
   user?: UserProfile | null
 }
+
+// ============================================================================
+// Lead notification settings (migration 072)
+// ============================================================================
+
+/** Per tenant: who is emailed about new leads, and who website mock-up tasks go to. */
+export interface LeadIntakeSettings {
+  tenant_id: string
+  /** user_profiles.id of team members who get the new-lead email */
+  notify_user_ids: string[]
+  /** Extra addresses that get it too */
+  notify_emails: string[]
+  /** user_profiles.id assigned website mock-up tasks; null = the intake user */
+  mockup_task_assignee_id: string | null
+  /** Email for leads added in LineUp (UI, imports); website requests always email */
+  notify_on_new_leads: boolean
+  created_at: string
+  updated_at: string
+  created_by?: string | null
+  updated_by?: string | null
+}
+
+export type UpdateLeadIntakeSettingsInput = Pick<
+  LeadIntakeSettings,
+  'notify_user_ids' | 'notify_emails' | 'mockup_task_assignee_id' | 'notify_on_new_leads'
+>
