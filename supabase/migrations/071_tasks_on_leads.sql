@@ -21,6 +21,9 @@ CREATE INDEX IF NOT EXISTS idx_requirements_sales_lead_id
 
 ALTER TABLE requirements ALTER COLUMN client_id DROP NOT NULL;
 
+-- Migration 015 required a client on every requirement (requirements_client_or_set_check);
+-- requirements_parent_check below replaces it.
+ALTER TABLE requirements DROP CONSTRAINT IF EXISTS requirements_client_or_set_check;
 ALTER TABLE requirements DROP CONSTRAINT IF EXISTS requirements_parent_check;
 ALTER TABLE requirements
   ADD CONSTRAINT requirements_parent_check
@@ -104,7 +107,7 @@ VALUES (
                     </tr>
                     <tr>
                         <td style="padding: 20px 40px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
-                            <p style="margin: 0; color: #71717a; font-size: 13px;">Reply to this email to answer {{contact_name}} directly.</p>
+                            <p style="margin: 0; color: #71717a; font-size: 13px;">To answer {{contact_name}}, write to {{email}} or open the lead in LineUp.</p>
                         </td>
                     </tr>
                 </table>
