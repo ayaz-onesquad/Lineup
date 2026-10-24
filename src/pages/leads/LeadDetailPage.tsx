@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useLead, useLeadContacts, useLeadMutations } from '@/hooks/useLeads'
+import { useRequirementsBySalesLead } from '@/hooks/useRequirements'
 import { useAllContacts, useCreateContact } from '@/hooks/useContacts'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { Button } from '@/components/ui/button'
@@ -62,12 +63,16 @@ import {
   Link as LinkIcon,
   UserPlus,
   Zap,
+  CheckSquare,
 } from 'lucide-react'
 import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, US_STATE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { DocumentsTab, NotesPanel, DiscussionsPanel, DeleteRecordButton } from '@/components/shared'
+import { RequirementsTabbedPanel } from '@/components/shared/RequirementsTabbedPanel'
+import { RichTextEditor, RichTextView } from '@/components/shared/RichTextEditor'
+import { isRichTextEmpty, toRichTextHtml } from '@/lib/sanitize'
 import type { LeadStatus, CompanySize, ContactRole, ReferralSource } from '@/types/database'
 import { CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 
@@ -116,6 +121,7 @@ export function LeadDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: lead, isLoading } = useLead(leadId!)
   const { data: contacts, isLoading: contactsLoading } = useLeadContacts(leadId!)
+  const { data: tasks, isLoading: tasksLoading } = useRequirementsBySalesLead(leadId ?? '')
   const { data: allContacts } = useAllContacts()
   const { data: users } = useTenantUsers()
   const { updateLead, deleteLead, linkContact, unlinkContact, setPrimaryContact, convertToClient } =
@@ -233,7 +239,7 @@ export function LeadDetailPage() {
       await updateLead.mutateAsync({
         id: leadId,
         lead_name: data.lead_name,
-        description: data.description || undefined,
+        description: isRichTextEmpty(data.description) ? undefined : data.description,
         status: data.status as LeadStatus,
         industry: data.industry || undefined,
         website: data.website || undefined,
@@ -246,7 +252,7 @@ export function LeadDetailPage() {
         estimated_close_date: data.estimated_close_date || undefined,
         source: data.source as ReferralSource | undefined,
         lead_owner_id: data.lead_owner_id || undefined,
-        notes: data.notes || undefined,
+        notes: isRichTextEmpty(data.notes) ? undefined : data.notes,
       })
       setIsEditing(false)
     } catch (error) {
@@ -530,6 +536,15 @@ export function LeadDetailPage() {
             <Target className="h-4 w-4" />
             Details
           </TabsTrigger>
+          <TabsTrigger value="tasks" className="gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Tasks
+            {tasks && tasks.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {tasks.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="contacts" className="gap-2">
             <Users className="h-4 w-4" />
             Contacts
@@ -758,21 +773,47 @@ export function LeadDetailPage() {
                     <p className="text-muted-foreground">—</p>
                   )}
                 </div>
+                {/* Description and notes are rich text (the website sends formatted messages);
+                    older plain-text values read one paragraph per line */}
                 <ViewEditField
-                  type="textarea"
+                  type="custom"
                   label="Description"
                   isEditing={isEditing}
-                  value={form.watch('description') || ''}
-                  onChange={(v) => form.setValue('description', v)}
-                  rows={3}
+                  viewContent={
+                    isRichTextEmpty(toRichTextHtml(lead.description)) ? (
+                      <p className="text-sm">—</p>
+                    ) : (
+                      <RichTextView content={toRichTextHtml(lead.description)} className="text-sm" />
+                    )
+                  }
+                  editContent={
+                    <RichTextEditor
+                      content={toRichTextHtml(form.getValues('description'))}
+                      onChange={(v) => form.setValue('description', v, { shouldDirty: true })}
+                      placeholder="Brief description of the lead..."
+                      minHeight="80px"
+                    />
+                  }
                 />
                 <ViewEditField
-                  type="textarea"
+                  type="custom"
                   label="Notes"
                   isEditing={isEditing}
-                  value={form.watch('notes') || ''}
-                  onChange={(v) => form.setValue('notes', v)}
-                  rows={3}
+                  viewContent={
+                    isRichTextEmpty(toRichTextHtml(lead.notes)) ? (
+                      <p className="text-sm">—</p>
+                    ) : (
+                      <RichTextView content={toRichTextHtml(lead.notes)} className="text-sm" />
+                    )
+                  }
+                  editContent={
+                    <RichTextEditor
+                      content={toRichTextHtml(form.getValues('notes'))}
+                      onChange={(v) => form.setValue('notes', v, { shouldDirty: true })}
+                      placeholder="Notes about this lead..."
+                      minHeight="120px"
+                    />
+                  }
                 />
               </div>
               <div className="mt-6 pt-4 border-t">
@@ -806,6 +847,16 @@ export function LeadDetailPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Tasks Tab - requirements that belong to this lead (requirements.sales_lead_id) */}
+        <TabsContent value="tasks" className="mt-6">
+          <RequirementsTabbedPanel
+            requirements={tasks}
+            isLoading={tasksLoading}
+            createContext={leadId ? { sales_lead_id: leadId } : undefined}
+            emptyMessage="No tasks yet. Website mock-up requests add one automatically."
+          />
         </TabsContent>
 
         {/* Contacts Tab */}

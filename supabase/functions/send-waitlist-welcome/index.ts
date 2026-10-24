@@ -49,7 +49,12 @@ interface LeadRecord {
   email: string | null
   industry: string | null
   created_at: string
+  source_automation_name?: string | null
 }
+
+// Leads filed by website-lead-intake are a business's own customers asking for a mock-up,
+// not people joining the LineUp waitlist. Keep in step with INTAKE_MARKER there.
+const WEBSITE_INTAKE_MARKER = 'Website form'
 
 interface WebhookPayload {
   type: 'INSERT' | 'UPDATE' | 'DELETE'
@@ -226,7 +231,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const { data: storedLead, error: leadError } = await supabase
       .from('leads')
-      .select('id, tenant_id, lead_name, email, industry, created_at')
+      .select('id, tenant_id, lead_name, email, industry, created_at, source_automation_name')
       .eq('id', postedId)
       .is('deleted_at', null)
       .single()
@@ -247,6 +252,17 @@ serve(async (req: Request): Promise<Response> => {
     console.error('Could not load lead:', err)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Website mock-up requests aren't waitlist signups
+  if (lead.source_automation_name === WEBSITE_INTAKE_MARKER) {
+    return new Response(JSON.stringify({
+      status: 'skipped',
+      reason: 'Lead came from a website intake, not the waitlist'
+    }), {
+      status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
   }

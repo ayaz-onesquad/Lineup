@@ -371,7 +371,8 @@ function TaskItem({
     computed_status?: string | null
     priority?: number
     expected_due_date?: string | null
-    clients?: { name?: string } // Direct client relation
+    clients?: { name?: string } | null // Direct client relation
+    sales_lead?: { lead_name?: string } | null // Sales pipeline Lead (task without a client)
     sets?: { clients?: { name?: string } }
   }
 }) {
@@ -395,7 +396,7 @@ function TaskItem({
           {isPriority1or2 && <Flame className="h-3 w-3 text-orange-500 shrink-0" />}
         </div>
         <p className="text-xs text-muted-foreground mt-1 break-words">
-          {task.clients?.name || task.sets?.clients?.name || 'No client'}
+          {task.clients?.name || task.sets?.clients?.name || (task.sales_lead?.lead_name ? `Lead: ${task.sales_lead.lead_name}` : 'No client')}
         </p>
         {/* Status sits with the date, under the title, so the title gets the
             panel's full width (it is ~280px wide beside My Work on desktop). */}

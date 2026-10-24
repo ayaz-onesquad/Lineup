@@ -21,6 +21,8 @@ import { User, Building2, Shield, ChevronRight, Key, Loader2 } from 'lucide-reac
 import { Link } from 'react-router-dom'
 import { getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { useUserRole } from '@/hooks/useUserRole'
+import { LeadNotificationSettingsCard } from '@/components/settings/LeadNotificationSettingsCard'
 
 const profileSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
@@ -31,6 +33,9 @@ type ProfileForm = z.infer<typeof profileSchema>
 
 export function SettingsPage() {
   const { user, profile, role, setProfile } = useAuthStore()
+  // Same admin check as the session policy card (org admins manage tenant-wide settings)
+  const { role: highestRole } = useUserRole()
+  const isTenantAdmin = highestRole === 'org_admin' || highestRole === 'sys_admin'
   const { currentTenant } = useTenantStore()
   const { toast } = useToast()
   const [isSaving, setIsSaving] = useState(false)
@@ -210,6 +215,9 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Leads: new-lead emails and the mock-up task assignee (admins only) */}
+      {isTenantAdmin && <LeadNotificationSettingsCard />}
 
       {/* Role Section */}
       <Card>

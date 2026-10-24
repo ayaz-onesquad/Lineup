@@ -61,6 +61,14 @@ export function useRequirementsByClient(clientId: string) {
   })
 }
 
+export function useRequirementsBySalesLead(salesLeadId: string) {
+  return useQuery({
+    queryKey: ['requirements', 'sales-lead', salesLeadId],
+    queryFn: () => requirementsApi.getBySalesLeadId(salesLeadId),
+    enabled: !!salesLeadId,
+  })
+}
+
 export function useMyRequirements() {
   const { user } = useAuthStore()
   const { currentTenant } = useTenantStore()
@@ -119,6 +127,9 @@ export function useRequirementMutations() {
         queryClient.invalidateQueries({ queryKey: ['pitches'] })
         queryClient.invalidateQueries({ queryKey: ['pitch', variables.pitch_id] })
       }
+      if (variables.sales_lead_id) {
+        queryClient.invalidateQueries({ queryKey: ['requirements', 'sales-lead', variables.sales_lead_id] })
+      }
       toast({
         title: 'Requirement created',
         description: 'The requirement has been created successfully.',
@@ -149,6 +160,9 @@ export function useRequirementMutations() {
       }
       if (updatedData?.client_id) {
         queryClient.invalidateQueries({ queryKey: ['client', updatedData.client_id] })
+      }
+      if (updatedData?.sales_lead_id) {
+        queryClient.invalidateQueries({ queryKey: ['requirements', 'sales-lead', updatedData.sales_lead_id] })
       }
       toast({
         title: 'Requirement updated',

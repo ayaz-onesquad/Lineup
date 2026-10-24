@@ -197,8 +197,14 @@ export function RequirementsPage() {
       key: 'clients.name',
       header: 'Client',
       editable: false,
-      exportValue: (row) => row.clients?.name || row.sets?.projects?.clients?.name,
-      render: (row) => row.clients?.name || row.sets?.projects?.clients?.name || '—',
+      exportValue: (row) =>
+        row.clients?.name ||
+        row.sets?.projects?.clients?.name ||
+        (row.sales_lead?.lead_name ? `Lead: ${row.sales_lead.lead_name}` : undefined),
+      render: (row) =>
+        row.clients?.name ||
+        row.sets?.projects?.clients?.name ||
+        (row.sales_lead?.lead_name ? `Lead: ${row.sales_lead.lead_name}` : '—'),
     },
     {
       key: 'sets.projects.name',
