@@ -53,7 +53,7 @@ export function StatusUpdateCard({ update, isFirst }: StatusUpdateCardProps) {
           {update.title && <h4 className="font-semibold">{update.title}</h4>}
 
           {/* Content */}
-          <div className="text-muted-foreground text-sm whitespace-pre-wrap">
+          <div className="text-muted-foreground text-sm whitespace-pre-wrap break-words">
             {update.content}
           </div>
 

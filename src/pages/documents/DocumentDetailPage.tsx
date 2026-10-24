@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import { formatFileSize } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import type { UserProfile } from '@/types/database'
@@ -113,7 +114,7 @@ export function DocumentDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: document, isLoading } = useDocument(documentId!)
-  const { updateDocument } = useDocumentMutations()
+  const { updateDocument, deleteDocument } = useDocumentMutations()
 
   // Fetch all related entities for dropdowns
   const { data: allClients } = useClients()
@@ -491,14 +492,14 @@ export function DocumentDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:items-center md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <FileText className="h-6 w-6 text-muted-foreground" />
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <FileText className="h-6 w-6 shrink-0 text-muted-foreground" />
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : document.name}
             </h1>
             {document.document_type && (
@@ -509,7 +510,7 @@ export function DocumentDetailPage() {
             )}
             {getVisibilityBadge()}
           </div>
-          <p className="text-muted-foreground">Documents &gt; {document.name}</p>
+          <p className="text-muted-foreground break-words">Documents &gt; {document.name}</p>
         </div>
       </div>
 
@@ -517,9 +518,16 @@ export function DocumentDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-6">
+          <div className="flex flex-wrap justify-end gap-2 mb-6">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="document"
+                  recordName={document.name}
+                  onDelete={() => deleteDocument.mutateAsync(document.id)}
+                  redirectTo="/documents"
+                  disabled={isSaving}
+                />
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
                   <X className="mr-2 h-4 w-4" />
                   Cancel

@@ -41,7 +41,7 @@ import { computeRequirementStatus, computeKeyDueDate, getStatusLabel, getStatusC
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DiscussionsPanel, DocumentsTab, NotesPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition } from '@/components/shared'
+import { DiscussionsPanel, DocumentsTab, NotesPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, DeleteRecordButton } from '@/components/shared'
 import type {
   RequirementType,
   ReviewStatus,
@@ -123,7 +123,7 @@ export function RequirementDetailPage() {
   const { data: allProjects } = useProjects()
   const { data: allSets } = useSets()
   const { data: tenantUsers } = useTenantUsers()
-  const { updateRequirement } = useRequirementMutations()
+  const { updateRequirement, deleteRequirement } = useRequirementMutations()
 
   // Check for ?edit=true query param to auto-enter edit mode
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
@@ -578,16 +578,16 @@ export function RequirementDetailPage() {
       />
 
       {/* Header - Title with Name | ID format */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('title') : requirement.title}
               {requirement.display_id && (
-                <span className="text-muted-foreground"> | ID: {requirement.display_id}</span>
+                <span className="ml-2 inline-flex translate-y-[-0.15em] items-center whitespace-nowrap rounded-md border bg-muted px-1.5 py-0.5 align-middle font-mono text-xs font-medium tracking-normal text-muted-foreground">#{requirement.display_id}</span>
               )}
             </h1>
             <Badge className={getStatusColor(reactiveStatus)}>
@@ -606,7 +606,7 @@ export function RequirementDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons with list position indicator */}
-          <div className="flex justify-end items-center gap-2 mb-4">
+          <div className="flex flex-wrap justify-end items-center gap-2 mb-4">
             {/* List position indicator and prev/next navigation */}
             {listPosition.total > 0 && listPosition.index >= 0 && (
               <div className="flex items-center gap-1 mr-2">
@@ -635,6 +635,13 @@ export function RequirementDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="requirement"
+                  recordName={requirement.title}
+                  onDelete={() => deleteRequirement.mutateAsync(requirement.id)}
+                  redirectTo="/requirements"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -744,7 +751,7 @@ export function RequirementDetailPage() {
                 </div>
               )}
               {/* Parent Hierarchy: Client → Project → Phase → Set → Pitch (all editable), or the Lead */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 sm:gap-6">
                 {/* 1. Client - Editable (or the Lead for a task on a Lead) */}
                 {showLeadParent ? (
                 <div className="md:col-span-2">
@@ -993,7 +1000,7 @@ export function RequirementDetailPage() {
                 />
               </div>
               {/* Priority fields - Urgency and Importance */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4 pt-4 border-t">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mt-4 pt-4 border-t">
                 <ViewEditField
                   type="select"
                   label="Urgency"
@@ -1039,7 +1046,7 @@ export function RequirementDetailPage() {
               </h3>
               {/* Key Due Date Display - Computed from actual/expected dates, reactive in edit mode */}
               <div className="mb-4 p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Key Due Date</p>
                     <p className="text-lg font-semibold">{reactiveKeyDueDate ? formatDate(reactiveKeyDueDate.toISOString()) : '—'}</p>
@@ -1082,7 +1089,7 @@ export function RequirementDetailPage() {
                 <Clock className="h-5 w-5 text-muted-foreground" />
                 Time Tracking
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Estimated Hours</p>
                   {isEditing ? (
@@ -1128,7 +1135,7 @@ export function RequirementDetailPage() {
                 <Users className="h-5 w-5 text-muted-foreground" />
                 Assignment & Review
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                 <ViewEditField
                   type="select"
                   label="Assigned To"

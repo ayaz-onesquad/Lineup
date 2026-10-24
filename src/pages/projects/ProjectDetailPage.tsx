@@ -31,7 +31,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -69,7 +68,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, StatusUpdatesTimeline, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar, DeleteRecordButton } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { SaveAsTemplateDialog } from '@/components/projects/SaveAsTemplateDialog'
@@ -117,7 +116,7 @@ export function ProjectDetailPage() {
   const { filter: setsFilter, setFilter: setSetsFilter, filtered: filteredSets, counts: setsCounts } = useStatusFilter(projectSets)
   const { filter: requirementsFilter, setFilter: setRequirementsFilter, filtered: filteredRequirements, counts: requirementsCounts } = useStatusFilter(projectRequirements)
   const { filter: pitchesFilter, setFilter: setPitchesFilter, filtered: filteredPitches, counts: pitchesCounts } = useStatusFilter(projectPitches)
-  const { updateProject, duplicateProject } = useProjectMutations()
+  const { updateProject, duplicateProject, deleteProject } = useProjectMutations()
   const { data: users } = useTenantUsers()
   const { data: clients } = useClients()
   const { openDetailPanel, openCreateModal } = useUIStore()
@@ -483,15 +482,15 @@ export function ProjectDetailPage() {
       />
 
       {/* Header - Client Name first, then Project Name, Status, Health */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : project.name}
-              {project.display_id && <span className="text-muted-foreground"> | ID: {project.display_id}</span>}
+              {project.display_id && <span className="ml-2 inline-flex translate-y-[-0.15em] items-center whitespace-nowrap rounded-md border bg-muted px-1.5 py-0.5 align-middle font-mono text-xs font-medium tracking-normal text-muted-foreground">#{project.display_id}</span>}
             </h1>
             <Badge className={getStatusColor(reactiveStatus)}>
               {getStatusLabel(reactiveStatus)}
@@ -508,7 +507,7 @@ export function ProjectDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons and Actions menu with list position indicator */}
-          <div className="flex justify-end items-center gap-2 mb-4">
+          <div className="flex flex-wrap justify-end items-center gap-2 mb-4">
             {/* List position indicator and prev/next navigation */}
             {listPosition.total > 0 && listPosition.index >= 0 && (
               <div className="flex items-center gap-1 mr-2">
@@ -537,6 +536,13 @@ export function ProjectDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="project"
+                  recordName={project.name}
+                  onDelete={() => deleteProject.mutateAsync(project.id)}
+                  redirectTo="/projects"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -578,10 +584,6 @@ export function ProjectDetailPage() {
                     >
                       Duplicate Project
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
-                      Delete Project
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
@@ -589,7 +591,7 @@ export function ProjectDetailPage() {
           </div>
 
           {/* Header fields: Client (1st), Project Name, Status, Health */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-1">
                 Client {isEditing && <span className="text-red-500">*</span>}
@@ -748,7 +750,7 @@ export function ProjectDetailPage() {
 
         {/* Sets Tab - Flat view of all sets using dedicated query */}
         <TabsContent value="sets" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <StatusFilterBar
               value={setsFilter}
               onChange={setSetsFilter}
@@ -903,7 +905,7 @@ export function ProjectDetailPage() {
                 Progress
               </h3>
               <div className="space-y-3 p-4 rounded-lg bg-muted/50">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Overall Completion</p>
                     <p className="text-2xl font-bold">{project.completion_percentage}%</p>
@@ -951,7 +953,7 @@ export function ProjectDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
                 <ViewEditField
                   type="date"
                   label="Expected Start Date"
@@ -1096,7 +1098,7 @@ export function ProjectDetailPage() {
 
         {/* Requirements Tab */}
         <TabsContent value="requirements" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <StatusFilterBar
               value={requirementsFilter}
               onChange={setRequirementsFilter}
@@ -1251,7 +1253,7 @@ export function ProjectDetailPage() {
 
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <StatusFilterBar
               value={pitchesFilter}
               onChange={setPitchesFilter}

@@ -10,6 +10,7 @@ import {
   usePitchesBySet,
   useRequirementsBySet,
   useRequirementsByPitch,
+  useBulkDelete,
 } from '@/hooks'
 import { useNavigate } from 'react-router-dom'
 import { useLeads } from '@/hooks/useLeads'
@@ -73,7 +74,8 @@ import {
 import type { DocumentWithUploader, EntityType } from '@/types/database'
 
 // File type icons
-function getFileIcon(fileType: string) {
+function getFileIcon(rawFileType: string | null | undefined) {
+  const fileType = rawFileType ?? ''
   if (fileType.startsWith('image/')) return FileImage
   if (fileType.includes('pdf') || fileType.includes('document') || fileType.includes('text'))
     return FileText
@@ -87,7 +89,8 @@ function getFileIcon(fileType: string) {
 }
 
 // File type color
-function getFileTypeColor(fileType: string): string {
+function getFileTypeColor(rawFileType: string | null | undefined): string {
+  const fileType = rawFileType ?? ''
   if (fileType.startsWith('image/')) return 'bg-purple-100 text-purple-700'
   if (fileType.includes('pdf')) return 'bg-red-100 text-red-700'
   if (fileType.includes('sheet') || fileType.includes('excel')) return 'bg-green-100 text-green-700'
@@ -202,6 +205,11 @@ export function DocumentsPage() {
   const { data: clients } = useClients()
   const { data: leads } = useLeads()
   const { deleteDocument, updateDocument } = useDocumentMutations()
+  const onBulkDelete = useBulkDelete(deleteDocument.mutateAsync, {
+    singular: 'document',
+    plural: 'documents',
+    queryKey: ['documents'],
+  })
 
   // Cascading data hooks - fetch based on parent selection
   const { data: projectsForClient } = useProjectsByClient(selectedClientId)
@@ -298,7 +306,7 @@ export function DocumentsPage() {
       !entityTypeFilter || doc.entity_type === entityTypeFilter
     const matchesFileType =
       !fileTypeFilter ||
-      (fileTypeFilter === 'image' && doc.file_type.startsWith('image/')) ||
+      (fileTypeFilter === 'image' && (doc.file_type ?? '').startsWith('image/')) ||
       (fileTypeFilter === 'pdf' && doc.file_type.includes('pdf')) ||
       (fileTypeFilter === 'document' &&
         (doc.file_type.includes('document') || doc.file_type.includes('word'))) ||
@@ -306,8 +314,8 @@ export function DocumentsPage() {
         (doc.file_type.includes('sheet') || doc.file_type.includes('excel'))) ||
       (fileTypeFilter === 'archive' &&
         (doc.file_type.includes('zip') || doc.file_type.includes('archive'))) ||
-      (fileTypeFilter === 'video' && doc.file_type.startsWith('video/')) ||
-      (fileTypeFilter === 'audio' && doc.file_type.startsWith('audio/'))
+      (fileTypeFilter === 'video' && (doc.file_type ?? '').startsWith('video/')) ||
+      (fileTypeFilter === 'audio' && (doc.file_type ?? '').startsWith('audio/'))
     return matchesSearch && matchesEntityType && matchesFileType
   })
 
@@ -599,6 +607,7 @@ export function DocumentsPage() {
         mobileLabel: 'Portal',
         width: '110px',
         accessor: (doc) => !!doc.show_in_client_portal,
+        exportValue: (doc) => (doc.show_in_client_portal ? 'Yes' : 'No'),
         cell: (doc) =>
           doc.show_in_client_portal ? (
             <Badge variant="secondary" className="text-xs">
@@ -829,6 +838,8 @@ export function DocumentsPage() {
           // and left /documents/:id unreachable from this page. Download and
           // open-link remain one tap away in the row actions.
           onRowOpen={row => navigate(`/documents/${row.id}`)}
+          bulkDelete={{ entityName: 'document', onDelete: onBulkDelete, entityPath: 'documents', onNavigate: navigate }}
+          exportOptions={{ fileName: 'Documents' }}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
           emptyState={{

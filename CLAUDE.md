@@ -290,6 +290,22 @@ Non-negotiables, repeated here because they are the ones most often broken:
 10. **Money and counts use `numeric: true`** so they right-align with tabular
     figures.
 
+11. **Contextual creation must lock the parent chain.** When a record is
+    created from inside a parent, resolve the ancestors with
+    `useParentContext` and guard every cascade reset with `isParentLocked`.
+    Locked selects are disabled and pass through `withLockedOption`. Passing
+    the id is not enough: a Requirement created from a Set used to arrive with
+    no set because an async reset cleared it. See docs/DESIGN-SYSTEM.md
+    section 10.
+
+12. **Match the submit payload to the entity's real columns.** Check the
+    `Create…Input` type first. Locking a select does not mean the column
+    exists: a requirement stores `set_id`, `pitch_id` and `client_id` but has
+    no `phase_id` (its phase comes via the set), so project and phase are
+    filter-only fields on that form. Sending a column that does not exist
+    fails the insert.
+
 Deprecated, do not use: `DataTable` (use `DataGrid`), `page-carbon`, native
 `<select>` (use `SearchableSelect`), `useMediaQuery` for layout (use Tailwind
-prefixes; media queries are for behaviour).
+prefixes; media queries are for behaviour), per-form `defaultValues` effects
+for parent ids (use `useParentContext`).

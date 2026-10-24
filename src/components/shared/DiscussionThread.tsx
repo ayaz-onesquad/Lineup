@@ -84,8 +84,8 @@ export function DiscussionThread({ discussion, className }: DiscussionThreadProp
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-medium text-sm">
                 {discussion.author?.full_name || 'Unknown User'}
               </span>
@@ -148,7 +148,7 @@ export function DiscussionThread({ discussion, className }: DiscussionThreadProp
               </div>
             </div>
           ) : (
-            <p className="text-sm whitespace-pre-wrap">{discussion.content}</p>
+            <p className="text-sm whitespace-pre-wrap break-words">{discussion.content}</p>
           )}
 
           {!editMode && (
@@ -248,8 +248,8 @@ function DiscussionReply({ reply }: DiscussionReplyProps) {
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 space-y-1">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-medium text-xs">
               {reply.author?.full_name || 'Unknown User'}
             </span>
@@ -307,7 +307,7 @@ function DiscussionReply({ reply }: DiscussionReplyProps) {
             </div>
           </div>
         ) : (
-          <p className="text-xs whitespace-pre-wrap">{reply.content}</p>
+          <p className="text-xs whitespace-pre-wrap break-words">{reply.content}</p>
         )}
       </div>
     </div>

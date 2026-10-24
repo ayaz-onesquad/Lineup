@@ -25,13 +25,13 @@ export function AuditTrail({
 
   return (
     <div className={`border-t pt-4 mt-6 ${className}`}>
-      <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
+      <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-muted-foreground">
         {/* Created */}
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-foreground">Created:</span>
-          <span>{formatDateTime(created_at)}</span>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="whitespace-nowrap font-medium text-foreground">Created:</span>
+          <span className="whitespace-nowrap">{formatDateTime(created_at)}</span>
           {creator && (
-            <div className="flex items-center gap-1.5 ml-1">
+            <div className="flex min-w-0 items-center gap-1.5">
               <span>by</span>
               <Avatar className="h-5 w-5">
                 <AvatarImage src={creator.avatar_url} alt={creator.full_name} />
@@ -39,7 +39,7 @@ export function AuditTrail({
                   {getInitials(creator.full_name)}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-foreground">{creator.full_name}</span>
+              <span className="min-w-0 break-words text-foreground">{creator.full_name}</span>
             </div>
           )}
         </div>
@@ -47,12 +47,12 @@ export function AuditTrail({
         {/* Updated */}
         {showUpdated && (
           <>
-            <Separator orientation="vertical" className="h-5" />
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-foreground">Last Updated:</span>
-              <span>{formatDateTime(updated_at)}</span>
+            <Separator orientation="vertical" className="hidden h-5 md:block" />
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="whitespace-nowrap font-medium text-foreground">Last Updated:</span>
+              <span className="whitespace-nowrap">{formatDateTime(updated_at)}</span>
               {updater && (
-                <div className="flex items-center gap-1.5 ml-1">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <span>by</span>
                   <Avatar className="h-5 w-5">
                     <AvatarImage src={updater.avatar_url} alt={updater.full_name} />
@@ -60,7 +60,7 @@ export function AuditTrail({
                       {getInitials(updater.full_name)}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="text-foreground">{updater.full_name}</span>
+                  <span className="min-w-0 break-words text-foreground">{updater.full_name}</span>
                 </div>
               )}
             </div>

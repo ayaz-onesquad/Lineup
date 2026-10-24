@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import type { UserProfile } from '@/types/database'
 import {
   ArrowLeft,
@@ -100,7 +101,7 @@ export function CompetitorDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: competitor, isLoading } = useCompetitor(competitorId!)
-  const { updateCompetitor } = useCompetitorMutations()
+  const { updateCompetitor, deleteCompetitor } = useCompetitorMutations()
   const { data: clients } = useClients()
 
   const shouldEditOnLoad = searchParams.get('edit') === 'true'
@@ -286,16 +287,16 @@ export function CompetitorDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:items-center md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <Badge variant="outline" className="font-mono">
               COMP-{String(competitor.display_id).padStart(4, '0')}
             </Badge>
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : competitor.name}
             </h1>
             {competitor.threat_level && (
@@ -317,9 +318,16 @@ export function CompetitorDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-6">
+          <div className="flex flex-wrap justify-end gap-2 mb-6">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="competitor"
+                  recordName={competitor.name}
+                  onDelete={() => deleteCompetitor.mutateAsync(competitor.id)}
+                  redirectTo="/competitors"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -357,7 +365,7 @@ export function CompetitorDetailPage() {
                 <Building2 className="h-5 w-5 text-muted-foreground" />
                 Overview
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 <ViewEditField
                   type="text"
                   label="Name"
@@ -601,7 +609,7 @@ export function CompetitorDetailPage() {
                 <Tag className="h-5 w-5 text-muted-foreground" />
                 Metadata
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Linked Client
@@ -659,7 +667,7 @@ export function CompetitorDetailPage() {
                       onChange={(e) => form.setValue('last_reviewed_at', e.target.value)}
                     />
                   ) : (
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
                       <span className="font-medium">
                         {competitor.last_reviewed_at
                           ? new Date(competitor.last_reviewed_at).toLocaleDateString()
@@ -671,9 +679,10 @@ export function CompetitorDetailPage() {
                           size="sm"
                           onClick={handleMarkAsReviewed}
                           disabled={updateCompetitor.isPending}
+                          className="h-auto min-h-8 max-w-full whitespace-normal py-1 text-left"
                         >
-                          <RefreshCw className="mr-1 h-3 w-3" />
-                          Mark as Reviewed Today
+                          <RefreshCw className="mr-1 h-3 w-3 shrink-0" />
+                          Mark as reviewed today
                         </Button>
                       )}
                     </div>

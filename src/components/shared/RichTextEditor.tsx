@@ -210,7 +210,7 @@ export function RichTextEditor({
     return (
       <div
         className={cn(
-          'prose prose-sm max-w-none',
+          'prose prose-sm max-w-none break-words',
           '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-2',
           '[&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2',
           '[&_p]:mb-2',
@@ -238,7 +238,7 @@ export function RichTextEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          'prose prose-sm max-w-none p-3',
+          'prose prose-sm max-w-none break-words p-3',
           '[&_.ProseMirror]:outline-none',
           '[&_.ProseMirror]:min-h-[var(--min-height)]',
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground',

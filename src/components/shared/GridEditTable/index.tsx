@@ -35,10 +35,11 @@ import {
   ArrowDownAZ,
   ChevronsUpDown,
   Inbox,
+  Download,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { DataGrid, ScrollFrame, type DataGridColumn } from '@/components/ui/data-grid'
 import { toast } from '@/hooks/use-toast'
 import {
   DndContext,
@@ -237,6 +238,9 @@ function ColumnManagerButton<T>({
   )
 }
 
+/** Width for columns that declare none, so they cannot collapse. */
+const DEFAULT_COLUMN_WIDTH = 160
+
 export function GridEditTable<T extends { id: string }>({
   columns,
   data,
@@ -259,6 +263,7 @@ export function GridEditTable<T extends { id: string }>({
   density = 'compact',
   defaultSort,
   ariaLabel,
+  exportFileName,
 }: GridEditTableProps<T>) {
   const isMobile = useMediaQuery('(max-width: 767px)')
   // Get initial column state from localStorage or defaults
@@ -638,6 +643,47 @@ export function GridEditTable<T extends { id: string }>({
     })
   }, [data, sort, columns, getCellValue])
 
+  // Excel export: the rows on screen (or just the selected ones), in the
+  // columns the user has not hidden, in their chosen order.
+  const [isExporting, setIsExporting] = useState(false)
+  const handleExport = useCallback(async () => {
+    if (!exportFileName) return
+    setIsExporting(true)
+    try {
+      const { exportToExcel } = await import('@/lib/exportToExcel')
+      const selected = sortedData.filter(row => rowSelection[row.id])
+      await exportToExcel<T>({
+        fileName: exportFileName,
+        rows: selected.length > 0 ? selected : sortedData,
+        columns: visibleColumns.map(column => ({
+          header: typeof column.header === 'string' ? column.header : getColumnId(column),
+          value: (row: T) =>
+            column.exportValue
+              ? column.exportValue(row)
+              : column.getValue
+                ? column.getValue(row)
+                : getCellValue(row, column.key),
+        })),
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }, [exportFileName, sortedData, rowSelection, visibleColumns, getCellValue])
+
+  const selectedCountForExport = Object.values(rowSelection).filter(Boolean).length
+
+  // Sum of declared column widths; see the table element below.
+  const tableMinWidth = useMemo(
+    () =>
+      (enableSelection ? 40 : 0) +
+      (onDelete ? 50 : 0) +
+      visibleColumns.reduce((total, column) => {
+        const declared = column.size ?? parseInt(String(column.width ?? ''), 10)
+        return total + (Number.isFinite(declared) && declared > 0 ? declared : DEFAULT_COLUMN_WIDTH)
+      }, 0),
+    [enableSelection, onDelete, visibleColumns]
+  )
+
   const hasHideableColumns = useMemo(() =>
     columns.some(col => col.enableHiding !== false),
     [columns]
@@ -711,6 +757,17 @@ export function GridEditTable<T extends { id: string }>({
         defaultSort={sort ?? defaultSort}
         toolbar={children}
         ariaLabel={ariaLabel}
+        exportOptions={exportFileName ? { fileName: exportFileName } : undefined}
+        selectedIds={
+          enableSelection && onRowSelectionChange
+            ? new Set(Object.keys(rowSelection).filter(id => rowSelection[id]))
+            : undefined
+        }
+        onSelectionChange={
+          enableSelection && onRowSelectionChange
+            ? ids => onRowSelectionChange(Object.fromEntries(Array.from(ids).map(id => [id, true])))
+            : undefined
+        }
         emptyState={{
           icon: Inbox,
           title: emptyMessage,
@@ -737,7 +794,19 @@ export function GridEditTable<T extends { id: string }>({
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           {children}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {exportFileName && (
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={isExporting || sortedData.length === 0}
+              className="gap-2"
+              title={selectedCountForExport > 0 ? `Export the  selected rows to Excel` : 'Export these rows to Excel'}
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {selectedCountForExport > 0 ? `Export ` : 'Export'}
+            </Button>
+          )}
           {toolbarActions}
           {hasHideableColumns && storageKey && (
             <ColumnManagerButton
@@ -778,8 +847,12 @@ export function GridEditTable<T extends { id: string }>({
           {emptyAction && <div className="mt-4">{emptyAction}</div>}
         </div>
       ) : (
-        <div className="relative overflow-auto border rounded-lg" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-          <table className="w-full caption-bottom text-sm table-fixed">
+        <ScrollFrame maxBodyHeight="calc(100vh - 280px)">
+          {/* `table-fixed` + `w-full` alone squeezes every column into the
+              container, so a wide grid never scrolls and long text wraps one
+              word per line. The min-width keeps each column at its declared
+              width and lets the container above scroll sideways instead. */}
+          <table className="w-full caption-bottom text-sm table-fixed" style={{ minWidth: tableMinWidth }}>
             <thead className="sticky top-0 z-10 bg-background shadow-sm [&_tr]:border-b">
               <tr className="border-b">
                 {enableSelection && (
@@ -804,7 +877,7 @@ export function GridEditTable<T extends { id: string }>({
                   return (
                     <th
                       key={columnId}
-                      style={column.size ? { width: column.size } : column.width ? { width: column.width } : undefined}
+                      style={{ width: column.size ?? column.width ?? DEFAULT_COLUMN_WIDTH }}
                       aria-sort={
                         active
                           ? sort!.direction === 'asc'
@@ -919,7 +992,7 @@ export function GridEditTable<T extends { id: string }>({
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollFrame>
       )}
 
       {/* Floating Save Bar */}

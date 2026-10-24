@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { usePhases, usePhaseMutations, useClients, useProjects, useDataGridFilters, type FilterConfig } from '@/hooks'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useTenantUsers, useTenant } from '@/hooks/useTenant'
 import { useUIStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -13,14 +13,12 @@ import { Plus, Calendar, Building2, Upload, Filter } from 'lucide-react'
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
 import { BulkActionBar, storeListContext, FilterBar, type RowClickContext } from '@/components/shared'
-import { toast } from '@/hooks/use-toast'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import { formatDate } from '@/lib/utils'
 import type { EnhancedProjectPhase, UpdatePhaseInput } from '@/types/database'
 
 export function PhasesPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -99,25 +97,15 @@ export function PhasesPage() {
   }, [filteredPhases, rowSelection])
 
   // Handle bulk delete
-  const handleBulkDelete = useCallback(async (ids: string[]) => {
-    const results = await Promise.allSettled(
-      ids.map((id) => deletePhase.mutateAsync({ id }))
-    )
-    const failures = results.filter((r) => r.status === 'rejected')
-    await queryClient.invalidateQueries({ queryKey: ['phases'] })
-    if (failures.length > 0) {
-      toast({
-        title: 'Some deletions failed',
-        description: `${ids.length - failures.length} of ${ids.length} phases deleted.`,
-        variant: 'destructive',
-      })
-    } else {
-      toast({
-        title: 'Phases deleted',
-        description: `${ids.length} phase${ids.length !== 1 ? 's' : ''} deleted successfully.`,
-      })
-    }
-  }, [deletePhase, queryClient])
+  const deletePhaseById = useCallback(
+    (id: string) => deletePhase.mutateAsync({ id }),
+    [deletePhase]
+  )
+  const handleBulkDelete = useBulkDelete(deletePhaseById, {
+    singular: 'phase',
+    plural: 'phases',
+    queryKey: ['phases'],
+  })
 
   // Grid columns definition
   const columns: GridColumn<EnhancedProjectPhase>[] = useMemo(() => [
@@ -127,6 +115,7 @@ export function PhasesPage() {
       hideOnMobile: true,
       editable: false, // Display ID is read-only
       enableHiding: false, // ID column cannot be hidden
+      exportValue: (row) => row.phase_id_display || `PH-${row.display_id}`,
       render: (row) => (
         <span className="font-mono text-sm">
           {row.phase_id_display || `PH-${row.display_id}`}
@@ -179,6 +168,7 @@ export function PhasesPage() {
       header: 'Status',
       priority: 'secondary',
       editable: false, // Computed from dates
+      exportValue: (row) => getStatusLabel(computeDisplayStatus(row)),
       render: (row) => (
         <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
           {getStatusLabel(computeDisplayStatus(row))}
@@ -192,6 +182,7 @@ export function PhasesPage() {
       editable: true,
       type: 'select',
       options: userOptions,
+      exportValue: (row) => row.lead?.full_name,
       render: (row) => row.lead?.full_name || '-',
     },
     {
@@ -264,9 +255,9 @@ export function PhasesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Phases</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Phases</h1>
           <p className="text-muted-foreground">
             Manage project phases across all projects
           </p>
@@ -354,6 +345,7 @@ export function PhasesPage() {
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
               storageKey="phases_overview"
+              exportFileName="Phases"
             />
           </CardContent>
         </Card>

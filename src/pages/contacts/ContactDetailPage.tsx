@@ -61,6 +61,7 @@ import { formatDate, CONTACT_ROLE_OPTIONS } from '@/lib/utils'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
+import { DeleteRecordButton } from '@/components/shared'
 import { toast } from '@/hooks/use-toast'
 import type { ContactRole } from '@/types/database'
 
@@ -108,7 +109,7 @@ export function ContactDetailPage() {
 
   const { data: contact, isLoading: contactLoading } = useContact(safeContactId)
   const { data: linkedClients, isLoading: linkedClientsLoading } = useContactClients(safeContactId)
-  const { updateContact } = useContactMutations(contact?.client_id ?? '')
+  const { updateContact, deleteContact } = useContactMutations(contact?.client_id ?? '')
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -314,18 +315,18 @@ export function ContactDetailPage() {
       />
 
       {/* Header - Simplified: Name, Role badge, Primary badge */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-start gap-2 md:flex-nowrap md:items-center md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing
                 ? `${form.watch('first_name')} ${form.watch('last_name')}`
                 : `${contact.first_name} ${contact.last_name}`}
               {contact.display_id && (
-                <span className="text-muted-foreground"> | ID: {contact.display_id}</span>
+                <span className="ml-2 inline-flex translate-y-[-0.15em] items-center whitespace-nowrap rounded-md border bg-muted px-1.5 py-0.5 align-middle font-mono text-xs font-medium tracking-normal text-muted-foreground">#{contact.display_id}</span>
               )}
             </h1>
             {contact.role && (
@@ -336,8 +337,8 @@ export function ContactDetailPage() {
           </div>
           {linkedClients && linkedClients.length > 0 ? (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Building2 className="h-3 w-3" />
-              <span>
+              <Building2 className="h-3 w-3 shrink-0" />
+              <span className="min-w-0 break-words">
                 {linkedClients.map((lc, i) => (
                   <span key={lc.client.id}>
                     <Link
@@ -363,6 +364,7 @@ export function ContactDetailPage() {
         {linkedClients && linkedClients.length > 0 && !hasUserAccount && (
           <Button
             variant="outline"
+            className="w-full md:w-auto"
             onClick={() => setIsConvertDialogOpen(true)}
           >
             <UserPlus className="mr-2 h-4 w-4" />
@@ -370,10 +372,12 @@ export function ContactDetailPage() {
           </Button>
         )}
         {hasUserAccount && (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 py-1.5 px-3">
-            <UserCheck className="mr-2 h-4 w-4" />
-            Has Portal Access
-          </Badge>
+          <div className="w-full pl-12 md:w-auto md:pl-0">
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 py-1.5 px-3">
+              <UserCheck className="mr-2 h-4 w-4" />
+              Has Portal Access
+            </Badge>
+          </div>
         )}
       </div>
 
@@ -381,9 +385,16 @@ export function ContactDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-4">
+          <div className="flex flex-wrap justify-end gap-2 mb-4">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="contact"
+                  recordName={`${contact.first_name} ${contact.last_name}`}
+                  onDelete={() => deleteContact.mutateAsync(contact.id)}
+                  redirectTo="/contacts"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -415,7 +426,7 @@ export function ContactDetailPage() {
           </div>
 
           {/* Header fields: Name and Role */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
             <ViewEditField
               type="text"
               label="First Name"
@@ -474,7 +485,7 @@ export function ContactDetailPage() {
                 <Building2 className="h-5 w-5 text-muted-foreground" />
                 Client Information
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Client</p>
                   <Link
@@ -499,7 +510,7 @@ export function ContactDetailPage() {
                 <User className="h-5 w-5 text-muted-foreground" />
                 Contact Information
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 <ViewEditField
                   type="email"
                   label="Email"

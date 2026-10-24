@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompetitors, useCompetitorMutations } from '@/hooks/useCompetitors'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useUIStore } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
@@ -77,6 +78,11 @@ export function CompetitorsPage() {
   const navigate = useNavigate()
   const { data: competitors, isLoading, error, refetch } = useCompetitors()
   const { deleteCompetitor } = useCompetitorMutations()
+  const onBulkDelete = useBulkDelete(deleteCompetitor.mutateAsync, {
+    singular: 'competitor',
+    plural: 'competitors',
+    queryKey: ['competitors'],
+  })
   const { openCreateModal } = useUIStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -126,6 +132,7 @@ export function CompetitorsPage() {
         hideable: false,
         width: '120px',
         accessor: row => row.display_id ?? 0,
+        exportValue: row => `COMP-${String(row.display_id ?? 0).padStart(4, '0')}`,
         cell: row => (
           <Badge variant="outline" className="font-mono text-xs">
             COMP-{String(row.display_id ?? 0).padStart(4, '0')}
@@ -161,6 +168,7 @@ export function CompetitorsPage() {
         width: '150px',
         // Ranked, not alphabetical: "critical" is not between "high" and "low".
         accessor: row => (row.threat_level ? threatLevelRank[row.threat_level] : null),
+        exportValue: row => (row.threat_level ? titleCase(row.threat_level) : ''),
         cell: row =>
           row.threat_level ? (
             <Badge className={threatLevelColors[row.threat_level]}>
@@ -199,6 +207,7 @@ export function CompetitorsPage() {
         header: 'Website',
         width: '190px',
         accessor: row => (row.website ? truncateUrl(row.website) : ''),
+        exportValue: row => row.website ?? '',
         cell: row =>
           row.website ? (
             // safeHttpUrl rejects anything that is not http(s), so a stored
@@ -246,6 +255,8 @@ export function CompetitorsPage() {
         // Double click, Enter or a mobile tap opens the record; there is no
         // quick-view panel for competitors, so single click does nothing.
         onRowOpen={row => navigate(`/competitors/${row.id}`)}
+        bulkDelete={{ entityName: 'competitor', onDelete: onBulkDelete, entityPath: 'competitors', onNavigate: navigate }}
+        exportOptions={{ fileName: 'Competitors' }}
         hasActiveFilters={hasActiveFilters}
         onClearFilters={clearFilters}
         emptyState={{

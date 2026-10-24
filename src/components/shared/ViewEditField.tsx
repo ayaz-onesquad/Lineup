@@ -102,7 +102,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
       // Format dates in view mode using MM/DD/YYYY format
       const displayValue = type === 'date' ? formatDate(value) : (value || '—')
       return (
-        <div className={cn('min-h-[52px]', className)}>
+        <div className={cn('min-h-[52px] min-w-0', className)}>
           {renderLabel()}
           {isEditing ? (
             <Input
@@ -113,7 +113,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
               className={cn('h-9', error && 'border-destructive')}
             />
           ) : (
-            <p className="h-9 flex items-center">{displayValue}</p>
+            <p className="min-h-9 flex items-center min-w-0 [overflow-wrap:anywhere]">{displayValue}</p>
           )}
           {renderError()}
         </div>
@@ -123,7 +123,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
     case 'textarea': {
       const { value, onChange, placeholder, rows = 3 } = props
       return (
-        <div className={cn('min-h-[84px]', className)}>
+        <div className={cn('min-h-[84px] min-w-0', className)}>
           {renderLabel()}
           {isEditing ? (
             <Textarea
@@ -134,7 +134,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
               className={cn(error && 'border-destructive')}
             />
           ) : (
-            <p className="text-sm whitespace-pre-wrap">{value || '—'}</p>
+            <p className="text-sm whitespace-pre-wrap break-words">{value || '—'}</p>
           )}
           {renderError()}
         </div>
@@ -145,7 +145,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
       const { value, onChange, options, placeholder, searchable, clearable } = props
       const selectedOption = options.find((o) => o.value === value)
       return (
-        <div className={cn('min-h-[52px]', className)}>
+        <div className={cn('min-h-[52px] min-w-0', className)}>
           {renderLabel()}
           {isEditing ? (
             searchable ? (
@@ -175,7 +175,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
               </Select>
             )
           ) : (
-            <p className="h-9 flex items-center">{selectedOption?.label || '—'}</p>
+            <p className="min-h-9 flex items-center min-w-0 [overflow-wrap:anywhere]">{selectedOption?.label || '—'}</p>
           )}
           {renderError()}
         </div>
@@ -185,7 +185,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
     case 'switch': {
       const { value, onChange, description } = props
       return (
-        <div className={cn('min-h-[52px] flex items-center gap-3', className)}>
+        <div className={cn('min-h-[52px] min-w-0 flex items-center gap-3', className)}>
           {isEditing ? (
             <>
               <Switch checked={value} onCheckedChange={onChange} />
@@ -215,7 +215,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
       const { value, onChange, options } = props
       const selectedOption = options.find((o) => o.value === value)
       return (
-        <div className={cn('min-h-[52px]', className)}>
+        <div className={cn('min-h-[52px] min-w-0', className)}>
           {renderLabel()}
           {isEditing ? (
             <Select value={value} onValueChange={onChange}>
@@ -231,7 +231,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
               </SelectContent>
             </Select>
           ) : (
-            <div className="h-9 flex items-center">
+            <div className="min-h-9 flex flex-wrap items-center gap-1 min-w-0">
               {selectedOption ? (
                 <Badge variant={selectedOption.variant || 'default'}>
                   {selectedOption.label}
@@ -249,7 +249,7 @@ export function ViewEditField(props: ViewEditFieldProps) {
     case 'custom': {
       const { viewContent, editContent } = props
       return (
-        <div className={cn('min-h-[52px]', className)}>
+        <div className={cn('min-h-[52px] min-w-0', className)}>
           {renderLabel()}
           {isEditing ? editContent : viewContent}
           {renderError()}

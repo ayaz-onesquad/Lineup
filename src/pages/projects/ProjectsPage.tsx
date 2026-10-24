@@ -1,9 +1,8 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { useProjects, useProjectMutations, useClients, useDataGridFilters, type FilterConfig } from '@/hooks'
+import { useProjects, useProjectMutations, useClients, useDataGridFilters, useBulkDelete, type FilterConfig } from '@/hooks'
 import { useUIStore } from '@/stores'
-import { MobileActionBar, BulkActionBar, storeListContext, type RowClickContext } from '@/components/shared'
+import { MobileActionBar, storeListContext, type RowClickContext } from '@/components/shared'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
 import { GridToolbar, GridSearch, GridFilterSelect } from '@/components/shared/GridToolbar'
@@ -25,7 +24,6 @@ import { Plus, FolderKanban, Grid, List, MoreVertical, Edit, Building2, User, Up
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { getHealthColor, formatDate } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
-import { toast } from '@/hooks/use-toast'
 import type { ProjectWithRelations } from '@/types/database'
 
 const STATUS_VALUES = ['active', 'on_deck', 'past_due', 'completed', 'future'] as const
@@ -39,12 +37,15 @@ export function ProjectsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { data: projects, isLoading, error, refetch } = useProjects()
   const { data: clients } = useClients()
   const { deleteProject } = useProjectMutations()
+  const onBulkDelete = useBulkDelete(deleteProject.mutateAsync, {
+    singular: 'project',
+    plural: 'projects',
+    queryKey: ['projects'],
+  })
   const { openCreateModal, openDetailPanel } = useUIStore()
 
   const selectedProject = projects?.find((p) => p.id === selectedRowId) ?? null
@@ -99,33 +100,6 @@ export function ProjectsPage() {
     storeListContext(ids, context?.source ?? 'projects_overview')
     navigate(`/projects/${id}${editMode ? '?edit=true' : ''}`)
   }, [filteredProjects, navigate])
-
-  // Get selected rows for bulk actions
-  const selectedRows = useMemo(
-    () => filteredProjects.filter((project) => selectedIds.has(project.id)),
-    [filteredProjects, selectedIds]
-  )
-
-  // Handle bulk delete
-  const handleBulkDelete = useCallback(async (ids: string[]) => {
-    const results = await Promise.allSettled(
-      ids.map((id) => deleteProject.mutateAsync(id))
-    )
-    const failures = results.filter((r) => r.status === 'rejected')
-    await queryClient.invalidateQueries({ queryKey: ['projects'] })
-    if (failures.length > 0) {
-      toast({
-        title: 'Some deletions failed',
-        description: `${ids.length - failures.length} of ${ids.length} projects deleted.`,
-        variant: 'destructive',
-      })
-    } else {
-      toast({
-        title: 'Projects deleted',
-        description: `${ids.length} project${ids.length !== 1 ? 's' : ''} deleted successfully.`,
-      })
-    }
-  }, [deleteProject, queryClient])
 
   // ---------------------------------------------------------------------------
   // Columns
@@ -452,8 +426,8 @@ export function ProjectsPage() {
             }
           }}
           onRowOpen={(row) => navigateToProject(row.id)}
-          selectedIds={selectedIds}
-          onSelectionChange={setSelectedIds}
+          bulkDelete={{ entityName: 'project', onDelete: onBulkDelete, entityPath: 'projects', onNavigate: navigate }}
+          exportOptions={{ fileName: 'Projects' }}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearAll}
           emptyState={{
@@ -519,16 +493,6 @@ export function ProjectsPage() {
         isOpen={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         defaultEntity="projects"
-      />
-
-      {/* Bulk Action Bar */}
-      <BulkActionBar
-        selectedRows={selectedRows}
-        entityName="project"
-        entityPath="projects"
-        onClearSelection={() => setSelectedIds(new Set())}
-        onDelete={handleBulkDelete}
-        onNavigate={navigate}
       />
     </PageShell>
   )

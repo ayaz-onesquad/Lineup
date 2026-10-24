@@ -172,3 +172,7 @@ export {
 // Session security hooks
 export { useSessionPolicy } from './useSessionPolicy'
 export { useSessionTimeout } from './useSessionTimeout'
+
+// Contextual creation: resolves and locks the parent chain (design system 9)
+export { useParentContext, type ResolvedParentContext } from './useParentContext'
+export { useBulkDelete } from './useBulkDelete'

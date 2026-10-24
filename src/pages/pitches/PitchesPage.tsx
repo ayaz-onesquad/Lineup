@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { usePitches, usePitchMutations } from '@/hooks/usePitches'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useTenantUsers } from '@/hooks/useTenant'
 import { useUIStore, useTenantStore } from '@/stores'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,6 @@ import {
 import { BulkUploadModal } from '@/components/shared/BulkUpload'
 import { GridEditTable, type GridColumn } from '@/components/shared/GridEditTable'
 import { BulkActionBar } from '@/components/shared/BulkActionBar'
-import { toast } from '@/hooks/use-toast'
 import { getPriorityLabel, getPriorityColor } from '@/lib/utils'
 import { computeDisplayStatus, getStatusLabel, getStatusColor } from '@/utils/statusUtils'
 import type { PitchWithRelations, UpdatePitchInput, PriorityScore } from '@/types/database'
@@ -35,6 +34,9 @@ const URGENCY_OPTIONS: SearchableSelectOption[] = [
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
 ]
+
+const capitalize = (value?: string | null) =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1) : undefined
 
 const IMPORTANCE_OPTIONS: SearchableSelectOption[] = [
   { value: 'low', label: 'Low' },
@@ -59,7 +61,6 @@ export function PitchesPage() {
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
 
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { data: pitches, isLoading } = usePitches()
   const { updatePitch, deletePitch } = usePitchMutations()
   const { currentTenant } = useTenantStore()
@@ -111,25 +112,11 @@ export function PitchesPage() {
   }, [filteredPitches, rowSelection])
 
   // Handle bulk delete
-  const handleBulkDelete = useCallback(async (ids: string[]) => {
-    const results = await Promise.allSettled(
-      ids.map((id) => deletePitch.mutateAsync(id))
-    )
-    const failures = results.filter((r) => r.status === 'rejected')
-    await queryClient.invalidateQueries({ queryKey: ['pitches'] })
-    if (failures.length > 0) {
-      toast({
-        title: 'Some deletions failed',
-        description: `${ids.length - failures.length} of ${ids.length} pitches deleted.`,
-        variant: 'destructive',
-      })
-    } else {
-      toast({
-        title: 'Pitches deleted',
-        description: `${ids.length} pitch${ids.length !== 1 ? 'es' : ''} deleted successfully.`,
-      })
-    }
-  }, [deletePitch, queryClient])
+  const handleBulkDelete = useBulkDelete(deletePitch.mutateAsync, {
+    singular: 'pitch',
+    plural: 'pitches',
+    queryKey: ['pitches'],
+  })
 
   // Grid columns definition
   const columns: GridColumn<PitchWithRelations>[] = useMemo(() => [
@@ -137,6 +124,7 @@ export function PitchesPage() {
       key: 'clients.name',
       header: 'Client',
       editable: false, // Nested relation
+      exportValue: (row) => (row.sets?.projects?.clients || row.sets?.clients)?.name,
       render: (row) => {
         const set = row.sets
         const project = set?.projects
@@ -181,6 +169,7 @@ export function PitchesPage() {
       editable: true,
       type: 'select',
       options: URGENCY_OPTIONS,
+      exportValue: (row) => capitalize(row.urgency),
       render: (row) => (
         <Badge variant="outline" className="capitalize">
           {row.urgency || '—'}
@@ -194,6 +183,7 @@ export function PitchesPage() {
       editable: true,
       type: 'select',
       options: IMPORTANCE_OPTIONS,
+      exportValue: (row) => capitalize(row.importance),
       render: (row) => (
         <Badge variant="outline" className="capitalize">
           {row.importance || '—'}
@@ -205,6 +195,7 @@ export function PitchesPage() {
       header: 'Status',
       priority: 'secondary',
       editable: false, // Computed from dates
+      exportValue: (row) => getStatusLabel(computeDisplayStatus(row)),
       render: (row) => (
         <Badge className={getStatusColor(computeDisplayStatus(row))} variant="outline">
           {getStatusLabel(computeDisplayStatus(row))}
@@ -218,6 +209,7 @@ export function PitchesPage() {
       editable: true,
       type: 'select',
       options: userOptions,
+      exportValue: (row) => row.lead?.full_name,
       render: (row) => row.lead ? (
         <div className="flex items-center gap-2">
           <Avatar className="h-6 w-6">
@@ -252,6 +244,8 @@ export function PitchesPage() {
       key: 'priority',
       header: 'Priority',
       editable: false, // Calculated field
+      exportValue: (row) =>
+        row.priority ? getPriorityLabel(row.priority as PriorityScore) : undefined,
       render: (row) => row.priority ? (
         <Badge className={getPriorityColor(row.priority as PriorityScore)}>
           {row.priority} - {getPriorityLabel(row.priority as PriorityScore)}
@@ -284,9 +278,9 @@ export function PitchesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
             <Presentation className="h-8 w-8" />
             Pitches
           </h1>
@@ -399,6 +393,7 @@ export function PitchesPage() {
               enableSelection
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}
+              exportFileName="Pitches"
             >
               {/* Search and Filters */}
               <div className="relative flex-1 max-w-sm">

@@ -27,7 +27,7 @@ export function PortalDashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
@@ -63,7 +63,7 @@ export function PortalDashboardPage() {
       <div>
         <h2 className="text-xl font-semibold mb-4">Your Projects</h2>
         {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-48" />
             ))}
@@ -76,7 +76,7 @@ export function PortalDashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {visibleProjects?.map((project) => (
               <Link key={project.id} to={`/portal/projects/${project.id}`}>
                 <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">

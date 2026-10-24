@@ -156,7 +156,7 @@ export function SupportDashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Tickets"
           value={stats?.total || 0}
@@ -191,7 +191,7 @@ export function SupportDashboardPage() {
       </div>
 
       {/* Type Breakdown */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard
           title="Incidents"
           value={stats?.byType.incident || 0}

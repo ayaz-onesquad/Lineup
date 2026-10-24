@@ -1,18 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMyTickets } from '@/hooks'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
 import {
   Dialog,
   DialogContent,
@@ -59,12 +50,78 @@ export function MyTicketsPage() {
       ticket.ticket_id_display.toLowerCase().includes(search.toLowerCase())
   )
 
+  const columns = useMemo<DataGridColumn<SupportTicket>[]>(
+    () => [
+      {
+        id: 'ticket_id',
+        header: 'Ticket ID',
+        accessor: (t) => t.ticket_id_display,
+        cell: (t) => <span className="font-mono text-sm">{t.ticket_id_display}</span>,
+        priority: 'secondary',
+        mobileLabel: 'ID',
+        width: '130px',
+      },
+      {
+        id: 'type',
+        header: 'Type',
+        accessor: (t) => TYPE_CONFIG[t.type].label,
+        cell: (t) => {
+          const typeConfig = TYPE_CONFIG[t.type]
+          const TypeIcon = typeConfig.icon
+          return (
+            <Badge className={typeConfig.color} variant="outline">
+              <TypeIcon className="h-3 w-3 mr-1" />
+              {typeConfig.label}
+            </Badge>
+          )
+        },
+        priority: 'secondary',
+        width: '150px',
+      },
+      {
+        id: 'title',
+        header: 'Title',
+        accessor: (t) => t.title,
+        cell: (t) => <span className="font-medium">{t.title}</span>,
+        priority: 'primary',
+        minWidth: '240px',
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        accessor: (t) => STATUS_CONFIG[t.status].label,
+        cell: (t) => (
+          <Badge className={STATUS_CONFIG[t.status].color} variant="outline">
+            {STATUS_CONFIG[t.status].label}
+          </Badge>
+        ),
+        priority: 'secondary',
+        width: '130px',
+      },
+      {
+        id: 'created',
+        header: 'Created',
+        accessor: (t) => (t.created_at ? new Date(t.created_at) : null),
+        exportValue: (t) => formatDate(t.created_at),
+        cell: (t) => (
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Calendar className="h-3 w-3" />
+            {formatDate(t.created_at)}
+          </div>
+        ),
+        priority: 'secondary',
+        width: '140px',
+      },
+    ],
+    []
+  )
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Support Tickets</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">My Support Tickets</h1>
           <p className="text-muted-foreground">
             View and track your support requests
           </p>
@@ -75,100 +132,41 @@ export function MyTicketsPage() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search tickets..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
-
-      {/* Tickets Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tickets</CardTitle>
-          <CardDescription>
-            {filteredTickets?.length || 0} ticket(s) found
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : filteredTickets?.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Info className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p>No tickets found</p>
-              <p className="text-sm mt-1">Create a new ticket to get started</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ticket ID</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTickets?.map((ticket) => {
-                  const typeConfig = TYPE_CONFIG[ticket.type]
-                  const statusConfig = STATUS_CONFIG[ticket.status]
-                  const TypeIcon = typeConfig.icon
-
-                  return (
-                    <TableRow key={ticket.id}>
-                      <TableCell className="font-mono text-sm">
-                        {ticket.ticket_id_display}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={typeConfig.color} variant="outline">
-                          <TypeIcon className="h-3 w-3 mr-1" />
-                          {typeConfig.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium max-w-[300px] truncate">
-                        {ticket.title}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={statusConfig.color} variant="outline">
-                          {statusConfig.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(ticket.created_at)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedTicket(ticket)}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* Tickets */}
+      <DataGrid
+        columns={columns}
+        data={filteredTickets}
+        getRowId={(ticket) => ticket.id}
+        isLoading={isLoading}
+        onRowClick={setSelectedTicket}
+        onRowOpen={setSelectedTicket}
+        defaultSort={{ columnId: 'created', direction: 'desc' }}
+        rowActions={(ticket) => (
+          <Button variant="ghost" size="sm" onClick={() => setSelectedTicket(ticket)}>
+            View
+          </Button>
+        )}
+        toolbar={
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search tickets..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        }
+        emptyState={{
+          icon: Info,
+          title: 'No tickets found',
+          description: 'Create a new ticket to get started',
+        }}
+        hasActiveFilters={search.length > 0}
+        onClearFilters={() => setSearch('')}
+        exportOptions={{ fileName: 'My Support Tickets' }}
+        ariaLabel="My support tickets"
+      />
 
       {/* Create Ticket Dialog */}
       <SubmitTicketDialog
@@ -212,7 +210,7 @@ export function MyTicketsPage() {
                 {selectedTicket.description && (
                   <div>
                     <h4 className="text-sm font-medium mb-2">Description</h4>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
                       {selectedTicket.description}
                     </p>
                   </div>
@@ -226,7 +224,7 @@ export function MyTicketsPage() {
                       href={safeHttpUrl(selectedTicket.page_url) ?? undefined}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-primary hover:underline flex items-center gap-1"
+                      className="text-sm text-primary hover:underline flex items-center gap-1 min-w-0 break-all"
                     >
                       {selectedTicket.page_url}
                       <ExternalLink className="h-3 w-3" />
@@ -238,7 +236,7 @@ export function MyTicketsPage() {
                 {selectedTicket.resolution && (
                   <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                     <h4 className="text-sm font-medium text-green-800 mb-2">Resolution</h4>
-                    <p className="text-sm text-green-700 whitespace-pre-wrap">
+                    <p className="text-sm text-green-700 whitespace-pre-wrap break-words">
                       {selectedTicket.resolution}
                     </p>
                     {selectedTicket.resolved_at && (

@@ -10,21 +10,12 @@ import { useUserRole } from '@/hooks/useUserRole'
 import { tenantsApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Label } from '@/components/ui/label'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
 import {
   Dialog,
   DialogContent,
@@ -336,6 +327,64 @@ export function TeamPage() {
     }
   }
 
+  const canEditRole = (user: TenantUserWithProfile) =>
+    isAdmin && user.role !== 'client_user' && user.role !== 'sys_admin'
+
+  const memberColumns: DataGridColumn<TenantUserWithProfile>[] = [
+    {
+      id: 'member',
+      header: 'Member',
+      accessor: (user) => user.user_profiles?.full_name || 'Unknown',
+      cell: (user) => (
+        <div className="flex items-center gap-3 min-w-0">
+          <Avatar>
+            <AvatarFallback>
+              {getInitials(user.user_profiles?.full_name || 'U')}
+            </AvatarFallback>
+          </Avatar>
+          <p className="font-medium truncate">
+            {user.user_profiles?.full_name || 'Unknown'}
+          </p>
+        </div>
+      ),
+      priority: 'primary',
+      minWidth: '240px',
+    },
+    {
+      id: 'role',
+      header: 'Role',
+      accessor: (user) => user.role.replace('_', ' '),
+      cell: (user) => (
+        <Badge className={getRoleBadgeColor(user.role)}>
+          {user.role.replace('_', ' ')}
+        </Badge>
+      ),
+      priority: 'secondary',
+      width: '140px',
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessor: (user) => user.status,
+      cell: (user) => (
+        <Badge variant={user.status === 'active' ? 'success' : 'secondary'}>
+          {user.status}
+        </Badge>
+      ),
+      priority: 'secondary',
+      width: '120px',
+    },
+    {
+      id: 'joined',
+      header: 'Joined',
+      accessor: (user) => (user.created_at ? new Date(user.created_at) : null),
+      exportValue: (user) => formatDate(user.created_at),
+      cell: (user) => formatDate(user.created_at),
+      priority: 'secondary',
+      width: '140px',
+    },
+  ]
+
   // Show loading while checking role
   if (roleLoading) {
     return (
@@ -352,9 +401,9 @@ export function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Team</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Team</h1>
           <p className="text-muted-foreground">Manage team members and access</p>
         </div>
         {isAdmin && (
@@ -585,112 +634,44 @@ export function TeamPage() {
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Team Members
-          </CardTitle>
-          <CardDescription>
+      <DataGrid
+        columns={memberColumns}
+        data={users}
+        getRowId={(user) => user.id}
+        isLoading={isLoading}
+        onRowOpen={(user) => {
+          if (canEditRole(user)) openEditDialog(user)
+        }}
+        defaultSort={{ columnId: 'member', direction: 'asc' }}
+        toolbar={
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="h-4 w-4" />
             {users?.length || 0} members in your organization
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
-                {isAdmin && <TableHead className="w-[100px]"></TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="h-10 w-10 rounded-full" />
-                        <Skeleton className="h-4 w-32" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : users?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={isAdmin ? 5 : 4} className="text-center py-8">
-                    <p className="text-muted-foreground">No team members yet</p>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users?.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarFallback>
-                            {getInitials(user.user_profiles?.full_name || 'U')}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">
-                            {user.user_profiles?.full_name || 'Unknown'}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getRoleBadgeColor(user.role)}>
-                        {user.role.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={user.status === 'active' ? 'success' : 'secondary'}
-                      >
-                        {user.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(user.created_at)}</TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        {/* Only show edit for non-client users (org_user, org_admin) */}
-                        {user.role !== 'client_user' && user.role !== 'sys_admin' ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Edit Role
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : null}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          </div>
+        }
+        rowActions={(user) =>
+          // Only show edit for non-client users (org_user, org_admin)
+          canEditRole(user) ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Role
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null
+        }
+        emptyState={{ icon: Users, title: 'No team members yet' }}
+        exportOptions={{ fileName: 'Team Members' }}
+        ariaLabel="Team members"
+      />
 
       {/* Edit Role Dialog */}
       <Dialog open={!!editingUser} onOpenChange={(open) => {

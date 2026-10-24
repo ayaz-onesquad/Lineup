@@ -10,20 +10,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -210,14 +202,14 @@ export function DocumentCatalogPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Document Catalog</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Document Catalog</h1>
           <p className="text-muted-foreground">
             Manage document types and standards for your organization
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleSeedDefaults} disabled={seedDefaults.isPending}>
             {seedDefaults.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -234,7 +226,7 @@ export function DocumentCatalogPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -276,6 +268,7 @@ export function DocumentCatalogPage() {
               onViewUsage={handleViewUsage}
               onDeactivate={(id) => deactivateCatalogEntry.mutate(id)}
               onActivate={(id) => activateCatalogEntry.mutate(id)}
+              exportName="Document Catalog"
             />
           </TabsContent>
 
@@ -288,6 +281,7 @@ export function DocumentCatalogPage() {
                 onViewUsage={handleViewUsage}
                 onDeactivate={(id) => deactivateCatalogEntry.mutate(id)}
                 onActivate={(id) => activateCatalogEntry.mutate(id)}
+                exportName={`Document Catalog - ${cat.label}`}
               />
             </TabsContent>
           ))}
@@ -455,127 +449,155 @@ function CatalogTable({
   onViewUsage,
   onDeactivate,
   onActivate,
+  exportName,
 }: {
   items: DocumentCatalog[]
   onEdit: (item: DocumentCatalog) => void
   onViewUsage: (id: string) => void
   onDeactivate: (id: string) => void
   onActivate: (id: string) => void
+  exportName: string
 }) {
-  if (items.length === 0) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No document types found</p>
-        </CardContent>
-      </Card>
-    )
-  }
+  const columns = useMemo<DataGridColumn<DocumentCatalog>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'Name',
+        accessor: (item) => item.name,
+        cell: (item) => (
+          <div className="min-w-0">
+            <p className="font-medium">{item.name}</p>
+            {item.description && (
+              <p className="text-xs text-muted-foreground truncate max-w-xs">
+                {item.description}
+              </p>
+            )}
+          </div>
+        ),
+        priority: 'primary',
+        minWidth: '240px',
+      },
+      {
+        id: 'category',
+        header: 'Category',
+        accessor: (item) => item.category,
+        cell: (item) => {
+          const CategoryIcon = getCategoryIcon(item.category)
+          return (
+            <Badge className={getCategoryColor(item.category)}>
+              <CategoryIcon className="h-3 w-3 mr-1" />
+              {item.category}
+            </Badge>
+          )
+        },
+        priority: 'secondary',
+        width: '150px',
+      },
+      {
+        id: 'file_type',
+        header: 'File Type',
+        accessor: (item) => item.file_type_hint ?? '',
+        cell: (item) => item.file_type_hint || '—',
+        width: '130px',
+      },
+      {
+        id: 'client_deliverable',
+        header: 'Client Deliverable',
+        mobileLabel: 'Deliverable',
+        accessor: (item) => item.is_client_deliverable,
+        exportValue: (item) => (item.is_client_deliverable ? 'Yes' : 'No'),
+        cell: (item) =>
+          item.is_client_deliverable ? (
+            <Badge variant="default">Yes</Badge>
+          ) : (
+            <Badge variant="outline">No</Badge>
+          ),
+        priority: 'secondary',
+        width: '160px',
+      },
+      {
+        id: 'usage',
+        header: 'Usage',
+        accessor: (item) => item.usage_count,
+        numeric: true,
+        cell: (item) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={(e) => {
+              e.stopPropagation()
+              onViewUsage(item.id)
+            }}
+          >
+            {item.usage_count} docs
+          </Button>
+        ),
+        width: '110px',
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        accessor: (item) => (item.is_active ? 'Active' : 'Inactive'),
+        cell: (item) =>
+          item.is_active ? (
+            <Badge variant="success">Active</Badge>
+          ) : (
+            <Badge variant="secondary">Inactive</Badge>
+          ),
+        priority: 'secondary',
+        width: '120px',
+      },
+    ],
+    [onViewUsage]
+  )
 
   return (
-    <Card className="card-carbon">
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>File Type</TableHead>
-              <TableHead>Client Deliverable</TableHead>
-              <TableHead>Usage</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((item) => {
-              const CategoryIcon = getCategoryIcon(item.category)
-              return (
-                <TableRow key={item.id} className={!item.is_active ? 'opacity-50' : ''}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      {item.description && (
-                        <p className="text-xs text-muted-foreground truncate max-w-xs">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getCategoryColor(item.category)}>
-                      <CategoryIcon className="h-3 w-3 mr-1" />
-                      {item.category}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{item.file_type_hint || '—'}</TableCell>
-                  <TableCell>
-                    {item.is_client_deliverable ? (
-                      <Badge variant="default">Yes</Badge>
-                    ) : (
-                      <Badge variant="outline">No</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2"
-                      onClick={() => onViewUsage(item.id)}
-                    >
-                      {item.usage_count} docs
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    {item.is_active ? (
-                      <Badge variant="success">Active</Badge>
-                    ) : (
-                      <Badge variant="secondary">Inactive</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(item)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onViewUsage(item.id)}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Usage
-                        </DropdownMenuItem>
-                        {item.is_active ? (
-                          <DropdownMenuItem
-                            className="text-amber-600"
-                            onClick={() => onDeactivate(item.id)}
-                          >
-                            <PowerOff className="mr-2 h-4 w-4" />
-                            Deactivate
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            className="text-green-600"
-                            onClick={() => onActivate(item.id)}
-                          >
-                            <Power className="mr-2 h-4 w-4" />
-                            Activate
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <DataGrid
+      columns={columns}
+      data={items}
+      getRowId={(item) => item.id}
+      onRowOpen={onEdit}
+      rowClassName={(item) => (!item.is_active ? 'opacity-50' : undefined)}
+      rowActions={(item) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Row actions">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(item)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onViewUsage(item.id)}>
+              <FileText className="mr-2 h-4 w-4" />
+              View Usage
+            </DropdownMenuItem>
+            {item.is_active ? (
+              <DropdownMenuItem
+                className="text-amber-600"
+                onClick={() => onDeactivate(item.id)}
+              >
+                <PowerOff className="mr-2 h-4 w-4" />
+                Deactivate
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                className="text-green-600"
+                onClick={() => onActivate(item.id)}
+              >
+                <Power className="mr-2 h-4 w-4" />
+                Activate
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      emptyState={{ icon: FileText, title: 'No document types found' }}
+      exportOptions={{ fileName: exportName }}
+      ariaLabel="Document types"
+    />
   )
 }

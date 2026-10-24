@@ -1,24 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
+import { TruncatedCell } from '@/components/shared/TruncatedCell'
 import {
   Plus,
   CheckSquare,
@@ -27,9 +19,37 @@ import {
   Edit,
 } from 'lucide-react'
 import { computeRequirementStatus, computeKeyDueDate, computeRequirementKeyStartDate, STATUS_LABELS, STATUS_COLORS } from '@/utils/statusUtils'
-import { formatDate, calculateEisenhowerPriority as calcPriority, getPriorityColor as getPrioColor } from '@/lib/utils'
+import {
+  formatDate,
+  calculateEisenhowerPriority as calcPriority,
+  getPriorityColor as getPrioColor,
+  getPriorityLabel,
+} from '@/lib/utils'
 import { useUIStore } from '@/stores'
 import type { RequirementWithRelations } from '@/types/database'
+
+/**
+ * Severity rank for the six-level priority scale in CLAUDE.md. Lower is more
+ * severe, so an ascending sort puts Critical above High. Sorting the labels as
+ * text would instead give Critical, High, Low, Medium, Medium-High… which is
+ * meaningless to a reader triaging work.
+ */
+const PRIORITY_SEVERITY_RANK: Record<string, number | undefined> = {
+  critical: 1,
+  high: 2,
+  'medium-high': 3,
+  medium: 4,
+  'medium-low': 5,
+  low: 6,
+}
+
+/** The sortable value behind the Priority column: 1 (Critical) … 6 (Low). */
+function prioritySeverity(req: RequirementWithRelations): number {
+  const score = calcPriority(req.importance, req.urgency)
+  // The Eisenhower score is already 1-6; routing it through the label keeps the
+  // rank tied to the named scale rather than to that implementation detail.
+  return PRIORITY_SEVERITY_RANK[getPriorityLabel(score).toLowerCase()] ?? score
+}
 
 interface RequirementsTabbedPanelProps {
   requirements: RequirementWithRelations[] | undefined
@@ -81,162 +101,203 @@ export function RequirementsTabbedPanel({
     return { openRequirements: open, completedRequirements: completed }
   }, [requirements])
 
-  const handleCreate = () => {
+  const handleCreate = useCallback(() => {
     if (onCreateClick) {
       onCreateClick()
     } else if (createContext) {
       openCreateModal('requirement', createContext)
     }
-  }
+  }, [onCreateClick, createContext, openCreateModal])
 
   // Determine if create button should be shown
   const showCreateButton = !!onCreateClick || !!createContext
 
-  const renderTable = (reqs: RequirementWithRelations[], showEmpty = true) => {
-    if (reqs.length === 0 && showEmpty) {
-      return (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
-              {activeTab === 'open' ? emptyMessage : 'No completed requirements'}
-            </p>
-            {activeTab === 'open' && showCreateButton && (
-              <Button className="mt-4" onClick={handleCreate}>
-                Create First Requirement
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )
+  // ---------------------------------------------------------------------------
+  // Columns
+  //
+  // Priorities per docs/DESIGN-SYSTEM.md section 4.1: the title identifies the
+  // row; status, priority, lead and the key end date are the four facts needed
+  // to triage a requirement without opening it; the display ID is desktop-only
+  // noise. Every scalar column carries an accessor, so every one of them sorts
+  // (section 4.2) — including from the mobile sort sheet, which is the bug this
+  // migration fixes.
+  // ---------------------------------------------------------------------------
+  const columns = useMemo<DataGridColumn<RequirementWithRelations>[]>(
+    () => [
+      {
+        id: 'requirement_order',
+        header: 'Order',
+        mobileLabel: 'Order',
+        numeric: true,
+        width: '80px',
+        accessor: row => row.requirement_order,
+      },
+      {
+        id: 'display_id',
+        header: 'ID',
+        hideOnMobile: true,
+        hideable: false,
+        width: '100px',
+        accessor: row => row.display_id ?? 0,
+        cell: row =>
+          row.display_id ? (
+            <Badge variant="outline" className="font-mono text-xs">
+              #{row.display_id}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'title',
+        header: 'Name',
+        priority: 'primary',
+        hideable: false,
+        minWidth: '220px',
+        accessor: row => row.title,
+        cell: row => (
+          <div className="min-w-0 font-medium">
+            <TruncatedCell value={row.title} maxLines={1} />
+          </div>
+        ),
+      },
+      {
+        id: 'priority',
+        header: 'Priority',
+        priority: 'secondary',
+        width: '120px',
+        // Sorts by severity rank, not by label text.
+        accessor: row => prioritySeverity(row),
+        cell: row => {
+          const score = calcPriority(row.importance, row.urgency)
+          return (
+            <Badge className={getPrioColor(score)}>
+              P{score}
+              <span className="sr-only"> {getPriorityLabel(score)}</span>
+            </Badge>
+          )
+        },
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        priority: 'secondary',
+        width: '140px',
+        accessor: row => STATUS_LABELS[computeRequirementStatus(row)],
+        cell: row => {
+          const status = computeRequirementStatus(row)
+          return <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+        },
+      },
+      {
+        id: 'lead',
+        header: 'Lead',
+        priority: 'secondary',
+        width: '160px',
+        accessor: row => row.assigned_to?.full_name ?? '',
+        cell: row => <TruncatedCell value={row.assigned_to?.full_name} maxLines={1} />,
+      },
+      {
+        id: 'key_end',
+        header: 'Key End',
+        mobileLabel: 'Due',
+        priority: 'secondary',
+        width: '140px',
+        accessor: row => computeKeyDueDate(row),
+        cell: row => {
+          const keyEnd = computeKeyDueDate(row)
+          return keyEnd ? (
+            <span>{formatDate(keyEnd)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )
+        },
+      },
+      {
+        id: 'key_start',
+        header: 'Key Start',
+        width: '140px',
+        accessor: row => computeRequirementKeyStartDate(row),
+        cell: row => {
+          const keyStart = computeRequirementKeyStartDate(row)
+          return keyStart ? (
+            <span>{formatDate(keyStart)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )
+        },
+      },
+    ],
+    []
+  )
+
+  // Row actions live on the desktop row only; on mobile the whole card opens the
+  // record and the actions are on the detail page (section 4.5).
+  const rowActions = useCallback(
+    (row: RequirementWithRelations) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label="Requirement actions">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="z-50">
+          <DropdownMenuItem onClick={() => openDetailPanel('requirement', row.id)}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Quick View
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate(`/requirements/${row.id}?edit=true`)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ),
+    [navigate, openDetailPanel]
+  )
+
+  const renderGrid = (
+    reqs: RequirementWithRelations[],
+    {
+      storageKey,
+      ariaLabel,
+      emptyTitle,
+      withCreateAction,
+    }: {
+      storageKey: string
+      ariaLabel: string
+      emptyTitle: string
+      withCreateAction: boolean
     }
-
-    if (reqs.length === 0) return null
-
-    return (
-      <Card className="card-carbon">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[60px]">Order</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Lead</TableHead>
-                <TableHead>Key Start</TableHead>
-                <TableHead>Key End</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {reqs.map((req) => {
-                const status = computeRequirementStatus(req)
-                const priority = calcPriority(req.importance, req.urgency)
-                const keyStart = computeRequirementKeyStartDate(req)
-                const keyEnd = computeKeyDueDate(req)
-
-                return (
-                  <TableRow
-                    key={req.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onDoubleClick={() => navigate(`/requirements/${req.id}`)}
-                  >
-                    <TableCell className="text-right tabular-nums">
-                      {req.requirement_order ?? '—'}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {req.title}
-                        {req.display_id && (
-                          <Badge variant="outline" className="font-mono text-xs">
-                            #{req.display_id}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {priority ? (
-                        <Badge className={getPrioColor(priority)}>P{priority}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {req.assigned_to?.full_name || '—'}
-                    </TableCell>
-                    <TableCell>
-                      {keyStart ? formatDate(keyStart.toISOString()) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      {keyEnd ? formatDate(keyEnd.toISOString()) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openDetailPanel('requirement', req.id)}>
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            Quick View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/requirements/${req.id}?edit=true`)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <Card className="card-carbon">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[60px]">Order</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Lead</TableHead>
-                <TableHead>Key Start</TableHead>
-                <TableHead>Key End</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[1, 2, 3].map((i) => (
-                <TableRow key={i}>
-                  <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    )
-  }
+  ) => (
+    <DataGrid
+      columns={columns}
+      data={reqs}
+      getRowId={row => row.id}
+      isLoading={isLoading}
+      density="compact"
+      // Distinct keys per tab so the two grids do not share sort state.
+      storageKey={storageKey}
+      defaultSort={{ columnId: 'requirement_order', direction: 'asc' }}
+      ariaLabel={ariaLabel}
+      // Single click opens the quick-view panel; double click, Enter or a
+      // mobile tap opens the record. Section 4.5.
+      onRowClick={row => openDetailPanel('requirement', row.id)}
+      onRowOpen={row => navigate(`/requirements/${row.id}`)}
+      rowActions={rowActions}
+      emptyState={{
+        icon: CheckSquare,
+        title: emptyTitle,
+        action:
+          withCreateAction && showCreateButton ? (
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Requirement
+            </Button>
+          ) : undefined,
+      }}
+    />
+  )
 
   return (
     <div className="space-y-4">
@@ -268,11 +329,21 @@ export function RequirementsTabbedPanel({
         </TabsList>
 
         <TabsContent value="open" className="mt-4">
-          {renderTable(openRequirements)}
+          {renderGrid(openRequirements, {
+            storageKey: 'requirements-panel-open',
+            ariaLabel: 'Open requirements',
+            emptyTitle: emptyMessage,
+            withCreateAction: true,
+          })}
         </TabsContent>
 
         <TabsContent value="completed" className="mt-4">
-          {renderTable(completedRequirements)}
+          {renderGrid(completedRequirements, {
+            storageKey: 'requirements-panel-completed',
+            ariaLabel: 'Completed requirements',
+            emptyTitle: 'No completed requirements',
+            withCreateAction: false,
+          })}
         </TabsContent>
       </Tabs>
     </div>

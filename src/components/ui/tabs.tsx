@@ -12,12 +12,13 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      // Scrollable rather than inline-flex: some detail pages have 20+ tabs,
-      // which overflowed the viewport with no way to reach the later ones.
-      // `max-w-full` + `overflow-x-auto` keeps them reachable by swipe, and
-      // scrollbar-none hides the bar without hiding the ability to scroll.
-      "flex h-10 max-w-full items-center justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-md bg-muted p-1 text-muted-foreground",
-      "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      // Phones: tabs WRAP onto as many rows as needed. A sideways-scrolling
+      // tab strip hid every tab past the screen edge with no cue they
+      // existed; wrapping keeps all of them visible and tappable.
+      // md and up: one row, scrollable if a page has very many tabs.
+      "flex h-auto max-w-full flex-wrap items-center justify-start gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
+      "md:h-10 md:flex-nowrap md:overflow-x-auto md:overflow-y-hidden md:rounded-md",
+      "md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden",
       className
     )}
     {...props}

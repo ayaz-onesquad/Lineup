@@ -30,6 +30,7 @@ import {
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
+import { DeleteRecordButton } from '@/components/shared'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
 import { SecureDocumentViewer } from '@/components/shared/SecureDocumentViewer'
 import {
@@ -102,7 +103,7 @@ export function CompanyDocumentDetailPage() {
   const { policy } = useSessionPolicy()
 
   const { data: doc, isLoading } = useCompanyDocument(documentId)
-  const { updateDocument, uploadFile, downloadDocument, acknowledgeDocument } =
+  const { updateDocument, deleteDocument, uploadFile, downloadDocument, acknowledgeDocument } =
     useCompanyDocumentMutations()
   const { data: tenantUsers } = useTenantUsers()
   const { data: versions } = useCompanyDocumentVersions(documentId)
@@ -260,7 +261,7 @@ export function CompanyDocumentDetailPage() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-5 w-72" />
-        <Skeleton className="h-10 w-96" />
+        <Skeleton className="h-10 w-full max-w-96" />
         <Skeleton className="h-[60vh] w-full" />
       </div>
     )
@@ -351,7 +352,7 @@ export function CompanyDocumentDetailPage() {
         </div>
 
         {/* Edit button top-right per the One-Page View/Edit pattern */}
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 md:shrink-0">
           {!isEditing ? (
             <>
               {doc.allow_download && doc.storage_path && (
@@ -380,6 +381,13 @@ export function CompanyDocumentDetailPage() {
             </>
           ) : (
             <>
+              <DeleteRecordButton
+                entityName="company document"
+                recordName={doc.title}
+                onDelete={() => deleteDocument.mutateAsync(doc.id)}
+                redirectTo="/company-documents"
+                disabled={isSaving}
+              />
               <Button variant="outline" onClick={cancelEditing} disabled={isSaving}>
                 <X className="mr-2 h-4 w-4" />
                 Cancel
@@ -484,7 +492,7 @@ export function CompanyDocumentDetailPage() {
               </CardHeader>
               <CardContent>
                 <div
-                  className="prose prose-sm max-w-none dark:prose-invert"
+                  className="prose prose-sm max-w-none break-words dark:prose-invert"
                   // Sanitized server-authored HTML from the rich text editor.
                   dangerouslySetInnerHTML={{ __html: sanitizeRichText(doc.description) }}
                 />
@@ -497,7 +505,7 @@ export function CompanyDocumentDetailPage() {
         <TabsContent value="details">
           <Card>
             <CardContent className="space-y-6 pt-6">
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <ViewEditField
                   type="text"
                   label="Title"
@@ -620,7 +628,7 @@ export function CompanyDocumentDetailPage() {
                   />
                 ) : doc.description ? (
                   <div
-                    className="prose prose-sm max-w-none dark:prose-invert"
+                    className="prose prose-sm max-w-none break-words dark:prose-invert"
                     dangerouslySetInnerHTML={{ __html: sanitizeRichText(doc.description) }}
                   />
                 ) : (

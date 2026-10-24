@@ -12,6 +12,8 @@ import { useTenantUsers } from '@/hooks/useTenant'
 import { useLead, useLeads } from '@/hooks/useLeads'
 import { ParentTypeToggle } from '@/components/shared/ParentTypeToggle'
 import { useScrollToError } from '@/hooks/useScrollToError'
+import { useParentContext } from '@/hooks/useParentContext'
+import { isParentLocked, withLockedOption } from '@/lib/parentContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -99,6 +101,12 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
   const canChooseParent = !isLeadLocked && !hasClientContext
   const { data: leads } = useLeads()
   const { createRequirement } = useRequirementMutations()
+
+  // Contextual creation (docs/DESIGN-SYSTEM.md section 9). Creating from a
+  // Set's tab supplies only `set_id`; this resolves the set's phase, project
+  // and client too, and marks the whole chain locked so no cascade reset can
+  // clear it. That clearing is what previously dropped the set link.
+  const { values: parentValues, locked: lockedParents } = useParentContext(defaultValues)
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
   const { data: allSets } = useSets()
@@ -201,113 +209,78 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       const currentProject = form.getValues('project_id')
       const currentSet = form.getValues('set_id')
 
-      if (currentProject) {
+      if (currentProject && !isParentLocked('project_id', lockedParents)) {
         const projectStillValid = filteredProjects.some((p) => p.id === currentProject)
         if (!projectStillValid) {
           form.setValue('project_id', '')
-          form.setValue('phase_id', '')
-          form.setValue('set_id', '')
-          form.setValue('pitch_id', '')
+          if (!isParentLocked('phase_id', lockedParents)) form.setValue('phase_id', '')
+          if (!isParentLocked('set_id', lockedParents)) form.setValue('set_id', '')
+          if (!isParentLocked('pitch_id', lockedParents)) form.setValue('pitch_id', '')
         }
       }
 
-      if (currentSet) {
+      // A locked set must never be cleared here. `filteredSets` is built from
+      // three async queries, so it is briefly empty or stale right after the
+      // client/project are derived — and clearing on that transient state is
+      // exactly how the pre-filled set used to disappear.
+      if (currentSet && !isParentLocked('set_id', lockedParents)) {
         const setStillValid = filteredSets.some((s) => s.id === currentSet)
         if (!setStillValid) {
           form.setValue('set_id', '')
-          form.setValue('pitch_id', '')
+          if (!isParentLocked('pitch_id', lockedParents)) form.setValue('pitch_id', '')
         }
       }
     }
-  }, [selectedClientId, filteredProjects, filteredSets, form])
+  }, [selectedClientId, filteredProjects, filteredSets, form, lockedParents])
 
   useEffect(() => {
     if (selectedProjectId) {
       // Reset phase and set when project changes
       const currentPhase = form.getValues('phase_id')
       const currentSet = form.getValues('set_id')
-      if (currentPhase) {
+      if (currentPhase && !isParentLocked('phase_id', lockedParents)) {
         const phaseStillValid = projectPhases?.some((p) => p.id === currentPhase)
         if (!phaseStillValid) {
           form.setValue('phase_id', '')
         }
       }
-      if (currentSet) {
+      if (currentSet && !isParentLocked('set_id', lockedParents)) {
         const setStillValid = filteredSets.some((s) => s.id === currentSet)
         if (!setStillValid) {
           form.setValue('set_id', '')
-          form.setValue('pitch_id', '')
+          if (!isParentLocked('pitch_id', lockedParents)) form.setValue('pitch_id', '')
         }
       }
     }
-  }, [selectedProjectId, projectPhases, filteredSets, form])
+  }, [selectedProjectId, projectPhases, filteredSets, form, lockedParents])
 
   // Reset pitch when set changes
   useEffect(() => {
     if (selectedSetId) {
       const currentPitch = form.getValues('pitch_id')
-      if (currentPitch) {
+      if (currentPitch && !isParentLocked('pitch_id', lockedParents)) {
         const pitchStillValid = setPitches?.some((p) => p.id === currentPitch)
         if (!pitchStillValid) {
           form.setValue('pitch_id', '')
         }
       }
     }
-  }, [selectedSetId, setPitches, form])
+  }, [selectedSetId, setPitches, form, lockedParents])
 
-  // Initialize from defaultValues - client_id auto-population
+  // Apply the resolved parent chain.
+  //
+  // This replaces four separate effects that each derived one ancestor from
+  // `defaultValues` and raced each other. `useParentContext` resolves the whole
+  // chain in one place, so there is a single write per field and no ordering
+  // dependency between them.
   useEffect(() => {
-    // If client_id is passed from context (e.g., from ClientDetailPage), pre-select it
-    if (defaultValues?.client_id && !form.getValues('client_id')) {
-      form.setValue('client_id', defaultValues.client_id)
-    }
-  }, [defaultValues?.client_id, form])
-
-  // Initialize from defaultValues - derive client_id from project_id
-  useEffect(() => {
-    // If client_id is already set via defaultValues, don't override
-    if (defaultValues?.client_id) return
-
-    // If project_id is provided, derive client_id from project
-    if (defaultValues?.project_id && allProjects) {
-      const project = allProjects.find((p) => p.id === defaultValues.project_id)
-      if (project?.client_id && !form.getValues('client_id')) {
-        form.setValue('client_id', project.client_id)
+    for (const field of ['client_id', 'project_id', 'phase_id', 'set_id', 'pitch_id'] as const) {
+      const value = parentValues[field]
+      if (value && form.getValues(field) !== value) {
+        form.setValue(field, value, { shouldDirty: false })
       }
     }
-  }, [defaultValues?.project_id, defaultValues?.client_id, allProjects, form])
-
-  // Initialize from defaultValues - find client, project, and phase from set
-  useEffect(() => {
-    if (defaultValues?.set_id && allSets && allProjects) {
-      const set = allSets.find((s) => s.id === defaultValues.set_id)
-      if (set) {
-        const project = allProjects.find((p) => p.id === set.project_id)
-        if (project) {
-          form.setValue('client_id', project.client_id)
-          form.setValue('project_id', project.id)
-        }
-        // Also set phase_id if the set has one
-        if (set.phase_id) {
-          form.setValue('phase_id', set.phase_id)
-        }
-      }
-    }
-  }, [defaultValues?.set_id, allSets, allProjects, form])
-
-  // Initialize phase_id directly from defaultValues
-  useEffect(() => {
-    if (defaultValues?.phase_id && !form.getValues('phase_id')) {
-      form.setValue('phase_id', defaultValues.phase_id)
-    }
-  }, [defaultValues?.phase_id, form])
-
-  // Initialize pitch_id directly from defaultValues
-  useEffect(() => {
-    if (defaultValues?.pitch_id && !form.getValues('pitch_id')) {
-      form.setValue('pitch_id', defaultValues.pitch_id)
-    }
-  }, [defaultValues?.pitch_id, form])
+  }, [parentValues, form])
 
   // Scroll to first error on validation failure
   const { scrollToFirstError } = useScrollToError(form.formState.errors)
@@ -343,11 +316,16 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
       form.setError('client_id', { message: 'Client is required' })
       return
     }
+    // `project_id` and `phase_id` were destructured out above: they are
+    // cascade FILTER fields only. The requirements table has no phase_id
+    // column (a requirement's phase is derived through its set), so `set_id`
+    // is the link that must survive. Empty strings are "not set" on these
+    // nullable uuid columns.
     const requirementData = {
       ...rest,
       client_id,
-      set_id: rest.set_id || undefined, // Convert empty string to undefined
-      pitch_id: rest.pitch_id || undefined, // Convert empty string to undefined
+      set_id: rest.set_id || undefined,
+      pitch_id: rest.pitch_id || undefined,
       is_task: rest.is_task,
     }
     await createRequirement.mutateAsync(requirementData)
@@ -475,12 +453,13 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
                 <FormLabel required>Client</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={clientOptions}
+                    options={withLockedOption(clientOptions, lockedParents.has('client_id') ? field.value : undefined, 'Selected client')}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="Select client..."
                     searchPlaceholder="Search clients..."
                     emptyMessage="No clients found."
+                    disabled={lockedParents.has('client_id')}
                   />
                 </FormControl>
                 <FormMessage />
@@ -496,14 +475,14 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
                 <FormLabel>Project</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={projectOptions}
+                    options={withLockedOption(projectOptions, lockedParents.has('project_id') ? field.value : undefined, 'Selected project')}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="All projects"
                     searchPlaceholder="Search projects..."
                     emptyMessage="No projects found."
                     clearable
-                    disabled={projectOptions.length === 0}
+                    disabled={lockedParents.has('project_id') || projectOptions.length === 0}
                   />
                 </FormControl>
               </FormItem>
@@ -518,14 +497,14 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
                 <FormLabel>Phase</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={phaseOptions}
+                    options={withLockedOption(phaseOptions, lockedParents.has('phase_id') ? field.value : undefined, 'Selected phase')}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="Select phase (optional)"
                     searchPlaceholder="Search phases..."
                     emptyMessage={selectedProjectId ? "No phases found." : "Select a project first."}
                     clearable
-                    disabled={!selectedProjectId || phaseOptions.length === 0}
+                    disabled={lockedParents.has('phase_id') || !selectedProjectId || phaseOptions.length === 0}
                   />
                 </FormControl>
               </FormItem>
@@ -542,16 +521,22 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Set</FormLabel>
+                {lockedParents.has('set_id') && (
+                  <FormDescription>
+                    Set from where you started. Create from the Requirements page
+                    to choose a different one.
+                  </FormDescription>
+                )}
                 <FormControl>
                   <SearchableSelect
-                    options={setOptions}
+                    options={withLockedOption(setOptions, lockedParents.has('set_id') ? field.value : undefined, 'Selected set')}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="Select set (optional)"
                     searchPlaceholder="Search sets..."
                     emptyMessage="No sets found."
                     clearable
-                    disabled={setOptions.length === 0}
+                    disabled={lockedParents.has('set_id') || setOptions.length === 0}
                   />
                 </FormControl>
                 <FormMessage />
@@ -570,14 +555,14 @@ export function RequirementForm({ defaultValues, onSuccess }: RequirementFormPro
                 <FormLabel>Pitch</FormLabel>
                 <FormControl>
                   <SearchableSelect
-                    options={pitchOptions}
+                    options={withLockedOption(pitchOptions, lockedParents.has('pitch_id') ? field.value : undefined, 'Selected pitch')}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value || '')}
                     placeholder="Select pitch (optional)"
                     searchPlaceholder="Search pitches..."
                     emptyMessage={selectedSetId ? "No pitches found." : "Select a set first."}
                     clearable
-                    disabled={!selectedSetId || pitchOptions.length === 0}
+                    disabled={lockedParents.has('pitch_id') || !selectedSetId || pitchOptions.length === 0}
                   />
                 </FormControl>
               </FormItem>

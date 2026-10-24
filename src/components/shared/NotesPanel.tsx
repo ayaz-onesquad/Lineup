@@ -290,7 +290,7 @@ export function NotesPanel({
                     {/* Description */}
                     {note.description && (
                       <div
-                        className="text-sm text-muted-foreground mb-2 prose prose-sm max-w-none [&_p]:mb-1 [&_ul]:mb-1 [&_ol]:mb-1 [&_h1]:text-base [&_h2]:text-sm"
+                        className="text-sm text-muted-foreground mb-2 prose prose-sm max-w-none break-words [&_p]:mb-1 [&_ul]:mb-1 [&_ol]:mb-1 [&_h1]:text-base [&_h2]:text-sm"
                         dangerouslySetInnerHTML={{
                           __html: sanitizeRichText(note.description),
                         }}

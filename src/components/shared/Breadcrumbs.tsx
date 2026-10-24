@@ -26,7 +26,7 @@ export function Breadcrumbs({ items, className, showHome = true }: BreadcrumbsPr
       aria-label="Breadcrumb"
       className={cn('flex items-center text-sm text-muted-foreground', className)}
     >
-      <ol className="flex items-center gap-1">
+      <ol className="flex flex-wrap items-center gap-x-1 gap-y-0.5 min-w-0">
         {showHome && (
           <>
             <li>
@@ -38,7 +38,7 @@ export function Breadcrumbs({ items, className, showHome = true }: BreadcrumbsPr
               </Link>
             </li>
             <li>
-              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
             </li>
           </>
         )}
@@ -46,12 +46,12 @@ export function Breadcrumbs({ items, className, showHome = true }: BreadcrumbsPr
           const isLast = index === items.length - 1
 
           return (
-            <li key={index} className="flex items-center">
+            <li key={index} className="flex items-center min-w-0">
               {index > 0 && (
-                <ChevronRight className="h-4 w-4 text-muted-foreground/50 mr-1" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 mr-1" />
               )}
               {isLast || !item.href ? (
-                <span className={cn(isLast && 'text-foreground font-medium')}>
+                <span className={cn('block truncate max-w-[14rem] md:max-w-xs', isLast && 'text-foreground font-medium')}>
                   {item.label}
                   {item.displayId && (
                     <span className="text-muted-foreground ml-1">#{item.displayId}</span>
@@ -60,7 +60,7 @@ export function Breadcrumbs({ items, className, showHome = true }: BreadcrumbsPr
               ) : (
                 <Link
                   to={item.href}
-                  className="hover:text-foreground transition-colors hover:underline"
+                  className="block truncate max-w-[14rem] md:max-w-xs hover:text-foreground transition-colors hover:underline"
                 >
                   {item.label}
                   {item.displayId && (

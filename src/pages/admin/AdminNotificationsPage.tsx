@@ -244,7 +244,7 @@ export function AdminNotificationsPage() {
             </div>
           ) : isEditingConfig ? (
             <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="from_name">
                     From Name <span className="text-destructive">*</span>
@@ -305,7 +305,7 @@ export function AdminNotificationsPage() {
               </div>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <p className="text-sm text-muted-foreground">From Name</p>
                 <p className="font-medium">{emailConfig?.from_name || 'LineUp'}</p>

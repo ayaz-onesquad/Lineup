@@ -69,7 +69,7 @@ import { formatDate, formatCurrency, REFERRAL_SOURCE_OPTIONS, INDUSTRY_OPTIONS, 
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, DeleteRecordButton } from '@/components/shared'
 import { RequirementsTabbedPanel } from '@/components/shared/RequirementsTabbedPanel'
 import { RichTextEditor, RichTextView } from '@/components/shared/RichTextEditor'
 import { isRichTextEmpty, toRichTextHtml } from '@/lib/sanitize'
@@ -124,7 +124,7 @@ export function LeadDetailPage() {
   const { data: tasks, isLoading: tasksLoading } = useRequirementsBySalesLead(leadId ?? '')
   const { data: allContacts } = useAllContacts()
   const { data: users } = useTenantUsers()
-  const { updateLead, linkContact, unlinkContact, setPrimaryContact, convertToClient } =
+  const { updateLead, deleteLead, linkContact, unlinkContact, setPrimaryContact, convertToClient } =
     useLeadMutations()
   const createContact = useCreateContact()
 
@@ -390,13 +390,13 @@ export function LeadDetailPage() {
       />
 
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-start gap-2 md:flex-nowrap md:items-center md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('lead_name') : lead.lead_name}
               {lead.lead_id_display && (
                 <span className="text-muted-foreground"> | {lead.lead_id_display}</span>
@@ -410,7 +410,7 @@ export function LeadDetailPage() {
               {lead.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
             {lead.estimated_value && (
               <span className="flex items-center gap-1">
                 <DollarSign className="h-3 w-3" />
@@ -432,13 +432,13 @@ export function LeadDetailPage() {
           </div>
         </div>
         {canConvert && (
-          <Button onClick={() => setConvertDialogOpen(true)}>
+          <Button className="w-full md:w-auto" onClick={() => setConvertDialogOpen(true)}>
             <ArrowRightCircle className="mr-2 h-4 w-4" />
             Convert to Client
           </Button>
         )}
         {isConverted && (
-          <Button variant="outline" onClick={() => navigate(`/clients/${lead.converted_to_client_id}`)}>
+          <Button variant="outline" className="w-full md:w-auto" onClick={() => navigate(`/clients/${lead.converted_to_client_id}`)}>
             <Building2 className="mr-2 h-4 w-4" />
             View Client
           </Button>
@@ -449,9 +449,16 @@ export function LeadDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons */}
-          <div className="flex justify-end gap-2 mb-4">
+          <div className="flex flex-wrap justify-end gap-2 mb-4">
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="lead"
+                  recordName={lead.lead_name}
+                  onDelete={() => deleteLead.mutateAsync(lead.id)}
+                  redirectTo="/leads"
+                  disabled={isSaving}
+                />
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
                   <X className="mr-2 h-4 w-4" />
                   Cancel
@@ -474,7 +481,7 @@ export function LeadDetailPage() {
           </div>
 
           {/* Header fields */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <ViewEditField
               type="text"
               label="Lead Name"
@@ -570,7 +577,7 @@ export function LeadDetailPage() {
                 <Building2 className="h-5 w-5 text-muted-foreground" />
                 Company Information
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                 <ViewEditField
                   type="select"
                   label="Industry"
@@ -619,7 +626,7 @@ export function LeadDetailPage() {
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mt-4">
                 <ViewEditField
                   type="text"
                   label="City"
@@ -652,7 +659,7 @@ export function LeadDetailPage() {
                 const primaryContact = contacts?.find((c) => c.is_primary)?.contacts
                 if (primaryContact) {
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                       <div>
                         <p className="text-sm font-medium text-muted-foreground mb-1">Name</p>
                         <div className="flex items-center gap-2">
@@ -1193,7 +1200,7 @@ export function LeadDetailPage() {
                 clearable
               />
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"

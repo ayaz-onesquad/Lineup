@@ -4,6 +4,7 @@ import {
   useCompanyDocuments,
   useCompanyDocumentMutations,
 } from '@/hooks/useCompanyDocuments'
+import { useBulkDelete } from '@/hooks/useBulkDelete'
 import { useUIStore } from '@/stores'
 import { PageShell } from '@/components/layouts/PageShell'
 import { DataGrid, type DataGridColumn } from '@/components/ui/data-grid'
@@ -64,6 +65,11 @@ export function CompanyDocumentsPage() {
   const navigate = useNavigate()
   const { data: documents, isLoading, error, refetch } = useCompanyDocuments()
   const { deleteDocument, downloadDocument } = useCompanyDocumentMutations()
+  const onBulkDelete = useBulkDelete(deleteDocument.mutateAsync, {
+    singular: 'document',
+    plural: 'documents',
+    queryKey: ['company-documents'],
+  })
   const { openCreateModal, openDetailPanel } = useUIStore()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -130,6 +136,7 @@ export function CompanyDocumentsPage() {
         hideable: false,
         width: '100px',
         accessor: row => row.display_id ?? 0,
+        exportValue: row => `DOC-${String(row.display_id ?? 0).padStart(4, '0')}`,
         cell: row => (
           <Badge variant="outline" className="font-mono text-xs">
             DOC-{String(row.display_id ?? 0).padStart(4, '0')}
@@ -314,6 +321,13 @@ export function CompanyDocumentsPage() {
         // opens the record. Section 4.5.
         onRowClick={row => openDetailPanel('company_document', row.id, row)}
         onRowOpen={row => navigate(`/company-documents/${row.id}`)}
+        bulkDelete={{
+          entityName: 'document',
+          onDelete: onBulkDelete,
+          entityPath: 'company-documents',
+          onNavigate: navigate,
+        }}
+        exportOptions={{ fileName: 'Company Documents' }}
         hasActiveFilters={hasActiveFilters}
         onClearFilters={clearFilters}
         emptyState={{

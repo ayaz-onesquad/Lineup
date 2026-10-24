@@ -136,11 +136,11 @@ export function DiscussionDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight break-words">
             {discussion.title || 'Discussion'}
           </h1>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge
               variant={discussion.visibility === 'external' ? 'default' : 'secondary'}
               className="text-xs"
@@ -181,8 +181,8 @@ export function DiscussionDetailPage() {
                   {format(new Date(discussion.created_at), 'MMM d, yyyy h:mm a')}
                 </span>
               </div>
-              <div className="prose prose-sm max-w-none">
-                <p className="whitespace-pre-wrap">{discussion.content}</p>
+              <div className="prose prose-sm max-w-none break-words">
+                <p className="whitespace-pre-wrap break-words">{discussion.content}</p>
               </div>
             </div>
           </div>
@@ -219,7 +219,7 @@ export function DiscussionDetailPage() {
                         <Badge variant="outline" className="text-xs">Internal</Badge>
                       )}
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{reply.content}</p>
+                    <p className="text-sm whitespace-pre-wrap break-words">{reply.content}</p>
                   </div>
                 </div>
               ))}

@@ -18,13 +18,17 @@ export function TenantGuard({ children }: TenantGuardProps) {
       currentTenantId: currentTenant?.id || null,
     })
 
-    if (!isLoading && (tenants.length === 0 || !currentTenant)) {
+    // Only a user with NO tenants belongs on onboarding. When tenants exist but
+    // currentTenant is still null, useTenant is selecting one in this same
+    // effect pass; redirecting here bounced every cold load (refresh, opened
+    // link) to onboarding and then to /dashboard.
+    if (!isLoading && tenants.length === 0) {
       console.log('[TenantGuard] No tenant found, redirecting to onboarding')
       navigate('/onboarding', { replace: true })
     }
   }, [isLoading, tenants, currentTenant, navigate])
 
-  if (isLoading) {
+  if (isLoading || (tenants.length > 0 && !currentTenant)) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

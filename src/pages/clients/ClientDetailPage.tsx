@@ -103,7 +103,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, DeleteRecordButton } from '@/components/shared'
 import type { Contact, CreateContactInput, UpdateContactInput, ContactRole, IndustryType, ReferralSource } from '@/types/database'
 
 // Client form schema
@@ -189,7 +189,7 @@ export function ClientDetailPage() {
   const { data: competitorsByClient, isLoading: competitorsLoading } = useCompetitorsByClient(safeClientId)
   const { data: tenantUsers } = useTenantUsers()
   const { data: unlinkedContacts, isLoading: unlinkedLoading } = useUnlinkedContacts(safeClientId)
-  const { updateClient } = useClientMutations()
+  const { updateClient, deleteClient } = useClientMutations()
   const { createContact, updateContact, deleteContact, setPrimaryContact, linkToClient, unlinkFromClient, updateRelationship } = useContactMutations(safeClientId)
   const { openCreateModal } = useUIStore()
 
@@ -503,15 +503,15 @@ export function ClientDetailPage() {
       />
 
       {/* Header - Title is non-editable, shows Name | ID format */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? clientForm.watch('name') : client.name}
-              {client.display_id && <span className="text-muted-foreground"> | ID: {client.display_id}</span>}
+              {client.display_id && <span className="ml-2 inline-flex translate-y-[-0.15em] items-center whitespace-nowrap rounded-md border bg-muted px-1.5 py-0.5 align-middle font-mono text-xs font-medium tracking-normal text-muted-foreground">#{client.display_id}</span>}
             </h1>
             <Badge variant={client.status === 'active' ? 'default' : client.status === 'onboarding' ? 'info' : 'secondary'}>
               {client.status}
@@ -525,7 +525,7 @@ export function ClientDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons with list position indicator */}
-          <div className="flex justify-end items-center gap-2 mb-4">
+          <div className="flex flex-wrap justify-end items-center gap-2 mb-4">
             {/* List position indicator and prev/next navigation */}
             {listPosition.total > 0 && listPosition.index >= 0 && (
               <div className="flex items-center gap-1 mr-2">
@@ -554,6 +554,13 @@ export function ClientDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="client"
+                  recordName={client.name}
+                  onDelete={() => deleteClient.mutateAsync(client.id)}
+                  redirectTo="/clients"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -579,7 +586,7 @@ export function ClientDetailPage() {
           </div>
 
           {/* Header fields: Name, Industry, Status, Relationship Manager only */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <ViewEditField
               type="text"
               label="Client Name"
@@ -724,7 +731,7 @@ export function ClientDetailPage() {
                 Primary Contact
               </h3>
               {primaryContact ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Name</p>
                     <p className="font-medium">{primaryContact.first_name} {primaryContact.last_name}</p>
@@ -735,7 +742,7 @@ export function ClientDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Email</p>
-                    <p>{primaryContact.email || '—'}</p>
+                    <p className="break-all">{primaryContact.email || '—'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Phone</p>
@@ -755,7 +762,7 @@ export function ClientDetailPage() {
                 <Building2 className="h-5 w-5 text-muted-foreground" />
                 Business Information
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 <ViewEditField
                   type="text"
                   label="Company Name"
@@ -802,7 +809,7 @@ export function ClientDetailPage() {
                 <FileText className="h-5 w-5 text-muted-foreground" />
                 Settings
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 <ViewEditField
                   type="switch"
                   label="Client Portal"
@@ -891,7 +898,7 @@ export function ClientDetailPage() {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Users className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No contacts yet</p>
-                <div className="flex gap-2 mt-4">
+                <div className="flex flex-wrap justify-center gap-2 mt-4">
                   <Button onClick={() => handleOpenContactDialog()}>
                     <Plus className="mr-2 h-4 w-4" />
                     Create New
@@ -1593,7 +1600,7 @@ export function ClientDetailPage() {
         {/* Competitors Tab */}
         <TabsContent value="competitors" className="mt-6">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
               <h3 className="text-lg font-semibold">Linked Competitors</h3>
               <p className="text-sm text-muted-foreground">
                 Competitors associated with this client

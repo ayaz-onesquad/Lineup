@@ -70,7 +70,7 @@ import { calculateEisenhowerPriority as calcPriority, getPriorityColor as getPri
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ViewEditField } from '@/components/shared/ViewEditField'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
-import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar } from '@/components/shared'
+import { DocumentsTab, NotesPanel, DiscussionsPanel, RequirementsTabbedPanel, SaveSplitButton, getNextRecordId, getPrevRecordId, getListPosition, StatusFilterBar, DeleteRecordButton } from '@/components/shared'
 import { useStatusFilter } from '@/hooks/useStatusFilter'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { UrgencyLevel, ImportanceLevel } from '@/types/database'
@@ -119,7 +119,7 @@ export function SetDetailPage() {
   const { data: clients } = useClients()
   const { data: allProjects } = useProjects()
   const { data: users } = useTenantUsers()
-  const { updateSet } = useSetMutations()
+  const { updateSet, deleteSet } = useSetMutations()
   const { openCreateModal } = useUIStore()
 
   // Check for ?edit=true query param to auto-enter edit mode
@@ -558,15 +558,15 @@ export function SetDetailPage() {
       />
 
       {/* Header - Title with Name | ID format */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-2 md:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : set.name}
-              {set.display_id && <span className="text-muted-foreground"> | ID: {set.display_id}</span>}
+              {set.display_id && <span className="ml-2 inline-flex translate-y-[-0.15em] items-center whitespace-nowrap rounded-md border bg-muted px-1.5 py-0.5 align-middle font-mono text-xs font-medium tracking-normal text-muted-foreground">#{set.display_id}</span>}
             </h1>
             <Badge className={getStatusColor(reactiveStatus)}>
               {getStatusLabel(reactiveStatus)}
@@ -597,7 +597,7 @@ export function SetDetailPage() {
       <Card className="card-carbon">
         <CardContent className="pt-6">
           {/* Edit/Save buttons with list position indicator */}
-          <div className="flex justify-end items-center gap-2 mb-4">
+          <div className="flex flex-wrap justify-end items-center gap-2 mb-4">
             {/* List position indicator and prev/next navigation */}
             {listPosition.total > 0 && listPosition.index >= 0 && (
               <div className="flex items-center gap-1 mr-2">
@@ -626,6 +626,13 @@ export function SetDetailPage() {
             )}
             {isEditing ? (
               <>
+                <DeleteRecordButton
+                  entityName="set"
+                  recordName={set.name}
+                  onDelete={() => deleteSet.mutateAsync(set.id)}
+                  redirectTo="/sets"
+                  disabled={isSaving}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -652,7 +659,7 @@ export function SetDetailPage() {
 
           {/* Progress section with Key Dates - always visible */}
           <div className="space-y-3 mb-6 p-4 rounded-lg bg-muted/50">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Overall Progress</p>
                 <p className="text-2xl font-bold">{set.completion_percentage}%</p>
@@ -673,7 +680,7 @@ export function SetDetailPage() {
           </div>
 
           {/* Header fields: Name, Status, Urgency, Importance */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <ViewEditField
               type="text"
               label="Set Name"
@@ -778,7 +785,7 @@ export function SetDetailPage() {
                 <Layers className="h-5 w-5 text-muted-foreground" />
                 Set Information
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                 {/* Client - Editable dropdown */}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Client *</p>
@@ -906,7 +913,7 @@ export function SetDetailPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 Schedule
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
                 <ViewEditField
                   type="date"
                   label="Expected Start Date"
@@ -1111,7 +1118,7 @@ export function SetDetailPage() {
 
         {/* Pitches Tab */}
         <TabsContent value="pitches" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <StatusFilterBar
               value={pitchesFilter}
               onChange={setPitchesFilter}
