@@ -219,7 +219,7 @@ export function NoteDetailPage() {
             <div className={cn('p-2 rounded-lg shrink-0', colorClass)}>
               <Icon className="h-5 w-5" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? editValues.title : note.title}
             </h1>
             {note.is_pinned && (

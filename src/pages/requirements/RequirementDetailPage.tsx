@@ -584,10 +584,10 @@ export function RequirementDetailPage() {
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('title') : requirement.title}
               {requirement.display_id && (
-                <span className="text-muted-foreground"> | ID: {requirement.display_id}</span>
+                <span className="ml-2 inline-flex translate-y-[-0.15em] items-center whitespace-nowrap rounded-md border bg-muted px-1.5 py-0.5 align-middle font-mono text-xs font-medium tracking-normal text-muted-foreground">#{requirement.display_id}</span>
               )}
             </h1>
             <Badge className={getStatusColor(reactiveStatus)}>

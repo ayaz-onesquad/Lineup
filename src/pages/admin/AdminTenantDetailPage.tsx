@@ -491,7 +491,7 @@ export function AdminTenantDetailPage() {
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">{tenant.name}</h1>
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">{tenant.name}</h1>
             {tenant.status === 'inactive' ? (
               <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
                 Inactive

@@ -63,11 +63,24 @@ import {
   GripVertical,
   Zap,
   X,
+  Percent,
 } from 'lucide-react'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatDate, formatCurrency, cn } from '@/lib/utils'
+import { StatTile } from '@/components/shared/StatTile'
+
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLeadAutomation } from '@/hooks/useLeadAutomations'
 import type { LeadWithRelations, LeadStatus } from '@/types/database'
+
+/** $1.25M / $480K style, so values fit a half-width tile on a phone. */
+const compactCurrency = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumFractionDigits: 2,
+})
+const formatCompactCurrency = (value: number) =>
+  Math.abs(value) < 10000 ? formatCurrency(Math.round(value)) : compactCurrency.format(value)
 
 // Pipeline stages configuration
 const PIPELINE_STAGES: { status: LeadStatus; label: string; color: string; bgColor: string }[] = [
@@ -105,7 +118,30 @@ export function LeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const automationFilter = searchParams.get('automation')
   const { data: leads, isLoading, error, refetch } = useLeads()
-  const { data: stats } = useLeadPipelineStats()
+  const { data: stats, isLoading: statsLoading } = useLeadPipelineStats()
+
+  // Counts and per-stage value shares behind the KPI tiles.
+  const pipelineSummary = useMemo(() => {
+    const byStatus = stats?.byStatus ?? {}
+    const count = (status: string) => byStatus[status]?.count ?? 0
+    const openStages = PIPELINE_STAGES.filter((s) => s.status !== 'won' && s.status !== 'lost')
+    const openValue = openStages.reduce((sum, s) => sum + (byStatus[s.status]?.value ?? 0), 0)
+    return {
+      openCount: openStages.reduce((sum, s) => sum + count(s.status), 0),
+      wonCount: count('won'),
+      lostCount: count('lost'),
+      closedCount: count('won') + count('lost'),
+      stageShares: openStages
+        .map((s) => ({
+          status: s.status,
+          label: s.label,
+          color: s.color,
+          value: byStatus[s.status]?.value ?? 0,
+          percent: openValue > 0 ? ((byStatus[s.status]?.value ?? 0) / openValue) * 100 : 0,
+        }))
+        .filter((s) => s.percent > 0),
+    }
+  }, [stats])
   const { updateLeadStatus, deleteLead } = useLeadMutations()
   const onBulkDelete = useBulkDelete(deleteLead.mutateAsync, {
     singular: 'lead',
@@ -240,6 +276,10 @@ export function LeadsPage() {
       icon={Target}
       actions={
         <>
+          {/* View toggle + closed filter share one row on a phone (icons only
+              there, labels from sm), so the header does not stack three
+              full-width rows above the KPIs. */}
+          <div className="flex items-center gap-2">
           {/* View toggle. Pipeline and List are board views; Table is the grid. */}
           <div className="flex items-center rounded-lg border p-1">
             <Button
@@ -248,9 +288,10 @@ export function LeadsPage() {
               onClick={() => setLeadsViewMode('pipeline')}
               aria-pressed={leadsViewMode === 'pipeline'}
               className="gap-2"
+              aria-label="Pipeline view"
             >
               <LayoutGrid className="h-4 w-4" />
-              Pipeline
+              <span className="hidden sm:inline">Pipeline</span>
             </Button>
             <Button
               variant={leadsViewMode === 'list' ? 'secondary' : 'ghost'}
@@ -258,9 +299,10 @@ export function LeadsPage() {
               onClick={() => setLeadsViewMode('list')}
               aria-pressed={leadsViewMode === 'list'}
               className="gap-2"
+              aria-label="List view"
             >
               <List className="h-4 w-4" />
-              List
+              <span className="hidden sm:inline">List</span>
             </Button>
             <Button
               variant={leadsViewMode === 'table' ? 'secondary' : 'ghost'}
@@ -268,9 +310,10 @@ export function LeadsPage() {
               onClick={() => setLeadsViewMode('table')}
               aria-pressed={leadsViewMode === 'table'}
               className="gap-2"
+              aria-label="Table view"
             >
               <TableIcon className="h-4 w-4" />
-              Table
+              <span className="hidden sm:inline">Table</span>
             </Button>
           </div>
 
@@ -278,10 +321,11 @@ export function LeadsPage() {
             variant={showClosed ? 'secondary' : 'outline'}
             onClick={() => setShowClosed(!showClosed)}
             aria-pressed={showClosed}
-            className="w-full sm:w-auto"
+            className="flex-1 sm:flex-none"
           >
             {showClosed ? 'Hide Closed' : 'Show Closed'}
           </Button>
+          </div>
 
           <Button onClick={() => openCreateModal('lead')} className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
@@ -309,48 +353,73 @@ export function LeadsPage() {
         ) : null
       }
     >
-      {/* Pipeline KPIs */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Pipeline Value</span>
-            </div>
-            <p className="mt-1 text-2xl font-bold">{formatCurrency(stats?.totalValue || 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-success" />
-              <span className="text-sm text-muted-foreground">Won Value</span>
-            </div>
-            <p className="mt-1 text-2xl font-bold text-success">
-              {formatCurrency(stats?.wonValue || 0)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-destructive" />
-              <span className="text-sm text-muted-foreground">Lost Value</span>
-            </div>
-            <p className="mt-1 text-2xl font-bold text-destructive">
-              {formatCurrency(stats?.lostValue || 0)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Conversion Rate</span>
-            </div>
-            <p className="mt-1 text-2xl font-bold">{(stats?.conversionRate || 0).toFixed(1)}%</p>
-          </CardContent>
-        </Card>
+      {/* Pipeline KPIs. Compact tiles: two-up on a phone (numeric stat tiles,
+          not inputs, so a two-column grid stays legible at 390px), four-up
+          from md. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <StatTile
+          index={0}
+          label="Pipeline value"
+          value={stats?.totalValue ?? 0}
+          format={formatCompactCurrency}
+          icon={Target}
+          tone="primary"
+          isLoading={statsLoading}
+          detail={`${pipelineSummary.openCount} open ${pipelineSummary.openCount === 1 ? 'deal' : 'deals'}`}
+        >
+          {/* Where the open value sits, by stage. */}
+          <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+            {pipelineSummary.stageShares.map((share) => (
+              <div
+                key={share.status}
+                className={cn('h-full transition-[width] duration-700 ease-out', share.color)}
+                style={{ width: `${share.percent}%` }}
+                title={`${share.label}: ${formatCurrency(share.value)}`}
+              />
+            ))}
+          </div>
+        </StatTile>
+        <StatTile
+          index={1}
+          label="Won"
+          value={stats?.wonValue ?? 0}
+          format={formatCompactCurrency}
+          icon={TrendingUp}
+          tone="success"
+          isLoading={statsLoading}
+          detail={`${pipelineSummary.wonCount} won`}
+        />
+        <StatTile
+          index={2}
+          label="Lost"
+          value={stats?.lostValue ?? 0}
+          format={formatCompactCurrency}
+          icon={DollarSign}
+          tone="danger"
+          isLoading={statsLoading}
+          detail={`${pipelineSummary.lostCount} lost`}
+        />
+        <StatTile
+          index={3}
+          label="Win rate"
+          value={stats?.conversionRate ?? 0}
+          format={(v) => `${v.toFixed(1)}%`}
+          icon={Percent}
+          tone="warning"
+          isLoading={statsLoading}
+          detail={
+            pipelineSummary.closedCount > 0
+              ? `${pipelineSummary.wonCount} of ${pipelineSummary.closedCount} closed`
+              : 'No closed deals yet'
+          }
+        >
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+            <div
+              className="h-full rounded-full bg-amber-500 transition-[width] duration-700 ease-out"
+              style={{ width: `${Math.min(100, stats?.conversionRate ?? 0)}%` }}
+            />
+          </div>
+        </StatTile>
       </div>
 
       {/* The board views keep a standalone search; the table view gets the

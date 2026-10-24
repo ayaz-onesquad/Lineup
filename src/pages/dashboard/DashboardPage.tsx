@@ -7,10 +7,10 @@ import {
 } from '@/hooks'
 import { DiscussionView } from '@/components/shared/DiscussionView'
 import { AssignedByMeWidget } from '@/components/dashboard/AssignedByMeWidget'
+import { StatTile } from '@/components/shared/StatTile'
 import { useAuthStore, useTenantStore } from '@/stores'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -45,6 +45,7 @@ import {
   FolderKanban,
   ListOrdered,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
 import { formatDate } from '@/lib/utils'
@@ -229,82 +230,57 @@ function KpiDrillDownModal({
 // Premium KPI Card component with comparison metrics - NOW CLICKABLE
 function KpiCard({
   title,
-  icon: Icon,
+  icon,
   active,
   pastDue,
-  color,
-  bgColor,
   isLoading,
   onClick,
+  index = 0,
 }: {
   title: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: LucideIcon
   active: number
   pastDue: number
-  color: string
-  bgColor: string
+  /** Kept for call-site compatibility; StatTile owns the colour now. */
+  color?: string
+  bgColor?: string
   isLoading?: boolean
   onClick?: () => void
+  index?: number
 }) {
   const percentage = active > 0 ? Math.round((pastDue / active) * 100) : 0
   const hasIssues = pastDue > 0
 
   return (
-    <Card
-      className={cn(
-        "relative overflow-hidden transition-all",
-        onClick && "cursor-pointer hover:shadow-md hover:border-primary/30"
-      )}
+    <StatTile
+      index={index}
+      label={title}
+      value={active}
+      format={(v) => Math.round(v).toLocaleString()}
+      icon={icon}
+      tone={hasIssues ? 'danger' : 'primary'}
+      isLoading={isLoading}
       onClick={onClick}
-    >
-      {/* Subtle gradient accent */}
-      <div className={cn('absolute top-0 left-0 right-0 h-1', bgColor)} />
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4">
-        <div className="flex items-center gap-2">
-          <div className={cn('p-2 rounded-lg', bgColor)}>
-            <Icon className={cn('h-4 w-4', color)} />
-          </div>
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        </div>
-        {hasIssues && (
-          <Badge variant="destructive" className="text-xs">
-            {pastDue} Past Due
-          </Badge>
-        )}
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-2 w-full" />
-          </div>
+      detail={
+        hasIssues ? (
+          <span className="text-red-600 dark:text-red-400">
+            {pastDue} past due · {percentage}%
+          </span>
         ) : (
-          <>
-            <div className="flex items-baseline gap-2 mb-3">
-              <span className="text-3xl font-bold">{active}</span>
-              <span className="text-sm text-muted-foreground">active</span>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className={cn(hasIssues ? 'text-red-600' : 'text-muted-foreground')}>
-                  {hasIssues ? `${percentage}% past due` : 'All on track'}
-                </span>
-                <span className="text-muted-foreground">
-                  {pastDue} / {active}
-                </span>
-              </div>
-              <Progress
-                value={hasIssues ? percentage : 100}
-                className={cn('h-1.5', hasIssues && '[&>div]:bg-red-500')}
-              />
-            </div>
-            {onClick && (
-              <p className="text-xs text-muted-foreground mt-2 text-center">Click to view details</p>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+          `${active} active · all on track`
+        )
+      }
+    >
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+        <div
+          className={cn(
+            'h-full rounded-full transition-[width] duration-700 ease-out',
+            hasIssues ? 'bg-red-500' : 'bg-primary'
+          )}
+          style={{ width: `${hasIssues ? Math.max(percentage, 4) : 100}%` }}
+        />
+      </div>
+    </StatTile>
   )
 }
 
@@ -1047,9 +1023,11 @@ export function DashboardPage() {
       </div>
 
       {/* Premium KPI Cards - Past Due vs Active - NOW CLICKABLE */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Compact numeric tiles: two-up on a phone, four-up from lg. */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
         <KpiCard
           title="My Sets"
+          index={0}
           icon={Layers}
           active={finalKpis?.sets.active || 0}
           pastDue={finalKpis?.sets.past_due || 0}
@@ -1060,6 +1038,7 @@ export function DashboardPage() {
         />
         <KpiCard
           title="My Pitches"
+          index={1}
           icon={Presentation}
           active={finalKpis?.pitches.active || 0}
           pastDue={finalKpis?.pitches.past_due || 0}
@@ -1070,6 +1049,7 @@ export function DashboardPage() {
         />
         <KpiCard
           title="My Tasks"
+          index={2}
           icon={CheckSquare}
           active={finalKpis?.tasks.active || 0}
           pastDue={finalKpis?.tasks.past_due || 0}
@@ -1080,6 +1060,7 @@ export function DashboardPage() {
         />
         <KpiCard
           title="My Requirements"
+          index={3}
           icon={Target}
           active={finalKpis?.requirements.active || 0}
           pastDue={finalKpis?.requirements.past_due || 0}

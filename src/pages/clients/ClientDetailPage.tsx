@@ -509,9 +509,9 @@ export function ClientDetailPage() {
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? clientForm.watch('name') : client.name}
-              {client.display_id && <span className="text-muted-foreground"> | ID: {client.display_id}</span>}
+              {client.display_id && <span className="ml-2 inline-flex translate-y-[-0.15em] items-center whitespace-nowrap rounded-md border bg-muted px-1.5 py-0.5 align-middle font-mono text-xs font-medium tracking-normal text-muted-foreground">#{client.display_id}</span>}
             </h1>
             <Badge variant={client.status === 'active' ? 'default' : client.status === 'onboarding' ? 'info' : 'secondary'}>
               {client.status}

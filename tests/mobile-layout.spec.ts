@@ -40,6 +40,7 @@ const DETAIL_PAGES = [
   `/discussions/${MOCK_IDS.generic(8)}`,
   `/financials/${MOCK_IDS.generic(9)}`,
   `/passwords/${MOCK_IDS.generic(10)}`,
+  `/company-documents/${MOCK_IDS.generic(11)}`,
 ]
 
 const WIDTHS = [
@@ -65,6 +66,8 @@ async function measure(page: Page) {
       const r = el.getBoundingClientRect()
       if (!r.width || !r.height || r.right <= vw + 1 || r.left >= vw) continue
       if (insideScroller(el)) continue
+      // Decorative layers (glows, gradients) are not content.
+      if (el.closest('[aria-hidden="true"]')) continue
       // Report the outermost offender only.
       const parent = el.parentElement?.getBoundingClientRect()
       if (parent && parent.right > vw + 1) continue
@@ -102,6 +105,57 @@ async function silentlyClipped(page: Page) {
       if (hides) {
         const text = ((el as HTMLElement).innerText || '').trim().replace(/\s+/g, ' ').slice(0, 40)
         out.push(`<${el.tagName.toLowerCase()} class="${(el.getAttribute('class') || '').slice(0, 80)}"> "${text}" box=${Math.round(r.width)} content=${el.scrollWidth}`)
+      }
+    }
+    return out
+  })
+}
+
+/**
+ * HARD RULE: text never overflows its section. Finds text drawn outside the
+ * nearest card / bordered / filled box that contains it (an email running past
+ * the card edge). Text inside a scroll container or an ellipsis-truncated
+ * element is exempt: it is reachable or deliberately shortened.
+ */
+async function textOutsideSection(page: Page) {
+  return page.evaluate(() => {
+    const isSection = (el: Element) => {
+      const s = getComputedStyle(el)
+      const bordered = (['Left', 'Right'] as const).some(
+        side => parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== 'none'
+      )
+      const filled = s.backgroundColor !== 'rgba(0, 0, 0, 0)' && s.backgroundColor !== 'transparent'
+      return bordered || filled
+    }
+    const exempt = (el: Element) => {
+      for (let a: Element | null = el; a; a = a.parentElement) {
+        const s = getComputedStyle(a)
+        if (s.overflowX === 'auto' || s.overflowX === 'scroll') return true
+        if (s.textOverflow === 'ellipsis' && s.overflowX === 'hidden') return true
+      }
+      return false
+    }
+    const out: string[] = []
+    const root = document.querySelector('main')
+    if (!root) return out
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    while (walker.nextNode()) {
+      const node = walker.currentNode
+      const el = node.parentElement
+      if (!node.textContent?.trim() || !el || el.closest('.sr-only, [aria-hidden=true]') || exempt(el)) continue
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const rects = Array.from(range.getClientRects()).filter(r => r.width > 0)
+      if (!rects.length) continue
+      let box: Element | null = null
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+        if (isSection(a)) { box = a; break }
+      }
+      const limit = box ? box.getBoundingClientRect() : { left: 0, right: window.innerWidth }
+      const right = Math.max(...rects.map(r => r.right))
+      const left = Math.min(...rects.map(r => r.left))
+      if (right > limit.right + 1 || left < limit.left - 1) {
+        out.push(`"${node.textContent.trim().slice(0, 40)}" spans ${Math.round(left)}–${Math.round(right)}px, section ${Math.round(limit.left)}–${Math.round(limit.right)}px`)
       }
     }
     return out
@@ -173,6 +227,7 @@ test.describe('No content is cut off without a way to reach it', () => {
             }
           }
           expect(await silentlyClipped(page), `${path} hides content with no scrollbar`).toEqual([])
+          expect(await textOutsideSection(page), `${path} has text overflowing its section`).toEqual([])
         })
       }
     })

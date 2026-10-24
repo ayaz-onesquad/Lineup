@@ -250,3 +250,25 @@
 .scrollbar-visible::-webkit-scrollbar-thumb:hover {
   background-color: hsl(var(--muted-foreground) / 0.7);
 }
+
+/*
+ * HARD RULE: text never overflows its section.
+ *
+ * A string too long for its box (an email, a URL, an unbroken name) breaks
+ * onto the next line instead of spilling past the card edge.
+ *
+ * `break-word`, not `anywhere`, at this global level: `anywhere` also lowers
+ * every element's min-content width, so in a tight flex row short labels get
+ * squeezed and split mid-word ("Create d:"). Components that display long
+ * values (ViewEditField, TruncatedCell, DataGrid cards, links) opt into
+ * `[overflow-wrap:anywhere]` with `min-w-0` locally, where that is right.
+ *
+ * Tables are exempt: a long value should widen its column, and the table's
+ * own scroll container scrolls sideways.
+ */
+main {
+  overflow-wrap: break-word;
+}
+main table {
+  overflow-wrap: normal;
+}

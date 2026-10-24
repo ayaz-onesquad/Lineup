@@ -499,7 +499,7 @@ export function DocumentDetailPage() {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
             <FileText className="h-6 w-6 shrink-0 text-muted-foreground" />
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : document.name}
             </h1>
             {document.document_type && (

@@ -112,6 +112,14 @@ export async function installSupabaseMock(context: BrowserContext, supabaseUrl: 
       row(U(80 + i), i, { status: ['open', 'in_progress', 'open'][i], type: ['incident', 'information', 'improvement'][i] })
     ),
   }
+  tables.leads = [0, 1, 2].map((i) =>
+    row(i === 0 ? MOCK_IDS.generic(4) : U(960 + i), i, {
+      notes: '<p>Met at the regional healthcare summit. Wants a full brand refresh before Q3.</p>',
+      status: ['new', 'contacted', 'qualified'][i],
+      estimated_value: 125000,
+    })
+  )
+  tables.company_document_access_log = [0, 1].map((i) => row(U(970 + i), i, { action: 'viewed' }))
   tables.my_work_items = [
     ...tables.sets.map((s) => ({ ...s, item_type: 'set' })),
     ...tables.pitches.map((p) => ({ ...p, item_type: 'pitch' })),

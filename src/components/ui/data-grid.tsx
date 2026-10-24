@@ -1119,9 +1119,15 @@ function MobileCard<T>({
 }) {
   const [showMore, setShowMore] = useState(false)
 
-  const usable = columns.filter(c => !c.hideOnMobile && !c.mobileHidden)
+  // `mobileHidden` columns (actions, checkboxes) never appear on a card.
+  // `hideOnMobile` columns (ids, audit dates) stay off the card face but are
+  // listed under "More details", so a phone can still reach every field the
+  // desktop row shows.
+  const usable = columns.filter(c => !c.mobileHidden)
   const primary = usable.find(c => c.priority === 'primary')
-  const secondary = usable.filter(c => c.priority === 'secondary').slice(0, 4)
+  const secondary = usable
+    .filter(c => c.priority === 'secondary' && !c.hideOnMobile)
+    .slice(0, 4)
   const tertiary = usable.filter(
     c => c !== primary && !secondary.includes(c)
   )

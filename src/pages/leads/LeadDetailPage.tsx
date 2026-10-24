@@ -396,7 +396,7 @@ export function LeadDetailPage() {
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('lead_name') : lead.lead_name}
               {lead.lead_id_display && (
                 <span className="text-muted-foreground"> | {lead.lead_id_display}</span>

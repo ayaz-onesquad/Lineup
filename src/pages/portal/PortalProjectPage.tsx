@@ -71,7 +71,7 @@ export function PortalProjectPage() {
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">{project.name}</h1>
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">{project.name}</h1>
             <Badge className={project.computed_status ? getComputedStatusColor(project.computed_status) : getStatusColor(project.status)}>{project.computed_status ? getComputedStatusLabel(project.computed_status) : project.status}</Badge>
             <Badge variant="outline" className={getHealthColor(project.health)}>
               {project.health.replace('_', ' ')}

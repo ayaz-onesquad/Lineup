@@ -296,7 +296,7 @@ export function CompetitorDetailPage() {
             <Badge variant="outline" className="font-mono">
               COMP-{String(competitor.display_id).padStart(4, '0')}
             </Badge>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
+            <h1 className="text-xl leading-tight sm:text-2xl md:text-3xl font-bold tracking-tight break-words min-w-0">
               {isEditing ? form.watch('name') : competitor.name}
             </h1>
             {competitor.threat_level && (
@@ -667,7 +667,7 @@ export function CompetitorDetailPage() {
                       onChange={(e) => form.setValue('last_reviewed_at', e.target.value)}
                     />
                   ) : (
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
                       <span className="font-medium">
                         {competitor.last_reviewed_at
                           ? new Date(competitor.last_reviewed_at).toLocaleDateString()
@@ -679,9 +679,10 @@ export function CompetitorDetailPage() {
                           size="sm"
                           onClick={handleMarkAsReviewed}
                           disabled={updateCompetitor.isPending}
+                          className="h-auto min-h-8 max-w-full whitespace-normal py-1 text-left"
                         >
-                          <RefreshCw className="mr-1 h-3 w-3" />
-                          Mark as Reviewed Today
+                          <RefreshCw className="mr-1 h-3 w-3 shrink-0" />
+                          Mark as reviewed today
                         </Button>
                       )}
                     </div>
