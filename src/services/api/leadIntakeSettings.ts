@@ -14,7 +14,7 @@ export const leadIntakeSettingsApi = {
     return data
   },
 
-  /** Saves one tenant's settings. RLS restricts this to org admins. */
+  /** Saves one tenant's settings (recipients, assignee, confirm_to_contact). RLS restricts this to org admins. */
   save: async (
     tenantId: string,
     input: UpdateLeadIntakeSettingsInput

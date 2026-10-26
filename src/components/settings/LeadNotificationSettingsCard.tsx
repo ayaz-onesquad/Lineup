@@ -26,6 +26,7 @@ const EMPTY: UpdateLeadIntakeSettingsInput = {
   notify_emails: [],
   mockup_task_assignee_id: null,
   notify_on_new_leads: true,
+  confirm_to_contact: true,
 }
 
 function toDraft(settings: LeadIntakeSettings | null | undefined): UpdateLeadIntakeSettingsInput {
@@ -35,12 +36,14 @@ function toDraft(settings: LeadIntakeSettings | null | undefined): UpdateLeadInt
     notify_emails: settings.notify_emails ?? [],
     mockup_task_assignee_id: settings.mockup_task_assignee_id ?? null,
     notify_on_new_leads: settings.notify_on_new_leads ?? true,
+    confirm_to_contact: settings.confirm_to_contact ?? true,
   }
 }
 
 /**
  * Settings > Leads (org admins). Who is emailed when a new lead comes in, from the
- * website or added in LineUp, and who website mock-up tasks are assigned to.
+ * website or added in LineUp, whether the person who sent a website request gets a
+ * confirmation, and who website mock-up tasks are assigned to.
  * Read by website-lead-intake and by the notify_lead_created trigger.
  */
 export function LeadNotificationSettingsCard() {
@@ -268,6 +271,24 @@ export function LeadNotificationSettingsCard() {
             id="lead-notify-all"
             checked={form.notify_on_new_leads}
             onCheckedChange={(checked) => update({ notify_on_new_leads: checked })}
+            className="mt-0.5 shrink-0"
+          />
+        </div>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="lead-confirm-contact" className="font-normal">
+              Email a confirmation to the person who sent the request
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Website requests only. It only sends once a sender for your organization is set
+              up by a LineUp admin; until then nothing goes out.
+            </p>
+          </div>
+          <Switch
+            id="lead-confirm-contact"
+            checked={form.confirm_to_contact}
+            onCheckedChange={(checked) => update({ confirm_to_contact: checked })}
             className="mt-0.5 shrink-0"
           />
         </div>

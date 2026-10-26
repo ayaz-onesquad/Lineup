@@ -1671,6 +1671,9 @@ export interface LeadIntakeSettings {
   mockup_task_assignee_id: string | null
   /** Email for leads added in LineUp (UI, imports); website requests always email */
   notify_on_new_leads: boolean
+  /** Email a confirmation to the person who sent a website request (migration 073). Sent only
+   *  once a sysadmin has set up a sender for the organization. */
+  confirm_to_contact: boolean
   created_at: string
   updated_at: string
   created_by?: string | null
@@ -1679,5 +1682,9 @@ export interface LeadIntakeSettings {
 
 export type UpdateLeadIntakeSettingsInput = Pick<
   LeadIntakeSettings,
-  'notify_user_ids' | 'notify_emails' | 'mockup_task_assignee_id' | 'notify_on_new_leads'
+  | 'notify_user_ids'
+  | 'notify_emails'
+  | 'mockup_task_assignee_id'
+  | 'notify_on_new_leads'
+  | 'confirm_to_contact'
 >

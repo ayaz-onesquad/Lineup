@@ -16,6 +16,13 @@
 // anyone holding the public anon key. Callers must now present EITHER a valid
 // user session (and be an active member of the tenant they name), OR the
 // service_role key as a bearer token, OR the shared webhook secret.
+//
+// SENDER (migration 073)
+// notification_email_config holds LineUp's global sender (tenant_id NULL) and, optionally, one
+// active sender per tenant. The tenant's own sender is used when it has one; otherwise the global
+// one. A caller that must never send as LineUp (the visitor confirmation from
+// website-lead-intake) sets `require_tenant_sender: true`: without an active tenant sender the
+// email is skipped and logged with the reason `no_tenant_sender`.
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -38,6 +45,8 @@ interface NotificationPayload {
   tenant_id: string
   variables: Record<string, string>
   recipient_email: string
+  /** Only send from the tenant's own sender; skip (no_tenant_sender) when it has none. */
+  require_tenant_sender?: boolean
 }
 
 interface NotificationTemplate {
@@ -124,7 +133,7 @@ async function logNotification(
   supabase: SupabaseClient,
   payload: NotificationPayload,
   subject: string,
-  status: 'sent' | 'failed',
+  status: 'sent' | 'failed' | 'skipped',
   errorMessage: string | null
 ): Promise<string | null> {
   const { data, error } = await supabase
@@ -136,7 +145,7 @@ async function logNotification(
       subject: subject,
       status: status,
       error_message: errorMessage,
-      sent_at: new Date().toISOString(),
+      sent_at: status === 'skipped' ? null : new Date().toISOString(),
     })
     .select('id')
     .single()
@@ -147,6 +156,42 @@ async function logNotification(
   }
 
   return data?.id ?? null
+}
+
+const SENDER_COLUMNS = 'id, from_name, from_email, reply_to_email, is_active'
+
+// The sender for a tenant: its own active row, else (unless the caller requires the tenant's own)
+// the active global row. Null when there is none.
+async function resolveSender(
+  supabase: SupabaseClient,
+  tenantId: string,
+  requireTenantSender: boolean
+): Promise<EmailConfig | null> {
+  const { data: own, error: ownError } = await supabase
+    .from('notification_email_config')
+    .select(SENDER_COLUMNS)
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle()
+
+  if (ownError) {
+    console.error('[send-notification] tenant sender lookup failed:', ownError)
+  }
+  if (own) return own as EmailConfig
+  if (requireTenantSender) return null
+
+  // The global row. Before migration 073 there is no tenant_id column (Postgres 42703), so use the
+  // old query: the table could only hold one row then.
+  const legacy = ownError?.code === '42703'
+  const global = legacy
+    ? await supabase.from('notification_email_config').select(SENDER_COLUMNS).eq('is_active', true).limit(1).maybeSingle()
+    : await supabase.from('notification_email_config').select(SENDER_COLUMNS).is('tenant_id', null).eq('is_active', true).limit(1).maybeSingle()
+
+  if (global.error) {
+    console.error('[send-notification] global sender lookup failed:', global.error)
+  }
+  return (global.data as EmailConfig | null) ?? null
 }
 
 // Send email via Resend
@@ -323,15 +368,29 @@ serve(async (req: Request): Promise<Response> => {
     const renderedSubject = renderSubject(subject, payload.variables)
     const renderedHtml = renderTemplate(htmlBody, payload.variables)
 
-    // Step 5: Get email sender configuration
-    const { data: emailConfig, error: configError } = await supabase
-      .from('notification_email_config')
-      .select('id, from_name, from_email, reply_to_email, is_active')
-      .eq('is_active', true)
-      .limit(1)
-      .single()
+    // Step 5: Get email sender configuration: the tenant's own sender, else the global one
+    const requireTenantSender = payload.require_tenant_sender === true
+    const emailConfig = await resolveSender(supabase, payload.tenant_id, requireTenantSender)
 
-    if (configError || !emailConfig) {
+    if (!emailConfig && requireTenantSender) {
+      // Never send this one as LineUp: skip until a sysadmin sets up the tenant's sender
+      const logId = await logNotification(
+        supabase,
+        payload,
+        renderedSubject,
+        'skipped',
+        'no_tenant_sender'
+      )
+      const result: NotificationResult = {
+        success: true,
+        status: 'skipped',
+        logId: logId ?? undefined,
+        reason: 'no_tenant_sender',
+      }
+      return jsonResponse(req, result, 200)
+    }
+
+    if (!emailConfig) {
       // Log failed attempt
       const logId = await logNotification(
         supabase,

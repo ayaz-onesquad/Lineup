@@ -10,6 +10,8 @@ export interface NotificationEmailConfig {
   from_name: string
   from_email: string
   reply_to_email: string | null
+  /** null: LineUp's global sender; set: that tenant's own sender (migration 073) */
+  tenant_id: string | null
   provider: string
   api_key_encrypted: string | null
   is_active: boolean
@@ -131,7 +133,7 @@ export interface NotificationSendLog {
   trigger_key: string
   recipient_email: string
   subject: string
-  status: 'queued' | 'sent' | 'failed'
+  status: 'queued' | 'sent' | 'failed' | 'skipped'
   error_message: string | null
   sent_at: string | null
   created_at: string
