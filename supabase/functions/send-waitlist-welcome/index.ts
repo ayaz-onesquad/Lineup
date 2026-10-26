@@ -334,6 +334,8 @@ serve(async (req: Request): Promise<Response> => {
       .from('notification_email_config')
       .select('from_name, from_email, reply_to_email')
       .eq('is_active', true)
+      // LineUp's own (global) sender, never a tenant's (migration 073)
+      .is('tenant_id', null)
       .limit(1)
       .single()
 

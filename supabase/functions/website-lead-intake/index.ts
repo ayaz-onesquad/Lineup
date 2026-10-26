@@ -1,7 +1,7 @@
 // Supabase Edge Function: website-lead-intake
 //
 // Receives requests from a tenant's public website (first: theonesquad.com, the OneSquad tenant)
-// and files each one in LineUp (v3):
+// and files each one in LineUp (v4):
 //   - a Lead with its primary Contact. The lead's notes are rich text (one labelled paragraph
 //     per fact); its description is the visitor's message, sanitized rich text when the website
 //     sends `message_format: "html"`, plain text otherwise
@@ -12,6 +12,11 @@
 //   - a `lead.website` notification email to the tenant's chosen recipients (Settings > Leads:
 //     team members' login emails plus extra addresses, de-duplicated), or to INTAKE_NOTIFY_TO
 //     when nothing is set there
+//   - (v4) a `lead.website.received` confirmation to the person who sent the request, unless the
+//     tenant turned it off (lead_intake_settings.confirm_to_contact). It goes only from the
+//     tenant's own sender (notification_email_config row with its tenant_id, migration 073):
+//     send-notification is called with require_tenant_sender, so it is skipped, never sent as
+//     LineUp, until a sysadmin sets that sender up. A failure never fails the request.
 //
 // Deploy:
 //   npx supabase functions deploy website-lead-intake --no-verify-jwt
@@ -127,13 +132,16 @@ interface IntakeSettings {
   notify_user_ids: string[]
   notify_emails: string[]
   mockup_task_assignee_id: string | null
+  /** Migration 073; undefined before it is applied (treated as on) */
+  confirm_to_contact?: boolean
 }
 
 /** The tenant's Settings > Leads row (migration 072), or null when there is none or the table is missing. */
 async function readSettings(supabase: ServiceClient, tenantId: string): Promise<IntakeSettings | null> {
   const { data, error } = await supabase
     .from('lead_intake_settings')
-    .select('notify_user_ids, notify_emails, mockup_task_assignee_id')
+    // '*' so a column added by a later migration being absent doesn't lose the whole row
+    .select('*')
     .eq('tenant_id', tenantId)
     .maybeSingle()
   if (error) {
@@ -187,6 +195,21 @@ async function resolveRecipients(supabase: ServiceClient, tenantId: string, sett
     }
   }
   return [...found]
+}
+
+type Confirmation = 'sent' | 'skipped' | 'failed'
+
+/** The tenant's own active sender's reply-to address (migration 073), or ''. */
+async function tenantReplyTo(supabase: ServiceClient, tenantId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('notification_email_config')
+    .select('reply_to_email')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle()
+  if (error) console.error('[website-lead-intake] tenant sender lookup failed', error)
+  return (data?.reply_to_email as string | null) ?? ''
 }
 
 serve(async (req) => {
@@ -369,7 +392,56 @@ serve(async (req) => {
       }),
     )
 
-    return jsonResponse(req, { lead_id: lead.id, contact_linked: contactLinked, task_id: taskId, notified: notified.filter(Boolean).length }, 201)
+    // 5. The confirmation to the person who sent the request, from the tenant's own sender only.
+    //    Never fails the request: the lead is saved whatever happens here.
+    let confirmation: Confirmation = 'skipped'
+    if (settings?.confirm_to_contact !== false) {
+      try {
+        const isMockup = p.kind === 'mockup'
+        const confirmVariables = {
+          subject_line: isMockup ? 'Your free mock-up request is in' : 'We got your question',
+          first_name: p.first_name,
+          tenant_name: tenant?.name ?? '',
+          headline: isMockup ? 'We got your request.' : 'We got your question.',
+          next_line: isMockup
+            ? p.mockup_due
+              ? `Your free homepage mock-up arrives by ${p.mockup_due}.`
+              : 'We will email your free homepage mock-up soon.'
+            : 'One of us will reply soon.',
+          business: p.business || 'Not given',
+          needs: p.needs.length ? p.needs.join(', ') : 'Not picked',
+          // Plain text; send-notification escapes every variable
+          message: p.message || 'No message',
+          reply_email: await tenantReplyTo(supabase, tenantId),
+          site: p.site || 'our website',
+        }
+        const res = await fetch(notifyUrl, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            trigger_key: 'lead.website.received',
+            tenant_id: tenantId,
+            recipient_email: p.email,
+            variables: confirmVariables,
+            require_tenant_sender: true,
+          }),
+        })
+        const result = (await res.json().catch(() => null)) as { status?: string; reason?: string } | null
+        if (res.ok && result?.status === 'sent') confirmation = 'sent'
+        else if (res.ok && result?.status === 'skipped') {
+          confirmation = 'skipped'
+          console.log('[website-lead-intake] confirmation skipped', result.reason)
+        } else {
+          confirmation = 'failed'
+          console.error('[website-lead-intake] confirmation failed', res.status, result)
+        }
+      } catch (err) {
+        confirmation = 'failed'
+        console.error('[website-lead-intake] confirmation error', err)
+      }
+    }
+
+    return jsonResponse(req, { lead_id: lead.id, contact_linked: contactLinked, task_id: taskId, notified: notified.filter(Boolean).length, confirmation }, 201)
   } catch (err) {
     return errorResponse(req, err)
   }

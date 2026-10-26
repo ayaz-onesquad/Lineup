@@ -30,6 +30,8 @@ export const notificationsApi = {
     const { data, error } = await supabase
       .from('notification_email_config')
       .select('*')
+      // The global row only; tenant senders (migration 073) are managed in SQL
+      .is('tenant_id', null)
       .limit(1)
       .single()
 

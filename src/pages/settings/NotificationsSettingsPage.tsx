@@ -959,7 +959,7 @@ export function NotificationsSettingsPage() {
                                   Failed
                                 </Badge>
                               ) : (
-                                <Badge variant="outline">Queued</Badge>
+                                <Badge variant="outline">{log.status === 'skipped' ? 'Skipped' : 'Queued'}</Badge>
                               )}
                             </TableCell>
                             <TableCell>
