@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { reportError } from '@/lib/errorReporting'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Props {
@@ -27,6 +28,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Error Boundary caught an error:', error, errorInfo)
+    reportError(error, {
+      source: 'client',
+      context: { kind: 'render', componentStack: errorInfo.componentStack?.slice(0, 4000) },
+    })
     this.setState({ errorInfo })
   }
 
