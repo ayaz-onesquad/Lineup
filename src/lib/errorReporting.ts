@@ -51,6 +51,11 @@ const IGNORED = [/ResizeObserver loop/i, /^AbortError/i, /The user aborted a req
 
 let sentry: typeof import('@sentry/react') | null = null
 
+// Messages reported in the last few seconds, so an error toast that shows the
+// same text as a failed query or mutation is not logged a second time.
+const RECENT_WINDOW_MS = 10_000
+const recentMessages = new Map<string, number>()
+
 /** Turns anything thrown (Error, Supabase error object, string) into one shape. */
 function normalize(error: unknown): NormalizedError {
   if (error instanceof Error) {
@@ -112,6 +117,8 @@ export function reportError(error: unknown, options: ReportOptions = {}) {
     const err = normalize(error)
     if (IGNORED.some((re) => re.test(`${err.name}: ${err.message}`))) return
 
+    recentMessages.set(err.message, Date.now())
+
     const source: ErrorSource = options.source ?? (err.code || err.details ? 'api' : 'client')
     const fingerprint = fingerprintOf(source, err)
     const count = sentCounts.get(fingerprint) ?? 0
@@ -164,6 +171,25 @@ export function reportError(error: unknown, options: ReportOptions = {}) {
   } catch {
     // Never let error reporting itself throw.
   }
+}
+
+/**
+ * Logs an error toast the user saw. Most already came from a failed query or
+ * mutation that was reported; those are skipped so each error is logged once.
+ */
+export function reportToastError(title: string, description: string) {
+  const message = description || title
+  if (!message) return
+  const now = Date.now()
+  for (const [seen, at] of recentMessages) {
+    if (now - at > RECENT_WINDOW_MS) recentMessages.delete(seen)
+    // Toasts often wrap the error text ("Failed to save: <message>").
+    else if (seen && message.includes(seen)) return
+  }
+  const error = new Error(message)
+  error.name = title || 'Error'
+  error.stack = undefined
+  reportError(error, { source: 'client', context: { kind: 'toast', title } })
 }
 
 /** Call once at startup, before rendering. */
