@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryCache, QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query'
+import { reportError } from '@/lib/errorReporting'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/components/providers/AuthProvider'
@@ -60,6 +61,7 @@ import { AdminTenantDetailPage } from '@/pages/admin/AdminTenantDetailPage'
 import { SupportDashboardPage } from '@/pages/admin/SupportDashboardPage'
 import { AdminNotificationsPage } from '@/pages/admin/AdminNotificationsPage'
 import { AdminNotificationLogPage } from '@/pages/admin/AdminNotificationLogPage'
+import { AdminErrorsPage } from '@/pages/admin/AdminErrorsPage'
 
 // Support Tickets
 import { MyTicketsPage } from '@/pages/tickets/MyTicketsPage'
@@ -75,7 +77,20 @@ import { AuthGuard } from '@/components/guards/AuthGuard'
 import { TenantGuard } from '@/components/guards/TenantGuard'
 import { AdminGuard } from '@/components/guards/AdminGuard'
 
+// Every failed query and mutation is reported, which is where Supabase errors
+// (RLS denials, constraint violations, missing tables) surface. Pages still
+// show their own toast or error state; this only records it.
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) =>
+      reportError(error, { context: { kind: 'query', queryKey: query.queryKey.slice(0, 4) } }),
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) =>
+      reportError(error, {
+        context: { kind: 'mutation', mutationKey: mutation.options.mutationKey ?? null },
+      }),
+  }),
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
@@ -195,6 +210,7 @@ function App() {
               <Route path="/admin/support" element={<SupportDashboardPage />} />
               <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
               <Route path="/admin/notifications/log" element={<AdminNotificationLogPage />} />
+              <Route path="/admin/errors" element={<AdminErrorsPage />} />
             </Route>
 
               {/* Redirects */}

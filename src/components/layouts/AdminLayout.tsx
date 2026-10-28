@@ -22,6 +22,7 @@ import {
   FileText,
   Activity,
   LifeBuoy,
+  Bug,
   Users,
   LogOut,
   ChevronLeft,
@@ -67,6 +68,7 @@ const navItems: NavItemType[] = [
       { href: '/admin/notifications/log', label: 'Send Log', icon: Activity },
     ],
   },
+  { href: '/admin/errors', label: 'Errors', icon: Bug },
   { href: '/admin/support', label: 'Support Tickets', icon: LifeBuoy },
   { href: '/admin/users', label: 'Users', icon: Users, disabled: true },
 ]

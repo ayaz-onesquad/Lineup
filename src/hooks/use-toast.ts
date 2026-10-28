@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast"
+import { reportToastError } from "@/lib/errorReporting"
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -134,8 +135,27 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
+/** Plain text of a toast title or description, which may be JSX. */
+export function toastText(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return ""
+  if (typeof node === "string" || typeof node === "number") return String(node)
+  if (Array.isArray(node)) return node.map(toastText).join("")
+  if (React.isValidElement(node)) {
+    return toastText((node.props as { children?: React.ReactNode }).children)
+  }
+  return ""
+}
+
+// Error toasts stay up long enough to read and copy (hovering pauses them).
+const ERROR_TOAST_DURATION = 15_000
+
 function toast({ ...props }: Toast) {
   const id = genId()
+
+  if (props.variant === "destructive") {
+    props.duration ??= ERROR_TOAST_DURATION
+    reportToastError(toastText(props.title), toastText(props.description))
+  }
 
   const update = (props: ToasterToast) =>
     dispatch({
