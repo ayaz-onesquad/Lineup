@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import { leadAutomationsApi } from '@/services/api'
 import { useTenantStore, useAuthStore } from '@/stores'
 import { toast } from '@/hooks/use-toast'
@@ -37,7 +38,8 @@ export function useLeadAutomation(id: string) {
  * Hook to fetch automation runs with live polling when running
  */
 export function useAutomationRuns(automationId: string) {
-  return useQuery({
+  const queryClient = useQueryClient()
+  const query = useQuery({
     queryKey: ['automation_runs', automationId],
     queryFn: () => leadAutomationsApi.getRuns(automationId),
     enabled: !!automationId,
@@ -48,6 +50,20 @@ export function useAutomationRuns(automationId: string) {
       return latestRun?.status === 'running' ? 3000 : false
     },
   })
+
+  // Runs finish in the background; when the latest one stops running, the
+  // leads it created should show up without a manual refresh.
+  const latestStatus = query.data?.[0]?.status
+  const previousStatus = useRef(latestStatus)
+  useEffect(() => {
+    if (previousStatus.current === 'running' && latestStatus && latestStatus !== 'running') {
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['lead_automations'] })
+    }
+    previousStatus.current = latestStatus
+  }, [latestStatus, queryClient])
+
+  return query
 }
 
 /**

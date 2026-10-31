@@ -243,9 +243,9 @@ export const leadAutomationsApi = {
   runManually: async (
     automationId: string,
     userId: string
-  ): Promise<{ leads_created: number; leads_found: number; leads_skipped: number }> => {
-    // Use supabase.functions.invoke() instead of raw fetch()
-    // It automatically sends the correct Authorization + apikey headers
+  ): Promise<{ run_id: string; status: 'running' }> => {
+    // The function starts the run and replies at once; the run finishes in the
+    // background and its result lands in automation_runs.
     const { data, error } = await supabase.functions.invoke('run-lead-automation', {
       body: {
         automation_id: automationId,
@@ -255,11 +255,21 @@ export const leadAutomationsApi = {
     })
 
     if (error) {
-      // error.message contains the body from the Edge Function
+      // A non-2xx reply carries the function's own message in its JSON body.
+      const response = (error as { context?: Response }).context
+      if (response && typeof response.json === 'function') {
+        const body = await response.json().catch(() => null)
+        if (body?.error) throw new Error(body.error)
+      }
+      if (error.name === 'FunctionsFetchError') {
+        throw new Error(
+          'Could not reach the lead generator service. Check your connection and try again.'
+        )
+      }
       throw new Error(error.message ?? 'Automation run failed')
     }
 
-    return data as { leads_created: number; leads_found: number; leads_skipped: number }
+    return data as { run_id: string; status: 'running' }
   },
 
   /**

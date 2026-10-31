@@ -311,289 +311,292 @@ Deno.serve(async (req) => {
       .update({ apify_run_id: apifyRunId })
       .eq('id', runId)
 
-    // ── STEP B: Poll for completion (max 120 seconds, check every 5 seconds) ──
-    const MAX_WAIT_MS   = 120_000   // 120 seconds total polling budget
-    const POLL_INTERVAL = 5_000     // check every 5 seconds
-    const startTime     = Date.now()
-    let   apifyStatus   = 'RUNNING'
+    // ── STEP B onward runs in the background ──
+    // Waiting for Apify and creating leads can take a couple of minutes.
+    // Replying only after that ran into the request timeout, and the cut-off
+    // reply carries no CORS headers, so the browser reported "Failed to send a
+    // request to the Edge Function". The app follows progress through
+    // automation_runs (it polls while the latest run is 'running').
+    const run: LeadAutomation = automation
+    const currentRunId: string = runData.id
 
-    while (apifyStatus === 'RUNNING' || apifyStatus === 'READY') {
-      // Check if we have exceeded our time budget
-      if (Date.now() - startTime > MAX_WAIT_MS) {
-        console.warn('[run-lead-automation] Polling timed out after 120s — Apify still running')
-        // Do NOT throw — the Apify run is still going on Apify's side.
-        // Mark our run as 'failed' and return a success response (200) so frontend knows.
+    const finish = async () => {
+      try {
+        // ── STEP B: Poll for completion (max 120 seconds, check every 5 seconds) ──
+        const MAX_WAIT_MS   = 120_000   // 120 seconds total polling budget
+        const POLL_INTERVAL = 5_000     // check every 5 seconds
+        const startTime     = Date.now()
+        let   apifyStatus   = 'RUNNING'
+
+        while (apifyStatus === 'RUNNING' || apifyStatus === 'READY') {
+          // Check if we have exceeded our time budget
+          if (Date.now() - startTime > MAX_WAIT_MS) {
+            console.warn('[run-lead-automation] Polling timed out after 120s — Apify still running')
+            // Do NOT throw — the Apify run is still going on Apify's side.
+            // Mark our run as failed; the app shows the message in run history.
+            await adminClient
+              .from('automation_runs')
+              .update({
+                status: 'failed',
+                error_message: 'Apify run exceeded 120s polling window. ' +
+                  'The run is still processing on Apify. ' +
+                  'Check console.apify.com for results, or try again with fewer max leads.',
+                completed_at: new Date().toISOString(),
+              })
+              .eq('id', currentRunId)
+
+            return
+          }
+
+          // Wait 5 seconds before checking
+          await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL))
+
+          // Check run status
+          const statusResponse = await fetch(
+            `https://api.apify.com/v2/acts/${APIFY_ACTOR_ID}/runs/${apifyRunId}`,
+            {
+              headers: { 'Authorization': `Bearer ${APIFY_API_TOKEN}` },
+            }
+          )
+
+          if (!statusResponse.ok) {
+            console.warn('[run-lead-automation] Status check failed:', statusResponse.status)
+            continue // try again next iteration
+          }
+
+          const statusData  = await statusResponse.json()
+          apifyStatus       = statusData.data?.status ?? 'RUNNING'
+          console.log('[run-lead-automation] Apify status:', apifyStatus,
+            `(${Math.round((Date.now() - startTime) / 1000)}s elapsed)`)
+        }
+
+        // ── STEP C: Fetch results from the dataset ────────────────────────────
+        console.log('[run-lead-automation] Polling complete. Final Apify status:', apifyStatus)
+
+        if (apifyStatus !== 'SUCCEEDED') {
+          throw new Error(`Apify run ended with status: ${apifyStatus}`)
+        }
+
+        const datasetId = startData.data?.defaultDatasetId
+        if (!datasetId) {
+          throw new Error('Apify run succeeded but no dataset ID returned')
+        }
+
+        console.log('[run-lead-automation] Fetching dataset items from:', datasetId)
+
+        const resultsResponse = await fetch(
+          `https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json`,
+          {
+            headers: { 'Authorization': `Bearer ${APIFY_API_TOKEN}` },
+          }
+        )
+
+        if (!resultsResponse.ok) {
+          throw new Error(`Dataset fetch failed (${resultsResponse.status})`)
+        }
+
+        const places: ApifyPlace[] = await resultsResponse.json()
+        console.log('[run-lead-automation] Apify returned', places.length, 'results')
+
+        // Post-process: enforce no-website filter at application level too
+        // This is a safety net - Apify occasionally returns a result that slips through
+        const filtered = run.filter_no_website
+          ? places.filter(p => !p.website || p.website.trim() === '')
+          : places
+
+        console.log(`[run-lead-automation] After post-filter: ${filtered.length} results`)
+
+        // Check for existing leads to avoid duplicates (by phone or placeId)
+        const phones = filtered.map(p => p.phone).filter(Boolean)
+        const { data: existingLeads } = await adminClient
+          .from('leads')
+          .select('phone')
+          .eq('tenant_id', run.tenant_id)
+          .in('phone', phones)
+          .is('deleted_at', null)
+
+        const existingPhones = new Set((existingLeads || []).map(l => l.phone))
+
+        // Log deduplication stats
+        const duplicateCount = filtered.filter(p => p.phone && existingPhones.has(p.phone)).length
+        console.log(
+          `[run-lead-automation] Dedup: ${filtered.length} found, ` +
+          `${filtered.length - duplicateCount} new, ` +
+          `${duplicateCount} already exist in DB`
+        )
+
+        // Resolve lead owner - priority:
+        // 1. run.assign_to_user_id (explicit assignment)
+        // 2. triggered_by (manual run: person who clicked Run Now)
+        // 3. run.created_by (scheduled run: use automation creator)
+        const zeroUUID = '00000000-0000-0000-0000-000000000000'
+        const resolvedOwnerId = run.assign_to_user_id
+          ?? (triggered_by === zeroUUID ? run.created_by : triggered_by)
+          ?? null
+
+        const resolvedCreatedBy = triggered_by !== zeroUUID
+          ? triggered_by
+          : run.created_by
+
+        // Create leads
+        let leadsCreated = 0
+        let leadsSkipped = 0
+
+        for (const place of filtered) {
+          // Skip if phone already exists
+          if (place.phone && existingPhones.has(place.phone)) {
+            leadsSkipped++
+            continue
+          }
+
+          // Build description from Google Maps data
+          const description = [
+            place.categoryName ? `Category: ${place.categoryName}` : null,
+            place.totalScore ? `Rating: ${place.totalScore}/5 (${place.reviewsCount ?? 0} reviews)` : null,
+            place.address ? `Address: ${place.address}` : null,
+          ].filter(Boolean).join('\n') || null
+
+          const leadData = {
+            tenant_id: run.tenant_id,
+
+            // Core identity
+            lead_name: place.title,
+            status: 'new',
+
+            // Source tracking — ALL automation-created leads get these
+            source: 'lead_generator',
+            source_automation_id: run.id,
+            source_run_id: currentRunId,
+            source_automation_name: run.name,  // "Created By" display field
+
+            // Contact info from Google Maps
+            phone: place.phone ?? null,
+            email: extractEmail(place),
+            website: place.website ?? null,
+
+            // Location
+            address: place.address ?? place.street ?? null,
+            city: place.city ?? null,
+            state: place.state ?? null,
+
+            // Business classification
+            industry: deriveIndustry(place, run.filter_category),
+
+            // Assignment
+            lead_owner_id: resolvedOwnerId,
+
+            // Description
+            description,
+
+            // Deduplication key
+            place_id: place.placeId,
+
+            // Audit
+            created_by: resolvedCreatedBy,
+            updated_by: resolvedCreatedBy,
+          }
+
+          try {
+            const { error: insertError } = await adminClient
+              .from('leads')
+              .insert(leadData)
+
+            if (insertError) {
+              // Log detailed error - helps debug CHECK constraint violations
+              console.error('[run-lead-automation] Lead insert error:', {
+                message: insertError.message,
+                code: insertError.code,
+                details: insertError.details,
+                hint: insertError.hint,
+                leadName: place.title,
+              })
+              leadsSkipped++
+
+              // If this looks like a CHECK constraint violation, log it prominently
+              if (insertError.message?.includes('check') || insertError.code === '23514') {
+                console.error(
+                  '[run-lead-automation] CHECK CONSTRAINT VIOLATION - ' +
+                  'verify source value "lead_generator" is in leads.source constraint'
+                )
+              }
+            } else {
+              leadsCreated++
+              // Add phone to set to prevent duplicates within this run
+              if (place.phone) existingPhones.add(place.phone)
+            }
+          } catch (insertCatch) {
+            console.error('[run-lead-automation] Lead insert exception:', insertCatch)
+            leadsSkipped++
+          }
+        }
+
+        console.log('[run-lead-automation] Leads inserted:', leadsCreated, 'skipped:', leadsSkipped)
+
+        // Update run record — always 'completed' if Apify succeeded and we processed results
+        // Zero new leads just means they were all duplicates, which is correct behavior
+        const completedAt = new Date().toISOString()
+        const durationSeconds = Math.round((Date.now() - functionStartTime) / 1000)
+
+        console.log('[run-lead-automation] Updating run record to completed...')
+
+        const { error: updateError } = await adminClient
+          .from('automation_runs')
+          .update({
+            status: 'completed',
+            completed_at: completedAt,
+            duration_seconds: durationSeconds,
+            leads_found: filtered.length,
+            leads_created: leadsCreated,
+            leads_skipped: leadsSkipped,
+          })
+          .eq('id', currentRunId)
+
+        if (updateError) {
+          console.error('[run-lead-automation] FAILED to update run to completed:', updateError.message, updateError)
+        } else {
+          console.log('[run-lead-automation] Run record updated to completed. Done.')
+        }
+
+        console.log(
+          `[run-lead-automation] Run completed in ${durationSeconds}s: ` +
+          `${leadsCreated} created, ${leadsSkipped} skipped`
+        )
+
+        // Update automation stats
+        const { data: currentAutomation } = await adminClient
+          .from('lead_automations')
+          .select('total_leads_generated')
+          .eq('id', run.id)
+          .single()
+
+        await adminClient
+          .from('lead_automations')
+          .update({
+            last_run_at: new Date().toISOString(),
+            total_leads_generated: (currentAutomation?.total_leads_generated || 0) + leadsCreated,
+          })
+          .eq('id', run.id)
+
+      } catch (error) {
+        console.error('[run-lead-automation] Background run failed:', error)
         await adminClient
           .from('automation_runs')
           .update({
             status: 'failed',
-            error_message: 'Apify run exceeded 120s polling window. ' +
-              'The run is still processing on Apify. ' +
-              'Check console.apify.com for results, or try again with fewer max leads.',
             completed_at: new Date().toISOString(),
+            error_message: error instanceof Error ? error.message : 'Unknown error',
           })
-          .eq('id', runId)
-
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Apify run is taking too long. Try reducing max leads to 20 or fewer.',
-            apify_run_id: apifyRunId,
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // Wait 5 seconds before checking
-      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL))
-
-      // Check run status
-      const statusResponse = await fetch(
-        `https://api.apify.com/v2/acts/${APIFY_ACTOR_ID}/runs/${apifyRunId}`,
-        {
-          headers: { 'Authorization': `Bearer ${APIFY_API_TOKEN}` },
-        }
-      )
-
-      if (!statusResponse.ok) {
-        console.warn('[run-lead-automation] Status check failed:', statusResponse.status)
-        continue // try again next iteration
-      }
-
-      const statusData  = await statusResponse.json()
-      apifyStatus       = statusData.data?.status ?? 'RUNNING'
-      console.log('[run-lead-automation] Apify status:', apifyStatus,
-        `(${Math.round((Date.now() - startTime) / 1000)}s elapsed)`)
-    }
-
-    // ── STEP C: Fetch results from the dataset ────────────────────────────
-    console.log('[run-lead-automation] Polling complete. Final Apify status:', apifyStatus)
-
-    if (apifyStatus !== 'SUCCEEDED') {
-      throw new Error(`Apify run ended with status: ${apifyStatus}`)
-    }
-
-    const datasetId = startData.data?.defaultDatasetId
-    if (!datasetId) {
-      throw new Error('Apify run succeeded but no dataset ID returned')
-    }
-
-    console.log('[run-lead-automation] Fetching dataset items from:', datasetId)
-
-    const resultsResponse = await fetch(
-      `https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json`,
-      {
-        headers: { 'Authorization': `Bearer ${APIFY_API_TOKEN}` },
-      }
-    )
-
-    if (!resultsResponse.ok) {
-      throw new Error(`Dataset fetch failed (${resultsResponse.status})`)
-    }
-
-    const places: ApifyPlace[] = await resultsResponse.json()
-    console.log('[run-lead-automation] Apify returned', places.length, 'results')
-
-    // Post-process: enforce no-website filter at application level too
-    // This is a safety net - Apify occasionally returns a result that slips through
-    const filtered = automation.filter_no_website
-      ? places.filter(p => !p.website || p.website.trim() === '')
-      : places
-
-    console.log(`[run-lead-automation] After post-filter: ${filtered.length} results`)
-
-    // Check for existing leads to avoid duplicates (by phone or placeId)
-    const phones = filtered.map(p => p.phone).filter(Boolean)
-    const { data: existingLeads } = await adminClient
-      .from('leads')
-      .select('phone')
-      .eq('tenant_id', automation.tenant_id)
-      .in('phone', phones)
-      .is('deleted_at', null)
-
-    const existingPhones = new Set((existingLeads || []).map(l => l.phone))
-
-    // Log deduplication stats
-    const duplicateCount = filtered.filter(p => p.phone && existingPhones.has(p.phone)).length
-    console.log(
-      `[run-lead-automation] Dedup: ${filtered.length} found, ` +
-      `${filtered.length - duplicateCount} new, ` +
-      `${duplicateCount} already exist in DB`
-    )
-
-    // Resolve lead owner - priority:
-    // 1. automation.assign_to_user_id (explicit assignment)
-    // 2. triggered_by (manual run: person who clicked Run Now)
-    // 3. automation.created_by (scheduled run: use automation creator)
-    const zeroUUID = '00000000-0000-0000-0000-000000000000'
-    const resolvedOwnerId = automation.assign_to_user_id
-      ?? (triggered_by === zeroUUID ? automation.created_by : triggered_by)
-      ?? null
-
-    const resolvedCreatedBy = triggered_by !== zeroUUID
-      ? triggered_by
-      : automation.created_by
-
-    // Create leads
-    let leadsCreated = 0
-    let leadsSkipped = 0
-
-    for (const place of filtered) {
-      // Skip if phone already exists
-      if (place.phone && existingPhones.has(place.phone)) {
-        leadsSkipped++
-        continue
-      }
-
-      // Build description from Google Maps data
-      const description = [
-        place.categoryName ? `Category: ${place.categoryName}` : null,
-        place.totalScore ? `Rating: ${place.totalScore}/5 (${place.reviewsCount ?? 0} reviews)` : null,
-        place.address ? `Address: ${place.address}` : null,
-      ].filter(Boolean).join('\n') || null
-
-      const leadData = {
-        tenant_id: automation.tenant_id,
-
-        // Core identity
-        lead_name: place.title,
-        status: 'new',
-
-        // Source tracking — ALL automation-created leads get these
-        source: 'lead_generator',
-        source_automation_id: automation.id,
-        source_run_id: runId,
-        source_automation_name: automation.name,  // "Created By" display field
-
-        // Contact info from Google Maps
-        phone: place.phone ?? null,
-        email: extractEmail(place),
-        website: place.website ?? null,
-
-        // Location
-        address: place.address ?? place.street ?? null,
-        city: place.city ?? null,
-        state: place.state ?? null,
-
-        // Business classification
-        industry: deriveIndustry(place, automation.filter_category),
-
-        // Assignment
-        lead_owner_id: resolvedOwnerId,
-
-        // Description
-        description,
-
-        // Deduplication key
-        place_id: place.placeId,
-
-        // Audit
-        created_by: resolvedCreatedBy,
-        updated_by: resolvedCreatedBy,
-      }
-
-      try {
-        const { error: insertError } = await adminClient
-          .from('leads')
-          .insert(leadData)
-
-        if (insertError) {
-          // Log detailed error - helps debug CHECK constraint violations
-          console.error('[run-lead-automation] Lead insert error:', {
-            message: insertError.message,
-            code: insertError.code,
-            details: insertError.details,
-            hint: insertError.hint,
-            leadName: place.title,
-          })
-          leadsSkipped++
-
-          // If this looks like a CHECK constraint violation, log it prominently
-          if (insertError.message?.includes('check') || insertError.code === '23514') {
-            console.error(
-              '[run-lead-automation] CHECK CONSTRAINT VIOLATION - ' +
-              'verify source value "lead_generator" is in leads.source constraint'
-            )
-          }
-        } else {
-          leadsCreated++
-          // Add phone to set to prevent duplicates within this run
-          if (place.phone) existingPhones.add(place.phone)
-        }
-      } catch (insertCatch) {
-        console.error('[run-lead-automation] Lead insert exception:', insertCatch)
-        leadsSkipped++
+          .eq('id', currentRunId)
       }
     }
 
-    console.log('[run-lead-automation] Leads inserted:', leadsCreated, 'skipped:', leadsSkipped)
-
-    // Update run record — always 'completed' if Apify succeeded and we processed results
-    // Zero new leads just means they were all duplicates, which is correct behavior
-    const completedAt = new Date().toISOString()
-    const durationSeconds = Math.round((Date.now() - functionStartTime) / 1000)
-
-    console.log('[run-lead-automation] Updating run record to completed...')
-
-    const { error: updateError } = await adminClient
-      .from('automation_runs')
-      .update({
-        status: 'completed',
-        completed_at: completedAt,
-        duration_seconds: durationSeconds,
-        leads_found: filtered.length,
-        leads_created: leadsCreated,
-        leads_skipped: leadsSkipped,
-      })
-      .eq('id', runId)
-
-    if (updateError) {
-      console.error('[run-lead-automation] FAILED to update run to completed:', updateError.message, updateError)
-    } else {
-      console.log('[run-lead-automation] Run record updated to completed. Done.')
-    }
-
-    console.log(
-      `[run-lead-automation] Run completed in ${durationSeconds}s: ` +
-      `${leadsCreated} created, ${leadsSkipped} skipped`
-    )
-
-    // Update automation stats
-    await adminClient
-      .from('lead_automations')
-      .update({
-        last_run_at: new Date().toISOString(),
-        total_leads_generated: adminClient.rpc('increment_leads_generated', {
-          p_automation_id: automation.id,
-          p_count: leadsCreated,
-        }),
-      })
-      .eq('id', automation.id)
-
-    // Simpler: just increment directly
-    const { data: currentAutomation } = await adminClient
-      .from('lead_automations')
-      .select('total_leads_generated')
-      .eq('id', automation.id)
-      .single()
-
-    await adminClient
-      .from('lead_automations')
-      .update({
-        last_run_at: new Date().toISOString(),
-        total_leads_generated: (currentAutomation?.total_leads_generated || 0) + leadsCreated,
-      })
-      .eq('id', automation.id)
+    // Keeps the worker alive after the response until finish() settles.
+    // @ts-ignore EdgeRuntime is a Supabase Edge Runtime global
+    EdgeRuntime.waitUntil(finish())
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        run_id: runId,
-        leads_found: filtered.length,
-        leads_created: leadsCreated,
-        leads_skipped: leadsSkipped,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, run_id: currentRunId, apify_run_id: apifyRunId, status: 'running' }),
+      { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     // An authorization failure must return 401/403, not 500, and must not be
